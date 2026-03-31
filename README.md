@@ -66,7 +66,7 @@ Hold K1 for 2 seconds to open the tuner. The note name and octave are shown at l
 
 | Parameter | Default | Range |
 |-----------|---------|-------|
-| **Volume** | 5.0 | −0.1 (Bypass) – 10 |
+| **Volume** | 5.0 | Bypass – 10 |
 | **Bass** | 5.0 | 0–10 |
 | **Treble** | 5.0 | 0–10 |
 | **Master** | 5.0 | 0–10 |
