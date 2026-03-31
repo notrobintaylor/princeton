@@ -51,10 +51,10 @@ When the pedalboard is open, **E1** selects between the two visible effects, **E
 
 | From | K1 hold | K2 hold | K3 hold |
 |------|---------|---------|---------|
-| Amp view | Tuner | Verzerrer | Modulationen |
-| Tuner | Amp view | Verzerrer | Modulationen |
-| Verzerrer | — | Amp view | Modulationen |
-| Modulationen | — | Verzerrer | Amp view |
+| Amp view | Tuner | Gain Pedals | Modulation Pedals |
+| Tuner | Amp view | Gain Pedals | Modulation Pedals |
+| Gain Pedals | Tuner | Amp view | Modulation Pedals |
+| Modulation Pedals | Tuner | Gain Pedals | Amp view |
 
 ## Tuner
 
