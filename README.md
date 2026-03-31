@@ -58,7 +58,7 @@ When the pedalboard is open, **E1** selects between the two visible effects, **E
 
 ## Tuner
 
-Hold K1 for 2 seconds to open the tuner. The note name and octave are shown at large size. An arrow indicates flat or sharp; a dot indicates in tune. Press K3 to mute the output while tuning. Hold K1 again to return to the amp view, K2 to open the Verzerrer, or K3 to open the Modulationen.
+Hold K1 for 2 seconds to open the tuner. The note name and octave are shown at large size. An arrow indicates flat or sharp; a dot indicates in tune. Press K3 to mute the output while tuning. Hold K1 again to return to the amp view, K2 to open the Gain Pedals, or K3 to open the Modulation Pedals.
 
 ## Parameters
 
