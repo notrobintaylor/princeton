@@ -1,6 +1,6 @@
 # princeton
 
-### A guitar amp simulator, pedalboard and looper for monome norns
+### A guitar amp simulator, pedalboard and looper for Monome Norns
 
 princeton models a small 1960s American combo amp. Plug your electric guitar directly into the left norns input. No preamp needed.
 
