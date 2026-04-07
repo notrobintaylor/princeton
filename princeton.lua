@@ -5,12 +5,14 @@
 
 engine.name = "Princeton"
 
+local initing = true
+
 local PARAMS_DEF = {
-  { id="volume",         name="Volume",    default=5.0,  min=-0.1, max=10, step=0.1, db=false, cat="Amp"     },
+  { id="volume",         name="Volume",    default=5.0,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
   { id="bass",           name="Bass",      default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="treble",         name="Treble",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="master",         name="Master",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
-  { id="reverb",         name="Amount",    default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Reverb"  },
+  { id="rev_amount",     name="Amount",    default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Reverb"  },
   { id="trem_speed",     name="Speed",     default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
   { id="trem_intensity", name="Intensity", default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
   { id="mic",            name="Axis",      default=0,    min=0,   max=2,  step=1,   db=false, cat="Mic"     },
@@ -30,19 +32,14 @@ local NUM_KNOBS  = 7
 local LOOP_SR  = 48000
 local LOOP_MAX = LOOP_SR * 60
 
-local sel  = 1
-local vals = {}
-for i, p in ipairs(PARAMS_DEF) do vals[i] = p.default end
+local sel = 1
 
 local function amp_is_bypassed()
-  for i, p in ipairs(PARAMS_DEF) do
-    if p.id == "volume" then return vals[i] < 0 end
-  end
-  return false
+  return params:get("amp_enable") == 0
 end
 
-local pedal_active = false  -- pedalboard view (Push + Distort)
-local pedal_sel    = 1      -- 1=Push, 2=Distort
+local pedal_active = false
+local pedal_sel    = 1
 
 local PEDALS = {
   {
@@ -57,6 +54,7 @@ local PEDALS = {
     bypass     = true,
     psel       = 1,
     bypass_cmd = "push_bypass",
+    enable_id  = "push_enable",
   },
   {
     name       = "Distort",
@@ -66,23 +64,25 @@ local PEDALS = {
       { id="distort_tone", name="Tone", default=5.0, min=0, max=10, step=0.1 },
       { id="distort_level",    name="Level", default=2.5, min=0, max=10, step=0.1 },
     },
-    vals       = { 5.0, 5.0, 5.0 },
+    vals       = { 5.0, 5.0, 2.5 },
     bypass     = true,
     psel       = 1,
     bypass_cmd = "distort_bypass",
+    enable_id  = "distort_enable",
   },
   {
     name       = "Warp",
     display    = "Warp",
     params     = {
-      { id="warp_rate",  name="Rate",  default=3.0, min=0, max=10, step=0.1 },
-      { id="warp_depth", name="Depth", default=5.0, min=0, max=10, step=0.1 },
-      { id="warp_rise",  name="Rise",  default=3.0, min=0, max=10, step=0.1 },
+      { id="warp_rate",  name="Rate",  default=2.5, min=0, max=10, step=0.1 },
+      { id="warp_depth", name="Depth", default=2.5, min=0, max=10, step=0.1 },
+      { id="warp_rise",  name="Rise",  default=5.0, min=0, max=10, step=0.1 },
     },
     vals       = { 2.5, 2.5, 5.0 },
     bypass     = true,
     psel       = 1,
     bypass_cmd = "warp_bypass",
+    enable_id  = "warp_enable",
   },
   {
     name       = "Repeat",
@@ -97,6 +97,7 @@ local PEDALS = {
     bypass     = true,
     psel       = 1,
     bypass_cmd = "repeat_bypass",
+    enable_id  = "repeat_enable",
   },
 }
 
@@ -111,7 +112,6 @@ local LOOP_STOP = 4
 local loop_state     = LOOP_IDLE
 local loop_rec_start = 0
 local loop_frames    = 0
-local k3_clock       = nil
 
 local tuner = {
   active  = false,
@@ -121,10 +121,11 @@ local tuner = {
   octave  = 0,
   cents   = 0,
 }
-local tuner_cents_smooth = 0  -- smoothed cents value for stable arrow display
+local tuner_cents_smooth = 0  -- EMA for stable arrow display
 
 local k1_clock = nil
 local k2_clock = nil
+local k3_clock = nil
 local tuner_pitch_poll = nil
 
 local B = { DIM=0, MED=6, FULL=15 }
@@ -174,29 +175,15 @@ end
 
 local function fmt_val(idx)
   local id = PARAMS_DEF[idx].id
-  if id == "volume" and vals[idx] < 0 then return "Bypass" end
-  if id == "mic"        then return MIC_NAMES[math.floor(vals[idx]) + 1] end
-  if id == "direction"  then return DIR_NAMES[math.floor(vals[idx]) + 1] end
-  if id == "loop_speed" then return SPD_NAMES[math.floor(vals[idx]) + 1] end
-  if id == "dub_style"  then return DUB_NAMES[math.floor(vals[idx]) + 1] end
-  if PARAMS_DEF[idx].db then return string.format("%.1fdB", vals[idx]) end
-  return string.format("%.1f", vals[idx])
+  local v  = params:get(id)
+  if id == "mic"        then return MIC_NAMES[math.floor(v) + 1] end
+  if id == "direction"  then return DIR_NAMES[math.floor(v) + 1] end
+  if id == "loop_speed" then return SPD_NAMES[math.floor(v) + 1] end
+  if id == "dub_style"  then return DUB_NAMES[math.floor(v) + 1] end
+  if PARAMS_DEF[idx].db then return string.format("%.1fdB", v) end
+  return string.format("%.1f", v)
 end
 
-local function send_param(idx)
-  local p  = PARAMS_DEF[idx]
-  if p.id == "volume" then
-    local bypassed = vals[idx] < 0
-    engine.amp_bypass(bypassed and 1 or 0)
-    engine.volume(bypassed and 0 or vals[idx])
-    return
-  end
-  local fn = engine[p.id]
-  if fn == nil then return end
-  local v = vals[idx]
-  if p.db then v = db_to_lin(v) end
-  fn(v)
-end
 
 local function loop_set_engine(st)
   engine.loop_rec (st == LOOP_REC  and 1 or 0)
@@ -204,7 +191,50 @@ local function loop_set_engine(st)
   engine.loop_play(st == LOOP_PLAY and 1 or 0)
 end
 
--- Tuner helpers
+local function looper_step()
+  if loop_state == LOOP_IDLE then
+    engine.loop_frames(LOOP_MAX)
+    loop_rec_start = util.time()
+    loop_state = LOOP_REC
+    loop_set_engine(LOOP_REC)
+  elseif loop_state == LOOP_REC then
+    local elapsed = util.time() - loop_rec_start
+    loop_frames = math.max(math.min(math.floor(elapsed * LOOP_SR), LOOP_MAX), 2)
+    engine.loop_frames(loop_frames)
+    loop_state = LOOP_PLAY
+    loop_set_engine(LOOP_PLAY)
+  elseif loop_state == LOOP_PLAY then
+    loop_state = LOOP_DUB
+    loop_set_engine(LOOP_DUB)
+  elseif loop_state == LOOP_DUB then
+    loop_state = LOOP_PLAY
+    loop_set_engine(LOOP_PLAY)
+  elseif loop_state == LOOP_STOP then
+    loop_state = LOOP_PLAY
+    loop_set_engine(LOOP_PLAY)
+  end
+  redraw()
+end
+
+local function looper_stop_clear()
+  if loop_state == LOOP_REC then
+    loop_state  = LOOP_IDLE
+    loop_frames = 0
+    engine.loop_clear()
+  elseif loop_state == LOOP_DUB then
+    loop_state = LOOP_STOP
+    loop_set_engine(LOOP_STOP)
+  elseif loop_state == LOOP_STOP then
+    loop_state  = LOOP_IDLE
+    loop_frames = 0
+    engine.loop_clear()
+  elseif loop_state ~= LOOP_IDLE then
+    loop_state = LOOP_STOP
+    loop_set_engine(LOOP_STOP)
+  end
+  redraw()
+end
+
 local NOTE_NAMES = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
 
 local function freq_to_note(freq)
@@ -292,16 +322,13 @@ end
 local function draw_panel()
   screen.level(0); screen.rect(PANEL.x, PANEL.y, PANEL.w, PANEL.h); screen.fill()
 
-  -- Buchsen (2 einzelne Pixel, links)
   screen.level(B.MED)
   screen.rect(PANEL_BUCHSE1, KNOB_Y, 1, 1); screen.fill()
   screen.rect(PANEL_BUCHSE2, KNOB_Y, 1, 1); screen.fill()
 
-  -- Lampe (1 Pixel, rechts) — aus wenn Amp bypassed (volume < 0)
   screen.level(amp_is_bypassed() and B.MED or B.FULL)
   screen.rect(PANEL_LAMP, KNOB_Y, 1, 1); screen.fill()
 
-  -- 7 Knöpfe
   for i = 1, NUM_KNOBS do
     screen.level(i == sel and B.FULL or B.MED)
     screen.circle(KNOB_X[i], KNOB_Y, KNOB_R); screen.fill()
@@ -322,6 +349,12 @@ end
 local function draw_grillcloth()
   local gx, gy, gw, gh = GRILL.x, GRILL.y, GRILL.w, GRILL.h
 
+  -- Speaker bypass: blank grill (no cloth, no mic markers)
+  if params:get("speaker_enable") == 0 then
+    screen.level(0); screen.rect(gx, gy, gw, gh); screen.fill()
+    return
+  end
+
   local mic_sel = PARAMS_DEF[sel] and PARAMS_DEF[sel].id == "mic"
   if mic_sel then
     screen.level(0); screen.rect(gx, gy, gw, gh); screen.fill()
@@ -338,13 +371,7 @@ local function draw_grillcloth()
     screen.level(B.MED)
     screen.circle(cx, cy, 5); screen.stroke()
 
-    local mic_val = 0
-    for i, p in ipairs(PARAMS_DEF) do
-      if p.id == "mic" then mic_val = math.floor(vals[i]) end
-    end
-
-    -- Three fixed X positions (Center, Middle, Edge)
-    -- The active one (matching mic_val) is FULL, others DIM
+    local mic_val = math.floor(params:get("mic"))
     local x_offsets = { 0, 8, 14 }
     for i = 1, 3 do
       local r   = x_offsets[i]
@@ -380,11 +407,11 @@ local function draw_tuner()
   screen.move(cx, 36)
   screen.text_center(tuner.note)
 
-  screen.font_size(8); screen.level(B.MED)
-  screen.move(cx + 10, 24)
-  screen.text(tostring(tuner.octave))
-
   if tuner.note ~= "--" then
+    screen.font_size(8); screen.level(B.MED)
+    screen.move(cx + 10, 24)
+    screen.text(tostring(tuner.octave))
+
     local abs_cents = math.abs(tuner.cents)
     local in_tune   = abs_cents < 5
 
@@ -416,22 +443,20 @@ end
 
 local function draw_knob(x, y, level)
   screen.level(level)
-  screen.rect(x + 1, y,     1, 1)  -- Reihe 1:   xOx
-  screen.rect(x,     y + 1, 3, 2)  -- Reihe 2+3: OOO
-  screen.rect(x + 1, y + 3, 1, 1)  -- Reihe 4:   xOx
+  screen.rect(x + 1, y,     1, 1)
+  screen.rect(x,     y + 1, 3, 2)
+  screen.rect(x + 1, y + 3, 1, 1)
   screen.fill()
 end
 
 local function draw_pedal(ox, oy, name, display, bypassed)
   local id  = name:lower()
   local lv  = B.FULL
-  local mid = oy + 24  -- vertikale Mitte des Icon-Bereichs
-
+  local mid = oy + 24
 
   screen.line_width(1); screen.level(lv)
 
   if id == "push" then
-    -- Plus-Zeichen (Boost/Gain), 3px dick
     local cx = ox + 16
     local cy = mid
     local arm = 9
@@ -443,21 +468,17 @@ local function draw_pedal(ox, oy, name, display, bypassed)
     screen.line_width(1)
 
   elseif id == "distort" then
-    -- Zerrissene Welle: linke Hälfte sauber, rechte Hälfte zerstört
     local cy = mid
-    -- Sauber links (halber Sinus)
     screen.level(lv)
     screen.move(  ox,    cy)
     screen.curve( ox+3,  cy,    ox+4,  oy+12, ox+8,  oy+12)
     screen.curve( ox+12, oy+12, ox+13, cy,    ox+16, cy)
     screen.stroke()
-    -- Gestrichelte Trennlinie
     screen.level(B.MED)
     for y = oy+10, oy+38, 4 do
       screen.move(ox+16, y); screen.line(ox+16, y+2)
     end
     screen.stroke()
-    -- Zerstört rechts (Zackenlinie)
     screen.level(lv)
     screen.move(ox+16, cy)
     screen.line(ox+19, oy+32)
@@ -468,7 +489,6 @@ local function draw_pedal(ox, oy, name, display, bypassed)
     screen.stroke()
 
   elseif id == "warp" then
-    -- Drei Wellen (Warp)
     for _, cy in ipairs({oy+14, oy+24, oy+34}) do
       local a = cy - 6
       local b = cy + 6
@@ -481,11 +501,10 @@ local function draw_pedal(ox, oy, name, display, bypassed)
     end
 
   elseif id == "repeat" then
-    -- 5 Striche: gleicher Abstand, abnehmende Höhe und Helligkeit
-    local levels  = {15, 10, 6, 3, 1}  -- gradient allowed here
+    local levels  = {15, 10, 6, 3, 1}
     local heights = {20, 15, 11, 7, 4}
     for i = 1, 5 do
-      local bx = ox + 3 + (i - 1) * 7  -- Abstand 7px, Start ox+3
+      local bx = ox + 3 + (i - 1) * 7
       local bh = heights[i]
       screen.level(levels[i])
       screen.move(bx, mid - bh); screen.line(bx, mid + bh)
@@ -493,7 +512,6 @@ local function draw_pedal(ox, oy, name, display, bypassed)
     end
   end
 
-  -- Label unten: hell wenn aktiv, gedimmt wenn bypassed
   screen.font_size(8); screen.font_face(0)
   screen.level(bypassed and B.MED or B.FULL)
   screen.move(ox + 16, oy + 55); screen.text_center(display)
@@ -502,12 +520,12 @@ end
 local function draw_pedalboard()
   screen.clear()
 
-  -- ── Left param strip (same width as amp view) ──────────────────
   local pd   = cur_pedal()
   local p    = pd.params[pd.psel]
+  local v    = params:get(p.id)
   local vstr = p.id == "characteristic"
-    and CHAR_NAMES[math.floor(pd.vals[pd.psel]) + 1]
-    or  string.format("%.1f", pd.vals[pd.psel])
+    and CHAR_NAMES[math.floor(v) + 1]
+    or  string.format("%.1f", v)
   draw_strip(pd.name, p.name, vstr)
 
   -- ── Two pedals, snapped to CAB edges ────────────────────────────
@@ -518,11 +536,11 @@ local function draw_pedalboard()
   local py  = 4
 
   if pedal_sel >= 3 then
-    draw_pedal(OX1, py, PEDALS[3].name, PEDALS[3].display, PEDALS[3].bypass)
-    draw_pedal(OX2, py, PEDALS[4].name, PEDALS[4].display, PEDALS[4].bypass)
+    draw_pedal(OX1, py, PEDALS[3].name, PEDALS[3].display, params:get(PEDALS[3].enable_id) == 0)
+    draw_pedal(OX2, py, PEDALS[4].name, PEDALS[4].display, params:get(PEDALS[4].enable_id) == 0)
   else
-    draw_pedal(OX1, py, PEDALS[1].name, PEDALS[1].display, PEDALS[1].bypass)
-    draw_pedal(OX2, py, PEDALS[2].name, PEDALS[2].display, PEDALS[2].bypass)
+    draw_pedal(OX1, py, PEDALS[1].name, PEDALS[1].display, params:get(PEDALS[1].enable_id) == 0)
+    draw_pedal(OX2, py, PEDALS[2].name, PEDALS[2].display, params:get(PEDALS[2].enable_id) == 0)
   end
   local ptr_x = (pedal_sel == 1 or pedal_sel == 3) and OX1 + 16 or OX2 + 16
   screen.level(B.FULL)
@@ -532,15 +550,16 @@ end
 
 
 function redraw()
+  if initing then return end
   if pedal_active then
     draw_pedalboard()
     return
   end
   screen.clear()
-  draw_left_strip()
   if tuner.active then
     draw_tuner()
   else
+    draw_left_strip()
     draw_grillcloth()
     draw_panel()
     draw_cabinet()
@@ -554,11 +573,6 @@ local function tuner_start()
   tuner.note   = "--"
   tuner.octave = 0
   tuner.cents  = 0
-  -- Stop looper: abort any recording or playback
-  if loop_state ~= LOOP_IDLE then
-    loop_state = LOOP_STOP
-    loop_set_engine(LOOP_STOP)
-  end
   engine.mute(0)
   tuner_pitch_poll:start()
   redraw()
@@ -585,18 +599,16 @@ function enc(n, d)
     elseif n == 3 then
       local pd = cur_pedal()
       local p  = pd.params[pd.psel]
-      local v  = util.clamp(pd.vals[pd.psel] + d * p.step, p.min, p.max)
-      pd.vals[pd.psel] = math.floor(v * 10 + 0.5) / 10
-      engine[p.id](pd.vals[pd.psel])
-      redraw()
+      local v  = params:get(p.id) + d * p.step
+      if p.step == 1 then v = math.floor(v + 0.5) else v = math.floor(v * 10 + 0.5) / 10 end
+      params:set(p.id, v)
     end
     return
   end
   if tuner.active then
     if n == 2 then
-      tuner.ref_hz = util.clamp(tuner.ref_hz + d * 0.1, 420.0, 460.0)
-      tuner.ref_hz = math.floor(tuner.ref_hz * 10 + 0.5) / 10
-      redraw()
+      local v = params:get("tuner_ref") + d * 0.1
+      params:set("tuner_ref", math.floor(v * 10 + 0.5) / 10)
     end
     return
   end
@@ -606,27 +618,24 @@ function enc(n, d)
     redraw()
   elseif n == 3 then
     local p = PARAMS_DEF[sel]
-    local v = util.clamp(vals[sel] + d * p.step, p.min, p.max)
+    local v = params:get(p.id) + d * p.step
     if p.step == 1 then
       v = math.floor(v + 0.5)
     else
       v = math.floor(v * 10 + 0.5) / 10
     end
-    vals[sel] = v
-    send_param(sel)
-    redraw()
+    params:set(p.id, v)
   end
 end
 
 function key(n, z)
 
-  -- ── K1: 2s hold = tuner on/off ───────────────────────────────────
   if n == 1 then
     if z == 1 then
       k1_clock = clock.run(function()
         clock.sleep(2.0)
         k1_clock = nil
-        if tuner.active then tuner_stop() else tuner_start() end
+        if tuner.active then tuner_stop() else pedal_active = false; tuner_start() end
       end)
     else
       if k1_clock ~= nil then clock.cancel(k1_clock); k1_clock = nil end
@@ -634,21 +643,18 @@ function key(n, z)
     return
   end
 
-  -- ── K2: short = looper (amp view only), hold = Verzerrer on/off ──────
   if n == 2 then
     if z == 1 then
       k2_clock = clock.run(function()
         clock.sleep(2.0)
         k2_clock = nil
         if tuner.active then
-          -- Tuner -> Verzerrer
           tuner_stop()
           pedal_active = true
           pedal_sel = 1
           redraw()
           return
         end
-        -- Hold: toggle Verzerrer, or navigate from Modulations to Verzerrer
         if pedal_active and (pedal_sel == 3 or pedal_sel == 4) then
           pedal_sel = 1
         elseif pedal_active and pedal_sel <= 2 then
@@ -665,34 +671,12 @@ function key(n, z)
         clock.cancel(k2_clock)
         k2_clock = nil
         if tuner.active then return end
-        if pedal_active then return end  -- kein Looper aus Pedalansicht
+        if pedal_active then return end
       else
         return
       end
     end
-    -- Kurzdruck: Looper (nur aus Amp-Ansicht)
-    if loop_state == LOOP_IDLE then
-      engine.loop_frames(LOOP_MAX)
-      loop_rec_start = util.time()
-      loop_state = LOOP_REC
-      loop_set_engine(LOOP_REC)
-    elseif loop_state == LOOP_REC then
-      local elapsed = util.time() - loop_rec_start
-      loop_frames = math.max(math.min(math.floor(elapsed * LOOP_SR), LOOP_MAX), 2)
-      engine.loop_frames(loop_frames)
-      loop_state = LOOP_PLAY
-      loop_set_engine(LOOP_PLAY)
-    elseif loop_state == LOOP_PLAY then
-      loop_state = LOOP_DUB
-      loop_set_engine(LOOP_DUB)
-    elseif loop_state == LOOP_DUB then
-      loop_state = LOOP_PLAY
-      loop_set_engine(LOOP_PLAY)
-    elseif loop_state == LOOP_STOP then
-      loop_state = LOOP_PLAY
-      loop_set_engine(LOOP_PLAY)
-    end
-    redraw()
+    looper_step()
     return
   end
 
@@ -702,7 +686,6 @@ function key(n, z)
         k3_clock = clock.run(function()
           clock.sleep(2.0)
           k3_clock = nil
-          -- Hold: Tuner -> Modulationen
           tuner_stop()
           pedal_active = true
           pedal_sel = 3
@@ -712,7 +695,6 @@ function key(n, z)
         if k3_clock ~= nil then
           clock.cancel(k3_clock)
           k3_clock = nil
-          -- Kurzdruck: Mute toggle
           tuner.muted = not tuner.muted
           engine.mute(tuner.muted and 1 or 0)
           redraw()
@@ -722,12 +704,10 @@ function key(n, z)
     end
 
     if pedal_active then
-      -- Bypass toggle: kurz. Schliessen: halten
       if z == 1 then
         k3_clock = clock.run(function()
           clock.sleep(2.0)
           k3_clock = nil
-          -- Hold: Modulationen schliessen (oder öffnen falls Verzerrer offen)
           if pedal_sel >= 3 then
             pedal_active = false
           else
@@ -740,48 +720,26 @@ function key(n, z)
         if k3_clock ~= nil then
           clock.cancel(k3_clock)
           k3_clock = nil
-          -- Kurzdruck: Bypass toggle des aktiven Pedals
-          local pd = cur_pedal()
-          pd.bypass = not pd.bypass
-          engine[pd.bypass_cmd](pd.bypass and 1 or 0)
-          redraw()
+          local pd  = cur_pedal()
+          local cur = params:get(pd.enable_id)
+          params:set(pd.enable_id, 1 - cur)
         end
       end
       return
     end
 
-    -- Normal (kein Pedal offen): kurz = Looper stop/abort, hold = Modulationen öffnen
     if z == 1 then
       k3_clock = clock.run(function()
         clock.sleep(2.0)
         k3_clock = nil
-        if loop_state == LOOP_IDLE then
-          pedal_sel = 3; pedal_active = true
-        else
-          loop_state  = LOOP_IDLE
-          loop_frames = 0
-          engine.loop_clear()
-        end
+        pedal_sel = 3; pedal_active = true
         redraw()
       end)
     else
       if k3_clock ~= nil then
         clock.cancel(k3_clock)
         k3_clock = nil
-        if loop_state == LOOP_REC then
-          loop_state  = LOOP_IDLE
-          loop_frames = 0
-          engine.loop_clear()
-          redraw()
-        elseif loop_state == LOOP_DUB then
-          loop_state = LOOP_PLAY
-          loop_set_engine(LOOP_PLAY)
-          redraw()
-        elseif loop_state ~= LOOP_IDLE then
-          loop_state = LOOP_STOP
-          loop_set_engine(LOOP_STOP)
-          redraw()
-        end
+        looper_stop_clear()
       end
     end
     return
@@ -791,36 +749,210 @@ end
 
 function init()
   audio.level_monitor(0)
-  for i = 1, #PARAMS_DEF do send_param(i) end
-  local function send_pedal(params, vals, bypass_cmd)
-    for i, p in ipairs(params) do
-      if engine[p.id] then engine[p.id](vals[i]) end
-    end
-    if engine[bypass_cmd] then engine[bypass_cmd](1) end
-  end
-  for _, pd in ipairs(PEDALS) do send_pedal(pd.params, pd.vals, pd.bypass_cmd) end
 
-  -- Pitch poll
+  local function re() if not initing then redraw() end end
+
+  -- ── Amp ─────────────────────────────────────────────────────────────
+  params:add_separator("Amp")
+  params:add_control("volume", "Volume",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("volume", function(v) engine.volume(v); re() end)
+  params:add_control("bass", "Bass",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("bass",   function(v) engine.bass(v);   re() end)
+  params:add_control("treble", "Treble",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("treble", function(v) engine.treble(v); re() end)
+  params:add_control("master", "Master",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("master", function(v) engine.master(v); re() end)
+  params:add_binary("amp_enable", "Amp Enable", "toggle", 1)
+  params:set_action("amp_enable", function(v)
+    engine.amp_bypass(1 - v); re()
+  end)
+
+  -- ── Reverb ──────────────────────────────────────────────────────────
+  params:add_separator("Reverb")
+  params:add_control("rev_amount", "Amount",
+    controlspec.new(0, 10, "lin", 0.1, 2.5, ""))
+  params:set_action("rev_amount", function(v)
+    engine.reverb(v)
+    re()
+  end)
+  params:add_binary("reverb_enable", "Reverb Enable", "toggle", 1)
+  params:set_action("reverb_enable", function(v)
+    engine.reverb_mute(v == 1 and 0 or 1)
+    re()
+  end)
+
+  -- ── Tremolo ─────────────────────────────────────────────────────────
+  params:add_separator("Tremolo")
+  params:add_control("trem_speed", "Speed",
+    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
+  params:set_action("trem_speed",     function(v) engine.trem_speed(v);     re() end)
+  params:add_control("trem_intensity", "Intensity",
+    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
+  params:set_action("trem_intensity", function(v)
+    if params:get("tremolo_enable") == 1 then engine.trem_intensity(v) end
+    re()
+  end)
+  params:add_binary("tremolo_enable", "Tremolo Enable", "toggle", 1)
+  params:set_action("tremolo_enable", function(v)
+    engine.trem_intensity(v == 1 and params:get("trem_intensity") or 0)
+    re()
+  end)
+
+  -- ── Mic ─────────────────────────────────────────────────────────────
+  params:add_separator("Mic")
+  params:add_control("mic", "Axis",
+    controlspec.new(0, 2, "lin", 1, 0, ""))
+  params:set_action("mic", function(v) engine.mic(math.floor(v)); re() end)
+  params:add_binary("speaker_enable", "Speaker Enable", "toggle", 1)
+  params:set_action("speaker_enable", function(v)
+    engine.speaker_bypass(1 - v); re()
+  end)
+
+  -- ── Tuner ───────────────────────────────────────────────────────────
+  params:add_separator("Tuner")
+  params:add_control("tuner_ref", "Reference",
+    controlspec.new(420, 460, "lin", 0.1, 440.0, "Hz"))
+  params:set_action("tuner_ref", function(v)
+    tuner.ref_hz = v
+    re()
+  end)
+
+  -- ── Looper ──────────────────────────────────────────────────────────
+  params:add_separator("Looper")
+  params:add_control("direction", "Direction",
+    controlspec.new(0, 1, "lin", 1, 0, ""))
+  params:set_action("direction", function(v) engine.direction(math.floor(v)); re() end)
+  params:add_control("dub_style", "Dub Style",
+    controlspec.new(0, 1, "lin", 1, 0, ""))
+  params:set_action("dub_style", function(v) engine.dub_style(math.floor(v)); re() end)
+  params:add_control("dub_level", "Dub Vol",
+    controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
+  params:set_action("dub_level",  function(v) engine.dub_level(db_to_lin(v));  re() end)
+  params:add_control("loop_level", "Loop Vol",
+    controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
+  params:set_action("loop_level", function(v) engine.loop_level(db_to_lin(v)); re() end)
+  params:add_control("loop_speed", "Speed",
+    controlspec.new(0, 2, "lin", 1, 1, ""))
+  params:set_action("loop_speed", function(v) engine.loop_speed(math.floor(v)); re() end)
+  params:add_binary("loop_rec_play", "Loop Rec/Play", "trigger", 0)
+  params:set_action("loop_rec_play", function(v)
+    if v ~= 1 then return end
+    looper_step()
+  end)
+  params:add_binary("loop_stop_clear", "Loop Stop/Clear", "trigger", 0)
+  params:set_action("loop_stop_clear", function(v)
+    if v ~= 1 then return end
+    looper_stop_clear()
+  end)
+
+  -- ── Push ────────────────────────────────────────────────────────────
+  params:add_separator("Push")
+  for _, p in ipairs(PEDALS[1].params) do
+    params:add_control(p.id, p.name,
+      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+    params:set_action(p.id, function(v)
+      engine[p.id](p.step == 1 and math.floor(v) or v); re()
+    end)
+  end
+  params:add_binary("push_enable", "Push Enable", "toggle", 0)
+  params:set_action("push_enable", function(v)
+    engine.push_bypass(1 - v); re()
+  end)
+
+  -- ── Distort ─────────────────────────────────────────────────────────
+  params:add_separator("Distort")
+  for _, p in ipairs(PEDALS[2].params) do
+    params:add_control(p.id, p.name,
+      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+    params:set_action(p.id, function(v)
+      engine[p.id](p.step == 1 and math.floor(v) or v); re()
+    end)
+  end
+  params:add_binary("distort_enable", "Distort Enable", "toggle", 0)
+  params:set_action("distort_enable", function(v)
+    engine.distort_bypass(1 - v); re()
+  end)
+
+  -- ── Warp ────────────────────────────────────────────────────────────
+  params:add_separator("Warp")
+  for _, p in ipairs(PEDALS[3].params) do
+    params:add_control(p.id, p.name,
+      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+    params:set_action(p.id, function(v)
+      engine[p.id](p.step == 1 and math.floor(v) or v); re()
+    end)
+  end
+  params:add_binary("warp_enable", "Warp Enable", "toggle", 0)
+  params:set_action("warp_enable", function(v)
+    engine.warp_bypass(1 - v); re()
+  end)
+
+  -- ── Repeat ──────────────────────────────────────────────────────────
+  params:add_separator("Repeat")
+  for _, p in ipairs(PEDALS[4].params) do
+    params:add_control(p.id, p.name,
+      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+    params:set_action(p.id, function(v)
+      engine[p.id](p.step == 1 and math.floor(v) or v); re()
+    end)
+  end
+  params:add_binary("repeat_enable", "Repeat Enable", "toggle", 0)
+  params:set_action("repeat_enable", function(v)
+    engine.repeat_bypass(1 - v); re()
+  end)
+
+  -- ── Views ────────────────────────────────────────────────────────────
+  params:add_separator("Views")
+  params:add_binary("view_amp", "View: Amp", "trigger", 0)
+  params:set_action("view_amp", function(v)
+    if v ~= 1 then return end
+    if tuner.active then tuner_stop() end
+    pedal_active = false
+    redraw()
+  end)
+  params:add_binary("view_tuner", "View: Tuner", "trigger", 0)
+  params:set_action("view_tuner", function(v)
+    if v ~= 1 then return end
+    if not tuner.active then pedal_active = false; tuner_start() end
+  end)
+  params:add_binary("view_gain", "View: Gain", "trigger", 0)
+  params:set_action("view_gain", function(v)
+    if v ~= 1 then return end
+    if tuner.active then tuner_stop() end
+    pedal_active = true; pedal_sel = 1
+    redraw()
+  end)
+  params:add_binary("view_mod", "View: Mod", "trigger", 0)
+  params:set_action("view_mod", function(v)
+    if v ~= 1 then return end
+    if tuner.active then tuner_stop() end
+    pedal_active = true; pedal_sel = 3
+    redraw()
+  end)
+
+  -- ── Pitch poll ──────────────────────────────────────────────────────
   tuner_pitch_poll = poll.set("pitch_in_l", function(freq)
     if not tuner.active then return end
     if freq and freq > 30 then
       tuner.note, tuner.octave, _ = freq_to_note(freq)
       local c = cents_to_ref(freq, tuner.ref_hz)
-      -- Smooth cents with exponential moving average (alpha=0.15 = slow/stable arrows)
       tuner_cents_smooth = tuner_cents_smooth * 0.5 + c * 0.5
       tuner.cents = math.floor(tuner_cents_smooth + 0.5)
     else
-      tuner.note          = "--"
-      tuner.octave        = 0
-      tuner.cents         = 0
-      tuner_cents_smooth  = 0
+      tuner.note         = "--"
+      tuner.octave       = 0
+      tuner.cents        = 0
+      tuner_cents_smooth = 0
     end
     redraw()
   end)
-  tuner_pitch_poll.time = 0.055  -- ~18Hz, fast note detection
+  tuner_pitch_poll.time = 0.055
 
-  clock.run(function()
-    clock.sleep(0.1)
-    redraw()
-  end)
+  params:bang()
+  initing = false
+  redraw()
 end
