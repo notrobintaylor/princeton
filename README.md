@@ -12,15 +12,15 @@ The gain range runs from clean to light overdrive. The spring reverb and bias tr
 
 **Tone stack.** Bass and Treble are 0 dB at position 5. The mid scoop is fixed and permanent. This is the Fender voice.
 
-**Tremolo.** Bias-style amplitude modulation. Speed and Intensity both default to 0. Up to Intensity 1.5 the effect blends in while the dry signal fades; past 1.5 pure tremolo with increasing depth. Peaks always remain at full amplitude.
+**Tremolo.** Bias-style amplitude modulation. Speed and Intensity both default to 0. Up to Intensity 1.5 the effect blends in while the dry signal fades; past 1.5 pure tremolo with increasing depth. Peaks always remain at full amplitude. Tremolo can be bypassed independently without losing the Speed and Intensity settings.
 
-**Looper.** 60-second mono buffer, post-tremolo, pre-reverb. The spring reverb washes over the loop and the live signal equally. Forward and reverse. Half, normal, and double speed. Regular overdub layers new material over existing. Overwrite replaces it.
+**Looper.** 60-second mono buffer, post-tremolo, pre-reverb. The spring reverb washes over the loop and the live signal equally. Forward and reverse. Half, normal, and double speed. Regular overdub layers new material over existing. Overwrite replaces it. The looper continues to run in the background while any other view (tuner, pedalboard) is open.
 
-**Spring reverb.** Applied to the full mix: live signal and loop together. Amount controls both send level and decay time together. At low values the spring tank is barely audible with a short decay. Turning it up increases both how much signal enters the tank and how long it rings — from a subtle shimmer at 2–3 to a long, washy bloom at 8–10.
+**Spring reverb.** Applied to the full mix: live signal and loop together. Amount controls both send level and decay time together. At low values the spring tank is barely audible with a short decay. Turning it up increases both how much signal enters the tank and how long it rings — from a subtle shimmer at 2–3 to a long, washy bloom at 8–10. Reverb can be bypassed independently without losing the Amount setting.
 
 **Pedalboard.** Four effects run before the amp. Push and Distort are a distortion pair; Warp and Repeat are a modulation pair. Each effect is independently bypassable. The active effect's label appears at full brightness.
 
-**Amp bypass.** Turn Volume below 0 to bypass the preamp, tone stack, power amp, and cabinet. Tremolo, looper, and spring reverb remain active. The panel lamp dims to indicate bypass. The parameter display shows Bypass.
+**Amp bypass.** An Amp Enable toggle is available in the PARAMS menu and can be mapped to a MIDI footswitch. When the amp is bypassed the preamp, tone stack, power amp, and cabinet are all removed from the signal path; tremolo, looper, and spring reverb remain active. The panel lamp dims to indicate bypass.
 
 **Output.** Dual mono. Both outputs carry the same signal.
 
@@ -39,15 +39,17 @@ guitar → Push → Distort → Warp → Repeat
 |---------|----------|
 | **E2** | Select parameter |
 | **E3** | Change value |
-| **K1 hold 2s** | Tuner on / off |
-| **K2** | Looper: record → play → dub → play |
-| **K2 hold 2s** | Gain Pedals (Push / Distort) on / off |
-| **K3** | Looper: stop / Bypass toggle (when pedalboard open) |
-| **K3 hold 2s** | Modulation Pedals (Warp / Repeat) on / off |
+| **K1 hold 2s** | Tuner on / off (from any view) |
+| **K2** | Looper: record → play → dub → play (amp view only) |
+| **K2 hold 2s** | Gain Pedals (Push / Distort) on / off (from any view) |
+| **K3** | Looper: stop → clear (double press) / Bypass toggle (pedalboard) / Mute (tuner) |
+| **K3 hold 2s** | Modulation Pedals (Warp / Repeat) on / off (from any view) |
 
-When the pedalboard is open, **E1** selects between the two visible effects, **E2** selects a parameter, and **E3** changes its value. The looper is not accessible while the pedalboard is open.
+When the pedalboard is open, **E1** selects between the two visible effects, **E2** selects a parameter, and **E3** changes its value. Looper transport (K2, K3) is disabled while the pedalboard or tuner is open; the loop continues to run in the background.
 
 ## Navigation
+
+Any hold (2 s) navigates directly to the target view from wherever you are. Holding the key again while already in that view returns to the amp view.
 
 | From | K1 hold | K2 hold | K3 hold |
 |------|---------|---------|---------|
@@ -58,7 +60,9 @@ When the pedalboard is open, **E1** selects between the two visible effects, **E
 
 ## Tuner
 
-Hold K1 for 2 seconds to open the tuner. The note name and octave are shown at large size. An arrow indicates flat or sharp; a dot indicates in tune. Press K3 to mute the output while tuning. Hold K1 again to return to the amp view, K2 to open the Gain Pedals, or K3 to open the Modulation Pedals.
+Hold K1 for 2 seconds to open the tuner. The note name and octave are shown at large size. An arrow indicates flat or sharp; a dot indicates in tune. Press K3 to mute the output while tuning — the looper keeps playing. Hold K1 again to return to the amp view, K2 to open Gain Pedals, or K3 to open Modulation Pedals.
+
+Turn E2 while the tuner is open to adjust the reference pitch (420–460 Hz). The setting is saved with your PSET.
 
 ## Parameters
 
@@ -66,18 +70,21 @@ Hold K1 for 2 seconds to open the tuner. The note name and octave are shown at l
 
 | Parameter | Default | Range |
 |-----------|---------|-------|
-| **Volume** | 5.0 | Bypass – 10 |
+| **Volume** | 5.0 | 0–10 |
 | **Bass** | 5.0 | 0–10 |
 | **Treble** | 5.0 | 0–10 |
 | **Master** | 5.0 | 0–10 |
+| **Amp Enable** | On | toggle |
 
-Turn Volume below 0 to engage amp bypass.
+A dedicated **Amp Enable** toggle is available in the PARAMS menu for MIDI mapping — same behaviour as Reverb and Tremolo bypass.
 
 ### Reverb
 
 | Parameter | Default | Range |
 |-----------|---------|-------|
 | **Amount** | 2.5 | 0–10 |
+
+On the device, turn Amount to 0 to silence the reverb. A dedicated **Reverb Bypass** toggle is available in the PARAMS menu for MIDI mapping — useful when you want to kill the reverb instantly from a footswitch and restore it to the same Amount with a second press.
 
 ### Tremolo
 
@@ -86,13 +93,24 @@ Turn Volume below 0 to engage amp bypass.
 | **Speed** | 0.0 | 0–10 |
 | **Intensity** | 0.0 | 0–10 |
 
+On the device, turn Intensity to 0 to silence the tremolo. A dedicated **Tremolo Bypass** toggle is available in the PARAMS menu for MIDI mapping — same rationale as Reverb Bypass.
+
 ### Mic
 
 | Parameter | Default | Options |
 |-----------|---------|---------|
 | **Axis** | Center | Center / Middle / Edge |
+| **Speaker Enable** | On | toggle |
 
-Center is brightest. Edge is darker and rounder.
+Center is brightest. Edge is darker and rounder. **Speaker Enable** bypasses the cabinet simulation while keeping the preamp and tone stack active — useful for a raw DI tone or when running into an external cab. The grill area goes blank on screen when bypassed.
+
+### Tuner
+
+| Parameter | Default | Range |
+|-----------|---------|-------|
+| **Reference** | 440.0 Hz | 420–460 Hz |
+
+Adjustable with E2 while the tuner is open. Saved with your PSET.
 
 ### Looper
 
@@ -114,7 +132,7 @@ Speed affects playback only. At half speed the loop plays an octave lower and tw
 | **Tone** | 5.0 | 0–10 |
 | **Level** | 5.0 | 0–10 |
 
-Overdrive with a strong low-cut.
+Overdrive with asymmetric diode clipping. Tone sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting) — at low settings the pedal sits wide and open, at high settings it cuts bass and low mids before the amp.
 
 ### Distort
 
@@ -130,9 +148,9 @@ Hard clipping distortion and a post-distortion LP filter.
 
 | Parameter | Default | Range |
 |-----------|---------|-------|
-| **Rate** | 3.0 | 0–10 |
-| **Depth** | 5.0 | 0–10 |
-| **Rise** | 3.0 | 0–10 |
+| **Rate** | 2.5 | 0–10 |
+| **Depth** | 2.5 | 0–10 |
+| **Rise** | 5.0 | 0–10 |
 
 BBD-style pitch vibrato, 100% wet. Rise controls how long the effect takes to reach full depth after bypass is lifted.
 
@@ -151,10 +169,14 @@ BBD-style analog delay with jitter and saturation in the feedback path. Characte
 
 ```
 idle ── K2 ──► rec ── K2 ──► play ── K2 ──► dub ── K2 ──► play …
+                │
+                └── K3 ──► idle (recording aborted, buffer cleared)
 
-any state ── K3 ──► stop ── K2 ──► play
-any state ── K3 hold 2s ──► idle (buffer cleared)
+play / dub ── K3 ──► stop ── K3 ──► idle (buffer cleared)
+stop ── K2 ──► play
 ```
+
+The loop keeps running when you open the tuner or pedalboard. Transport keys (K2, K3) are inactive in those views — the loop is not affected.
 
 Transport icons at the bottom of the left display (framed in brackets when a looper parameter is selected):
 
@@ -162,6 +184,46 @@ Transport icons at the bottom of the left display (framed in brackets when a loo
 - **●+** overdubbing
 - **▶** playing
 - **■** stopped
+
+## MIDI
+
+Every parameter, bypass toggle, looper transport action, and view navigation trigger is available in the PARAMS menu and can be mapped to any MIDI CC using Norns' built-in MIDI learn.
+
+### How to map a control
+
+1. Open the PARAMS menu (press K1 from the main screen, navigate to PARAMS)
+2. Scroll to the parameter or action you want to map
+3. Press K3 to enter MIDI learn mode — the entry flashes
+4. Send a CC from your MIDI controller
+5. Norns assigns that CC to the parameter — the mapping is saved with your PSET
+
+### What can be mapped
+
+**Amp / Reverb / Tremolo / Looper / Pedals** — all continuous parameters respond to CC values scaled to their parameter range.
+
+**Bypass toggles** (Amp, Speaker, Reverb, Tremolo, Push, Distort, Warp, Repeat) — CC ≥ 64 disables, CC < 64 enables.
+
+**Looper transport** — each action is a separate trigger entry:
+
+| PARAMS entry | Action |
+|---|---|
+| Loop Rec/Play | Same as K2: idle → rec → play → dub → play … / stop → play |
+| Loop Stop/Clear | Same as K3: play/dub → stop → idle (buffer cleared) |
+
+**View navigation** — direct triggers for each view:
+
+| PARAMS entry | Action |
+|---|---|
+| View: Amp | Return to amp view from anywhere |
+| View: Tuner | Open tuner (if not already active) |
+| View: Gain | Open Push / Distort pedalboard |
+| View: Mod | Open Warp / Repeat pedalboard |
+
+### Notes
+
+- MIDI mappings are stored per PSET — each preset can have its own mapping.
+- Looper transport triggers respond on CC value ≥ 64 (send value 127 for reliable triggering).
+- All MIDI input is on channel 1 by default. Change the channel in PARAMS > MIDI.
 
 ## User stories
 
@@ -173,18 +235,26 @@ Transport icons at the bottom of the left display (framed in brackets when a loo
 - I want three mic positions on the cabinet so that I can choose between a bright on-axis sound, a balanced middle position, and a darker off-axis tone.
 - I want dual mono output so that both norns sends carry signal and stereo effects downstream receive input on both channels.
 - I want to bypass the amp so that I can use the looper and reverb as a standalone effect chain without the amp colouration.
+- I want to bypass the cabinet simulation independently so that I can use the preamp tone into an external cab or IR loader without double-amping.
 
 **Tremolo**
 
 - I want tremolo that defaults to off so that I don't have to turn it down every time I load the script.
 - I want Speed and Intensity as separate controls so that I can set a rate without any modulation and bring it in gradually with Intensity.
 - I want the peaks to stay at full amplitude when tremolo is engaged so that the overall level doesn't drop.
+- I want a MIDI-mappable tremolo bypass so that I can kill and restore the tremolo from a footswitch without losing my Speed and Intensity settings.
+
+**Reverb**
+
+- I want a MIDI-mappable reverb bypass so that I can kill and restore the spring reverb from a footswitch without losing the Amount setting.
 
 **Looper**
 
 - I want the looper between tremolo and reverb so that the spring reverb washes over the loop and the live guitar together, making the loop sit in the same acoustic space.
 - I want record → play → dub on a single button so that I can capture a loop and layer over it without menu diving.
 - I want a separate stop button so that I can freeze the loop mid-performance and re-enter playback at will.
+- I want to clear the buffer with a second press of the stop button so that the clear action is deliberate and can't happen accidentally while a loop is playing.
+- I want the loop to keep running when I open the tuner or pedalboard so that I can tune or adjust effects without interrupting the loop.
 - I want Regular and Overwrite dub styles so that I can choose between layering and replacing what's already in the buffer.
 - I want half and double speed so that I can transpose the loop by an octave in either direction, or change loop length without re-recording.
 - I want reverse playback so that I can play melodic or textural material backwards against the live signal.
@@ -203,8 +273,21 @@ Transport icons at the bottom of the left display (framed in brackets when a loo
 **Tuner**
 
 - I want a chromatic tuner accessible from any view so that I can tune between songs without leaving the script.
-- I want a mute option in the tuner so that I can tune silently without cutting the looper.
+- I want a mute option in the tuner so that I can tune silently without stopping the looper.
 - I want to navigate directly from the tuner to the pedalboard so that I don't have to pass through the amp view.
+
+**Navigation**
+
+- I want to reach the tuner, gain pedals, and modulation pedals from any view with a single hold so that I never have to navigate back to the amp view first.
+- I want holding the same key again to return me to the amp view so that I always have a consistent exit gesture.
+
+**MIDI**
+
+- I want every parameter available as a MIDI-mappable control so that I can operate the script from a hardware controller without touching norns.
+- I want bypass toggles for reverb and tremolo available as MIDI triggers so that I can mute and unmute those effects from a footswitch.
+- I want looper transport (record, play, dub, stop, clear) available as MIDI triggers so that I can control the looper hands-free while playing.
+- I want view navigation available as MIDI triggers so that I can switch between tuner, amp, and pedalboard from my controller.
+- I want MIDI mappings saved with my presets so that each saved setup remembers which controller CC does what.
 
 ## Install
 
@@ -221,9 +304,23 @@ ssh we@norns.local
 cd ~/dust/code
 git clone https://github.com/notrobintaylor/princeton
 ```
+
 ## Changelog
 
+### 1.1
+
+- **Looper persists across views.** The loop no longer stops when the tuner opens. The loop runs in the background while any view (tuner, pedalboard) is active; transport controls are simply inactive in those views.
+- **Looper clear via double press.** K3 first press stops the loop; a second K3 press clears the buffer. The loop can no longer be cleared accidentally by a hold gesture while playing.
+- **Global view navigation.** K1 / K2 / K3 held for 2 s navigates directly to the tuner / gain pedals / modulation pedals from any view. Holding the same key again returns to the amp view. No need to pass through the amp view when switching between tuner and pedalboard.
+- **Amp Enable toggle.** The amp bypass is now a proper MIDI-mappable toggle in PARAMS, consistent with Reverb and Tremolo. Volume range is 0–10; the Volume-below-0 bypass trick from 1.0 is removed.
+- **Speaker Enable toggle.** Bypasses the cabinet simulation while keeping the preamp and tone stack active. Useful for routing into an external cab or IR loader. The grill area goes blank on screen when bypassed.
+- **Reverb bypass (MIDI).** A dedicated Reverb Enable toggle is available in PARAMS for MIDI mapping. Kills the reverb send instantly — the spring tail rings out naturally. Restores the stored Amount on a second press. On the device, turn Amount to 0 instead.
+- **Tremolo bypass (MIDI).** Same for tremolo. Toggle via MIDI footswitch preserves Speed and Intensity. On the device, turn Intensity to 0 instead.
+- **Pedal bypasses MIDI-mappable.** Push, Distort, Warp, and Repeat bypass toggles are now available in PARAMS and can be mapped to MIDI footswitches individually.
+- **Full MIDI control.** All parameters, bypass toggles, looper transport actions, and view navigation triggers are available in the PARAMS menu and can be mapped to MIDI CC via Norns' built-in MIDI learn. Mappings are saved per PSET.
+
 ### 1.0
+
 Initial release.
 
 - Amp simulation based on a 1960s American combo with Jensen C10R cabinet
@@ -235,7 +332,7 @@ Initial release.
 - Chromatic tuner with mute and direct navigation to pedalboard views
 - Pedalboard with four effects: Push (overdrive), Distort (hard clipping), Warp (pitch vibrato), Repeat (BBD delay)
 - Click-free bypass switching via XFade on all four effects and amp
-- Amp bypass via Volume below 0: bypasses preamp, tone stack, power amp, and cabinet
+- Amp bypass via Volume below 0 (replaced by Amp Enable toggle in 1.1)
 - Push / Distort on K2 hold; Warp / Repeat on K3 hold; navigate between all views without returning to amp
 - Design matrix GUI: fixed pixel grid, snap alignment, icon-based pedal display
 - Active pedal state indicated by label brightness
