@@ -10,7 +10,7 @@ The gain range runs from clean to light overdrive. The spring reverb and bias tr
 
 **Amp.** Two preamp stages, passive tone stack with a fixed mid scoop, power amp compression that blooms under hard picking. Volume below 5 stays clean. Past 7 the preamp stages begin to saturate.
 
-**Tone stack.** Bass and Treble are 0 dB at position 5. The mid scoop is fixed and permanent. This is the Fender voice.
+**Tone stack.** Position 5 on Bass and Treble gives a moderate boost to the low and high bands — the typical Fender voice with the amp open. Turn below 3 to cut; keep at 5–7 for warmth and sparkle. The mid scoop is fixed and permanent.
 
 **Tremolo.** Bias-style amplitude modulation. Speed and Intensity both default to 0. Up to Intensity 1.5 the effect blends in while the dry signal fades; past 1.5 pure tremolo with increasing depth. Peaks always remain at full amplitude. Tremolo can be bypassed independently without losing the Speed and Intensity settings.
 
@@ -70,11 +70,11 @@ Turn E2 while the tuner is open to adjust the reference pitch (420–460 Hz). Th
 
 | Parameter | Default | Range |
 |-----------|---------|-------|
-| **Volume** | 5.0 | 0–10 |
+| **Volume** | 7.5 | 0–10 |
 | **Bass** | 5.0 | 0–10 |
 | **Treble** | 5.0 | 0–10 |
 | **Master** | 5.0 | 0–10 |
-| **Amp Enable** | On | toggle |
+| **Amp Enable** | Active | Active / Bypass |
 
 A dedicated **Amp Enable** toggle is available in the PARAMS menu for MIDI mapping — same behaviour as Reverb and Tremolo bypass.
 
@@ -84,7 +84,7 @@ A dedicated **Amp Enable** toggle is available in the PARAMS menu for MIDI mappi
 |-----------|---------|-------|
 | **Amount** | 2.5 | 0–10 |
 
-On the device, turn Amount to 0 to silence the reverb. A dedicated **Reverb Bypass** toggle is available in the PARAMS menu for MIDI mapping — useful when you want to kill the reverb instantly from a footswitch and restore it to the same Amount with a second press.
+On the device, turn Amount to 0 to silence the reverb. A dedicated **Reverb Enable** toggle is available in the PARAMS menu for MIDI mapping — useful when you want to kill the reverb instantly from a footswitch and restore it to the same Amount with a second press.
 
 ### Tremolo
 
@@ -93,16 +93,16 @@ On the device, turn Amount to 0 to silence the reverb. A dedicated **Reverb Bypa
 | **Speed** | 0.0 | 0–10 |
 | **Intensity** | 0.0 | 0–10 |
 
-On the device, turn Intensity to 0 to silence the tremolo. A dedicated **Tremolo Bypass** toggle is available in the PARAMS menu for MIDI mapping — same rationale as Reverb Bypass.
+On the device, turn Intensity to 0 to silence the tremolo. A dedicated **Tremolo Enable** toggle is available in the PARAMS menu for MIDI mapping — same rationale as Reverb Enable.
 
-### Mic
+### Mic & Speaker
 
 | Parameter | Default | Options |
 |-----------|---------|---------|
-| **Axis** | Center | Center / Middle / Edge |
-| **Speaker Enable** | On | toggle |
+| **Mic Position** | Middle | Center / Middle / Edge |
+| **Speaker Enable** | Active | Active / Bypass |
 
-Center is brightest. Edge is darker and rounder. **Speaker Enable** bypasses the cabinet simulation while keeping the preamp and tone stack active — useful for a raw DI tone or when running into an external cab. The grill area goes blank on screen when bypassed.
+Center is brightest and most present. Middle is balanced. Edge is darker and rounder. **Speaker Enable** bypasses the cabinet simulation while keeping the preamp and tone stack active — useful for a raw DI tone or when running into an external cab. The grill area goes blank on screen when bypassed.
 
 ### Tuner
 
@@ -139,10 +139,10 @@ Overdrive with asymmetric diode clipping. Tone sweeps a high-pass filter from 10
 | Parameter | Default | Range |
 |-----------|---------|-------|
 | **Gain** | 5.0 | 0–10 |
-| **Tone** | 5.0 | 0–10 |
-| **Level** | 2.5 | 0–10 |
+| **Tone** | 7.5 | 0–10 |
+| **Level** | 5.0 | 0–10 |
 
-Hard clipping distortion and a post-distortion LP filter.
+Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, murky) to 5000 Hz (open, cutting) — at high settings the pedal is bright and aggressive, at low settings it rolls back into a thick, dark grind.
 
 ### Warp
 
@@ -201,7 +201,7 @@ Every parameter, bypass toggle, looper transport action, and view navigation tri
 
 **Amp / Reverb / Tremolo / Looper / Pedals** — all continuous parameters respond to CC values scaled to their parameter range.
 
-**Bypass toggles** (Amp, Speaker, Reverb, Tremolo, Push, Distort, Warp, Repeat) — CC ≥ 64 disables, CC < 64 enables.
+**Enable toggles** (Amp, Speaker, Reverb, Tremolo, Push, Distort, Warp, Repeat) — CC ≥ 64 enables (Active), CC < 64 bypasses.
 
 **Looper transport** — each action is a separate trigger entry:
 
@@ -306,6 +306,16 @@ git clone https://github.com/notrobintaylor/princeton
 ```
 
 ## Changelog
+
+### 1.2
+
+- **Spring reverb redesigned.** New architecture with pre-delay (8 ms), three-channel AllpassL dispersion, BPF twang resonance, and two AllpassN diffusion stages for a truer spring character — chirp on transients, bloom on long decays. Decay range extended so the full 0–10 sweep is useful.
+- **Noise floor lowered.** Input band-limiting (40 Hz–7.5 kHz) applied before all gain stages. Per-stage anti-aliasing filters added on Push and Distort. No noise gate required.
+- **Push Tone reworked.** Tone now sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting) — pre-drive, so it shapes the harmonic content before clipping.
+- **Distort refined.** Tone sweep narrowed to 300–5000 Hz; gain range adjusted to 20–800. More musical response across the full sweep.
+- **Cabinet tuned to Jensen C10R.** A bass resonance peak at 120 Hz (+3.5 dB) is now applied before the mic-position EQ in all three positions. Center-mic presence peak moved to 3200 Hz for more attack and definition.
+- **PARAMS: text values.** Enable toggles show "Active" / "Bypass" instead of a checkbox. Mic Position, Loop Direction, Loop Speed, Loop Dub Style, and Repeat Character display their option names.
+- **Defaults adjusted.** Volume 7.5 (was 5.0), Mic Position Middle (was Center), Distort Tone 7.5 (was 5.0), Distort Level 5.0 (was 2.5).
 
 ### 1.1
 
