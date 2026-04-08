@@ -8,14 +8,14 @@ engine.name = "Princeton"
 local initing = true
 
 local PARAMS_DEF = {
-  { id="volume",         name="Volume",    default=5.0,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
+  { id="volume",         name="Volume",    default=7.5,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
   { id="bass",           name="Bass",      default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="treble",         name="Treble",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="master",         name="Master",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="rev_amount",     name="Amount",    default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Reverb"  },
   { id="trem_speed",     name="Speed",     default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
   { id="trem_intensity", name="Intensity", default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
-  { id="mic",            name="Axis",      default=0,    min=0,   max=2,  step=1,   db=false, cat="Mic"     },
+  { id="mic",            name="Axis",      default=1,    min=0,   max=2,  step=1,   db=false, cat="Mic"     },
   { id="direction",      name="Direction", default=0,    min=0,   max=1,  step=1,   db=false, cat="Looper"  },
   { id="dub_style",      name="Dub Style", default=0,    min=0,   max=1,  step=1,   db=false, cat="Looper"  },
   { id="dub_level",      name="Dub Vol",   default=-2.5, min=-40, max=0,  step=0.5, db=true,  cat="Looper"  },
@@ -35,7 +35,7 @@ local LOOP_MAX = LOOP_SR * 60
 local sel = 1
 
 local function amp_is_bypassed()
-  return params:get("amp_enable") == 0
+  return params:get("amp_enable") == 1
 end
 
 local pedal_active = false
@@ -61,10 +61,10 @@ local PEDALS = {
     display    = "Distort",
     params     = {
       { id="distort_gain",   name="Gain",   default=5.0, min=0, max=10, step=0.1 },
-      { id="distort_tone", name="Tone", default=5.0, min=0, max=10, step=0.1 },
-      { id="distort_level",    name="Level", default=2.5, min=0, max=10, step=0.1 },
+      { id="distort_tone", name="Tone", default=7.5, min=0, max=10, step=0.1 },
+      { id="distort_level",    name="Level", default=5.0, min=0, max=10, step=0.1 },
     },
-    vals       = { 5.0, 5.0, 2.5 },
+    vals       = { 5.0, 7.5, 5.0 },
     bypass     = true,
     psel       = 1,
     bypass_cmd = "distort_bypass",
@@ -91,7 +91,7 @@ local PEDALS = {
       { id="repeat_time",       name="Time",      default=5.0, min=0, max=10, step=0.1 },
       { id="repeat_feedback",     name="Feedback",   default=5.0, min=0, max=10, step=0.1 },
       { id="repeat_level",      name="Level",     default=5.0, min=0, max=10, step=0.1 },
-      { id="characteristic", name="Character", default=0,   min=0, max=1,  step=1   },
+      { id="characteristic", name="Character", default=0,   min=0, max=1,  step=1, options={"Bright","Dark"} },
     },
     vals       = { 5.0, 5.0, 5.0, 0 },
     bypass     = true,
@@ -176,10 +176,10 @@ end
 local function fmt_val(idx)
   local id = PARAMS_DEF[idx].id
   local v  = params:get(id)
-  if id == "mic"        then return MIC_NAMES[math.floor(v) + 1] end
-  if id == "direction"  then return DIR_NAMES[math.floor(v) + 1] end
-  if id == "loop_speed" then return SPD_NAMES[math.floor(v) + 1] end
-  if id == "dub_style"  then return DUB_NAMES[math.floor(v) + 1] end
+  if id == "mic"        then return MIC_NAMES[v] end
+  if id == "direction"  then return DIR_NAMES[v] end
+  if id == "loop_speed" then return SPD_NAMES[v] end
+  if id == "dub_style"  then return DUB_NAMES[v] end
   if PARAMS_DEF[idx].db then return string.format("%.1fdB", v) end
   return string.format("%.1f", v)
 end
@@ -350,7 +350,7 @@ local function draw_grillcloth()
   local gx, gy, gw, gh = GRILL.x, GRILL.y, GRILL.w, GRILL.h
 
   -- Speaker bypass: blank grill (no cloth, no mic markers)
-  if params:get("speaker_enable") == 0 then
+  if params:get("speaker_enable") == 1 then
     screen.level(0); screen.rect(gx, gy, gw, gh); screen.fill()
     return
   end
@@ -371,7 +371,7 @@ local function draw_grillcloth()
     screen.level(B.MED)
     screen.circle(cx, cy, 5); screen.stroke()
 
-    local mic_val = math.floor(params:get("mic"))
+    local mic_val = params:get("mic") - 1
     local x_offsets = { 0, 8, 14 }
     for i = 1, 3 do
       local r   = x_offsets[i]
@@ -524,7 +524,7 @@ local function draw_pedalboard()
   local p    = pd.params[pd.psel]
   local v    = params:get(p.id)
   local vstr = p.id == "characteristic"
-    and CHAR_NAMES[math.floor(v) + 1]
+    and CHAR_NAMES[v]
     or  string.format("%.1f", v)
   draw_strip(pd.name, p.name, vstr)
 
@@ -536,11 +536,11 @@ local function draw_pedalboard()
   local py  = 4
 
   if pedal_sel >= 3 then
-    draw_pedal(OX1, py, PEDALS[3].name, PEDALS[3].display, params:get(PEDALS[3].enable_id) == 0)
-    draw_pedal(OX2, py, PEDALS[4].name, PEDALS[4].display, params:get(PEDALS[4].enable_id) == 0)
+    draw_pedal(OX1, py, PEDALS[3].name, PEDALS[3].display, params:get(PEDALS[3].enable_id) == 1)
+    draw_pedal(OX2, py, PEDALS[4].name, PEDALS[4].display, params:get(PEDALS[4].enable_id) == 1)
   else
-    draw_pedal(OX1, py, PEDALS[1].name, PEDALS[1].display, params:get(PEDALS[1].enable_id) == 0)
-    draw_pedal(OX2, py, PEDALS[2].name, PEDALS[2].display, params:get(PEDALS[2].enable_id) == 0)
+    draw_pedal(OX1, py, PEDALS[1].name, PEDALS[1].display, params:get(PEDALS[1].enable_id) == 1)
+    draw_pedal(OX2, py, PEDALS[2].name, PEDALS[2].display, params:get(PEDALS[2].enable_id) == 1)
   end
   local ptr_x = (pedal_sel == 1 or pedal_sel == 3) and OX1 + 16 or OX2 + 16
   screen.level(B.FULL)
@@ -722,7 +722,7 @@ function key(n, z)
           k3_clock = nil
           local pd  = cur_pedal()
           local cur = params:get(pd.enable_id)
-          params:set(pd.enable_id, 1 - cur)
+          params:set(pd.enable_id, 3 - cur)
         end
       end
       return
@@ -752,92 +752,88 @@ function init()
 
   local function re() if not initing then redraw() end end
 
-  -- ── Amp ─────────────────────────────────────────────────────────────
-  params:add_separator("Amp")
-  params:add_control("volume", "Volume",
-    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-  params:set_action("volume", function(v) engine.volume(v); re() end)
-  params:add_control("bass", "Bass",
-    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-  params:set_action("bass",   function(v) engine.bass(v);   re() end)
-  params:add_control("treble", "Treble",
-    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-  params:set_action("treble", function(v) engine.treble(v); re() end)
-  params:add_control("master", "Master",
-    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-  params:set_action("master", function(v) engine.master(v); re() end)
-  params:add_binary("amp_enable", "Amp Enable", "toggle", 1)
-  params:set_action("amp_enable", function(v)
-    engine.amp_bypass(1 - v); re()
-  end)
-
-  -- ── Reverb ──────────────────────────────────────────────────────────
-  params:add_separator("Reverb")
-  params:add_control("rev_amount", "Amount",
-    controlspec.new(0, 10, "lin", 0.1, 2.5, ""))
-  params:set_action("rev_amount", function(v)
-    engine.reverb(v)
-    re()
-  end)
-  params:add_binary("reverb_enable", "Reverb Enable", "toggle", 1)
-  params:set_action("reverb_enable", function(v)
-    engine.reverb_mute(v == 1 and 0 or 1)
-    re()
-  end)
-
-  -- ── Tremolo ─────────────────────────────────────────────────────────
-  params:add_separator("Tremolo")
-  params:add_control("trem_speed", "Speed",
-    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
-  params:set_action("trem_speed",     function(v) engine.trem_speed(v);     re() end)
-  params:add_control("trem_intensity", "Intensity",
-    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
-  params:set_action("trem_intensity", function(v)
-    if params:get("tremolo_enable") == 1 then engine.trem_intensity(v) end
-    re()
-  end)
-  params:add_binary("tremolo_enable", "Tremolo Enable", "toggle", 1)
-  params:set_action("tremolo_enable", function(v)
-    engine.trem_intensity(v == 1 and params:get("trem_intensity") or 0)
-    re()
-  end)
-
-  -- ── Mic ─────────────────────────────────────────────────────────────
-  params:add_separator("Mic")
-  params:add_control("mic", "Axis",
-    controlspec.new(0, 2, "lin", 1, 0, ""))
-  params:set_action("mic", function(v) engine.mic(math.floor(v)); re() end)
-  params:add_binary("speaker_enable", "Speaker Enable", "toggle", 1)
-  params:set_action("speaker_enable", function(v)
-    engine.speaker_bypass(1 - v); re()
-  end)
-
   -- ── Tuner ───────────────────────────────────────────────────────────
   params:add_separator("Tuner")
-  params:add_control("tuner_ref", "Reference",
+  params:add_control("tuner_ref", "Tuner Reference",
     controlspec.new(420, 460, "lin", 0.1, 440.0, "Hz"))
   params:set_action("tuner_ref", function(v)
     tuner.ref_hz = v
     re()
   end)
 
+  -- ── Amp ─────────────────────────────────────────────────────────────
+  params:add_separator("Amp")
+  params:add_option("amp_enable", "Amp Enable", {"Bypass", "Active"}, 2)
+  params:set_action("amp_enable", function(v)
+    engine.amp_bypass(2 - v); re()
+  end)
+  params:add_control("volume", "Amp Volume",
+    controlspec.new(0, 10, "lin", 0.1, 7.5, ""))
+  params:set_action("volume", function(v) engine.volume(v); re() end)
+  params:add_control("bass", "Amp Bass",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("bass",   function(v) engine.bass(v);   re() end)
+  params:add_control("treble", "Amp Treble",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("treble", function(v) engine.treble(v); re() end)
+  params:add_control("master", "Amp Master",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("master", function(v) engine.master(v); re() end)
+
+  -- ── Reverb ──────────────────────────────────────────────────────────
+  params:add_separator("Reverb")
+  params:add_option("reverb_enable", "Reverb Enable", {"Bypass", "Active"}, 2)
+  params:set_action("reverb_enable", function(v)
+    engine.reverb_mute(v == 2 and 0 or 1)
+    re()
+  end)
+  params:add_control("rev_amount", "Reverb Amount",
+    controlspec.new(0, 10, "lin", 0.1, 2.5, ""))
+  params:set_action("rev_amount", function(v)
+    engine.reverb(v)
+    re()
+  end)
+
+  -- ── Tremolo ─────────────────────────────────────────────────────────
+  params:add_separator("Tremolo")
+  params:add_option("tremolo_enable", "Tremolo Enable", {"Bypass", "Active"}, 2)
+  params:set_action("tremolo_enable", function(v)
+    engine.trem_intensity(v == 2 and params:get("trem_intensity") or 0)
+    re()
+  end)
+  params:add_control("trem_speed", "Tremolo Speed",
+    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
+  params:set_action("trem_speed",     function(v) engine.trem_speed(v);     re() end)
+  params:add_control("trem_intensity", "Tremolo Intensity",
+    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
+  params:set_action("trem_intensity", function(v)
+    if params:get("tremolo_enable") == 2 then engine.trem_intensity(v) end
+    re()
+  end)
+
+  -- ── Mic ─────────────────────────────────────────────────────────────
+  params:add_separator("Mic & Speaker")
+  params:add_option("mic", "Mic Position", {"Center", "Middle", "Edge"}, 2)
+  params:set_action("mic", function(v) engine.mic(v - 1); re() end)
+  params:add_option("speaker_enable", "Speaker Enable", {"Bypass", "Active"}, 2)
+  params:set_action("speaker_enable", function(v)
+    engine.speaker_bypass(2 - v); re()
+  end)
+
   -- ── Looper ──────────────────────────────────────────────────────────
   params:add_separator("Looper")
-  params:add_control("direction", "Direction",
-    controlspec.new(0, 1, "lin", 1, 0, ""))
-  params:set_action("direction", function(v) engine.direction(math.floor(v)); re() end)
-  params:add_control("dub_style", "Dub Style",
-    controlspec.new(0, 1, "lin", 1, 0, ""))
-  params:set_action("dub_style", function(v) engine.dub_style(math.floor(v)); re() end)
-  params:add_control("dub_level", "Dub Vol",
+  params:add_option("direction", "Loop Direction", {"Forward", "Reverse"}, 1)
+  params:set_action("direction", function(v) engine.direction(v - 1); re() end)
+  params:add_option("dub_style", "Loop Dub Style", {"Regular", "Overwrite"}, 1)
+  params:set_action("dub_style", function(v) engine.dub_style(v - 1); re() end)
+  params:add_control("dub_level", "Loop Dub Vol",
     controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
   params:set_action("dub_level",  function(v) engine.dub_level(db_to_lin(v));  re() end)
   params:add_control("loop_level", "Loop Vol",
     controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
   params:set_action("loop_level", function(v) engine.loop_level(db_to_lin(v)); re() end)
-  params:add_control("loop_speed", "Speed",
-    controlspec.new(0, 2, "lin", 1, 1, ""))
-  params:set_action("loop_speed", function(v) engine.loop_speed(math.floor(v)); re() end)
+  params:add_option("loop_speed", "Loop Speed", {"0.5x", "1x", "2x"}, 2)
+  params:set_action("loop_speed", function(v) engine.loop_speed(v - 1); re() end)
   params:add_binary("loop_rec_play", "Loop Rec/Play", "trigger", 0)
   params:set_action("loop_rec_play", function(v)
     if v ~= 1 then return end
@@ -851,62 +847,69 @@ function init()
 
   -- ── Push ────────────────────────────────────────────────────────────
   params:add_separator("Push")
+  params:add_option("push_enable", "Push Enable", {"Bypass", "Active"}, 1)
+  params:set_action("push_enable", function(v)
+    engine.push_bypass(2 - v); re()
+  end)
   for _, p in ipairs(PEDALS[1].params) do
-    params:add_control(p.id, p.name,
+    params:add_control(p.id, PEDALS[1].name .. " " .. p.name,
       controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
     params:set_action(p.id, function(v)
       engine[p.id](p.step == 1 and math.floor(v) or v); re()
     end)
   end
-  params:add_binary("push_enable", "Push Enable", "toggle", 0)
-  params:set_action("push_enable", function(v)
-    engine.push_bypass(1 - v); re()
-  end)
 
   -- ── Distort ─────────────────────────────────────────────────────────
   params:add_separator("Distort")
+  params:add_option("distort_enable", "Distort Enable", {"Bypass", "Active"}, 1)
+  params:set_action("distort_enable", function(v)
+    engine.distort_bypass(2 - v); re()
+  end)
   for _, p in ipairs(PEDALS[2].params) do
-    params:add_control(p.id, p.name,
+    params:add_control(p.id, PEDALS[2].name .. " " .. p.name,
       controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
     params:set_action(p.id, function(v)
       engine[p.id](p.step == 1 and math.floor(v) or v); re()
     end)
   end
-  params:add_binary("distort_enable", "Distort Enable", "toggle", 0)
-  params:set_action("distort_enable", function(v)
-    engine.distort_bypass(1 - v); re()
-  end)
 
   -- ── Warp ────────────────────────────────────────────────────────────
   params:add_separator("Warp")
+  params:add_option("warp_enable", "Warp Enable", {"Bypass", "Active"}, 1)
+  params:set_action("warp_enable", function(v)
+    engine.warp_bypass(2 - v); re()
+  end)
   for _, p in ipairs(PEDALS[3].params) do
-    params:add_control(p.id, p.name,
+    params:add_control(p.id, PEDALS[3].name .. " " .. p.name,
       controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
     params:set_action(p.id, function(v)
       engine[p.id](p.step == 1 and math.floor(v) or v); re()
     end)
   end
-  params:add_binary("warp_enable", "Warp Enable", "toggle", 0)
-  params:set_action("warp_enable", function(v)
-    engine.warp_bypass(1 - v); re()
-  end)
 
   -- ── Repeat ──────────────────────────────────────────────────────────
   params:add_separator("Repeat")
-  for _, p in ipairs(PEDALS[4].params) do
-    params:add_control(p.id, p.name,
-      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
-    params:set_action(p.id, function(v)
-      engine[p.id](p.step == 1 and math.floor(v) or v); re()
-    end)
-  end
-  params:add_binary("repeat_enable", "Repeat Enable", "toggle", 0)
+  params:add_option("repeat_enable", "Repeat Enable", {"Bypass", "Active"}, 1)
   params:set_action("repeat_enable", function(v)
-    engine.repeat_bypass(1 - v); re()
+    engine.repeat_bypass(2 - v); re()
   end)
+  for _, p in ipairs(PEDALS[4].params) do
+    if p.options then
+      params:add_option(p.id, PEDALS[4].name .. " " .. p.name, p.options, p.default + 1)
+      params:set_action(p.id, function(v)
+        engine[p.id](v - 1); re()
+      end)
+    else
+      params:add_control(p.id, PEDALS[4].name .. " " .. p.name,
+        controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+      params:set_action(p.id, function(v)
+        engine[p.id](p.step == 1 and math.floor(v) or v); re()
+      end)
+    end
+  end
 
-  -- ── Views ────────────────────────────────────────────────────────────
-  params:add_separator("Views")
+  -- ── Navigation ──────────────────────────────────────────────────────
+  params:add_separator("Navigation")
   params:add_binary("view_amp", "View: Amp", "trigger", 0)
   params:set_action("view_amp", function(v)
     if v ~= 1 then return end
