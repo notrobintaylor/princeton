@@ -14,11 +14,11 @@ Engine_Princeton : CroneEngine {
         SynthDef(\princeton, {
 
             arg out_bus = 0, in_bus = 0,
-                volume = 5, bass = 5, treble = 5, master = 5,
+                volume = 7.5, bass = 5, treble = 5, master = 5,
                 reverb = 2.5, trem_speed = 0, trem_intensity = 0,
-                mic = 0, characteristic = 0,
+                mic = 1, characteristic = 0,
                 push_gain = 5, push_tone = 5, push_level = 5, push_bypass = 1,
-                distort_gain = 5, distort_tone = 5, distort_level = 2.5, distort_bypass = 1,
+                distort_gain = 5, distort_tone = 7.5, distort_level = 5, distort_bypass = 1,
                 warp_rate = 2.5, warp_depth = 2.5, warp_rise = 5, warp_bypass = 1,
                 repeat_time = 5, repeat_feedback = 5, repeat_level = 5, repeat_bypass = 1,
                 loop_rec = 0, loop_dub = 0, loop_play = 0,
@@ -31,6 +31,7 @@ Engine_Princeton : CroneEngine {
             var cab_center, cab_mid, cab_edge, cab;
             var trem_lfo, trem_out, trem_depth, trem_dry;
             var sp1, sp2, sp3, diff, spring_wet, wetmix;
+            var spring_in, preDel, twang;
             var input_gain, sag, sag_gain;
             var rev_decay, rev_send;
             var out_sig;
@@ -62,27 +63,28 @@ Engine_Princeton : CroneEngine {
             loop_level     = Lag.kr(loop_level,     0.05);
             dub_level      = Lag.kr(dub_level,      0.05);
             reverb_mute    = Lag.kr(reverb_mute,    0.05);
+            mute           = Lag.kr(mute,           0.02);
 
             sig = In.ar(in_bus, 1);
+            sig = LeakDC.ar(sig);
+            sig = HPF.ar(sig, 40);
+            sig = LPF.ar(sig, 7500);
 
-            push_drive = HPF.ar(sig, 720);
+            push_drive = HPF.ar(sig, 80);
             push_drive = push_drive * push_gain.linexp(0, 10, 1.0, 200.0);
+            push_drive = LPF.ar(push_drive, 6500);
             push_drive = (push_drive.max(0) * 1.3).tanh + (push_drive.min(0) * 0.7).tanh;
-            push_drive = MidEQ.ar(push_drive, 720, 0.9, push_gain.linlin(0, 10, 2, 10));
-            push_drive = XFade2.ar(
-                LPF.ar(push_drive, 500),
-                BPF.ar(push_drive, 1000, 0.7) * 2 + push_drive,
-                push_tone.linlin(0, 10, -1, 1)
-            );
+            push_drive = HPF.ar(push_drive, push_tone.linexp(0, 10, 100, 750));
             push_drive = LPF.ar(push_drive, 3500);
             push_sig   = push_drive * push_level.linlin(0, 10, 0.0, 1.3);
             sig      = XFade2.ar(push_sig, sig, Lag.kr(push_bypass.round(1) * 2 - 1, 0.008));
 
             distort_drive = HPF.ar(sig, 100);
-            distort_drive = distort_drive * distort_gain.linexp(0, 10, 50.0, 1500.0);
+            distort_drive = distort_drive * distort_gain.linexp(0, 10, 20.0, 800.0);
+            distort_drive = LPF.ar(distort_drive, 7000);
             distort_drive = distort_drive.clip(-0.85, 0.7);
             distort_drive = LeakDC.ar(distort_drive);
-            distort_drive = LPF.ar(distort_drive, (distort_tone / 10.0).pow(0.35).linexp(0.0001, 1, 150, 8000));
+            distort_drive = LPF.ar(distort_drive, distort_tone.linexp(0, 10, 300, 5000));
             distort_sig   = distort_drive * distort_level.linlin(0, 10, 0.0, 0.210);
             sig       = XFade2.ar(distort_sig, sig, Lag.kr(distort_bypass.round(1) * 2 - 1, 0.008));
 
@@ -132,13 +134,16 @@ Engine_Princeton : CroneEngine {
             sag_gain = 1.0 / (1.0 + sag * 0.35);
             power    = (pre2 * sag_gain * 2.2).softclip * 0.5;
 
-            cab_center = MidEQ.ar(power, 2500, 1.0,   4.0);
+            cab_center = MidEQ.ar(power,    120, 1.4,   3.5);  // Jensen C10R bass resonance
+            cab_center = MidEQ.ar(cab_center, 3200, 1.0,  4.0);  // center-mic presence
             cab_center = LPF.ar(HPF.ar(cab_center, 90),  6500);
 
-            cab_mid    = MidEQ.ar(power, 2000, 1.11,  1.5);
+            cab_mid    = MidEQ.ar(power,  120, 1.4,   3.5);
+            cab_mid    = MidEQ.ar(cab_mid,  2000, 1.11,  1.5);
             cab_mid    = LPF.ar(HPF.ar(cab_mid,   95),  5000);
 
-            cab_edge   = MidEQ.ar(power, 1200, 1.25, -2.0);
+            cab_edge   = MidEQ.ar(power,    120, 1.4,   3.5);
+            cab_edge   = MidEQ.ar(cab_edge, 1200, 1.25, -2.0);
             cab_edge   = LPF.ar(HPF.ar(cab_edge, 100), 3800);
 
             cab = Select.ar(mic.round(1), [cab_center, cab_mid, cab_edge]);
@@ -182,18 +187,31 @@ Engine_Princeton : CroneEngine {
 
             loop_mix = trem_out + loop_out;
 
-            rev_decay = reverb.linlin(0, 10, 0.6, 3.5);
-            rev_send  = (reverb / 10.0).sqrt * 0.25 * (1 - reverb_mute);
+            rev_decay = reverb.linlin(0, 10, 0.6, 3.065);
+            rev_send  = (reverb * 0.85 / 10.0).sqrt * 0.25 * (1 - reverb_mute);
 
-            sp1 = CombL.ar(loop_mix * rev_send, 0.1, 0.02974, rev_decay);
-            sp2 = CombL.ar(loop_mix * rev_send, 0.1, 0.03511, rev_decay * 1.12);
-            sp3 = CombL.ar(loop_mix * rev_send, 0.1, 0.04423, rev_decay * 0.88);
+            spring_in = loop_mix * rev_send;
+            preDel    = DelayN.ar(spring_in, 0.02, 0.008);
 
-            sp1 = LPF.ar(sp1, 3500);
-            sp2 = LPF.ar(sp2, 3200);
-            sp3 = LPF.ar(sp3, 2900);
+            twang = BPF.ar(preDel, 1350 + LFNoise1.kr(0.5, 100), 3.0);
+            twang = twang * rev_decay.linlin(0.6, 3.5, 0.05, 0.22);
 
-            diff       = AllpassN.ar(sp1 + sp2 + sp3, 0.05, [0.0137, 0.0211], 0.4);
+            sp1 = AllpassL.ar(preDel, 0.04, 0.0163, 0.05);
+            sp1 = AllpassL.ar(sp1,    0.04, 0.0271, 0.08);
+            sp1 = CombL.ar(sp1, 0.1, 0.02974, rev_decay * 0.9);
+            sp1 = LPF.ar(sp1, 2200);
+
+            sp2 = AllpassL.ar(preDel, 0.04, 0.0213, 0.06);
+            sp2 = AllpassL.ar(sp2,    0.04, 0.0347, 0.09);
+            sp2 = CombL.ar(sp2, 0.1, 0.03511, rev_decay);
+            sp2 = LPF.ar(sp2, 2000);
+
+            sp3 = AllpassL.ar(preDel, 0.04, 0.0129, 0.04);
+            sp3 = CombL.ar(sp3, 0.1, 0.04423, rev_decay * 1.12);
+            sp3 = LPF.ar(sp3, 1800);
+
+            diff       = AllpassN.ar(sp1 + sp2 + sp3 + (twang * 0.4), 0.05, [0.0137, 0.0211], 0.4);
+            diff       = AllpassN.ar(diff[0] + diff[1], 0.03, [0.0091, 0.0173], 0.3);
             spring_wet = (diff[0] + diff[1]) * 0.35;
 
             wetmix = loop_mix + spring_wet;
