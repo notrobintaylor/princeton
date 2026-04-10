@@ -14,7 +14,7 @@ The gain range runs from clean to light overdrive. The spring reverb and bias tr
 
 **Tremolo.** Bias-style amplitude modulation. Speed and Intensity both default to 0. Up to Intensity 1.5 the effect blends in while the dry signal fades; past 1.5 pure tremolo with increasing depth. Peaks always remain at full amplitude. Tremolo can be bypassed independently without losing the Speed and Intensity settings.
 
-**Looper.** 60-second stereo buffer, post-tremolo, pre-reverb. The spring reverb washes over the loop and the live signal equally. Forward and reverse. Half, normal, and double speed. Regular overdub layers new material over existing. Overwrite replaces it. The looper continues to run in the background while any other view (tuner, pedalboard, metro) is open.
+**Looper.** 40-second stereo buffer, post-tremolo, pre-reverb. The spring reverb washes over the loop and the live signal equally. Forward and reverse. Half, normal, and double speed. Regular overdub layers new material over existing. Overwrite replaces it. The looper continues to run in the background while any other view (tuner, pedalboard, metro) is open.
 
 **Spring reverb.** Applied to the full mix: live signal and loop together. Amount controls both send level and decay time together. At low values the spring tank is barely audible with a short decay. Turning it up increases both how much signal enters the tank and how long it rings — from a subtle shimmer at 2–3 to a long, washy bloom at 8–10. Reverb can be bypassed independently without losing the Amount setting.
 
@@ -330,7 +330,7 @@ git clone https://github.com/notrobintaylor/princeton
 - **Warp Mix.** Same parallel blend for Warp (0–10, default 0). Moves from pure vibrato to chorus/flange character as the dry signal returns.
 - **Distort Low Cut.** Post-drive high-pass filter option: Off / 100 Hz / 250 Hz. Removes accumulated sub-bass from high-gain settings.
 - **Stereo output.** The output is now full stereo. Warp produces an independent L/R chorus spread; tremolo alternates L/R (bias-trem ping-pong); spring reverb outputs a stereo pair. The previous Dual-Mono / Stereo switch in PARAMS has been removed.
-- **Looper stereo.** The 60-second loop buffer now captures and plays back the full stereo signal from the tremolo stage.
+- **Looper stereo.** The 40-second loop buffer now captures and plays back the full stereo signal from the tremolo stage.
 - **Metronome (PARAMS only).** BPM (20–300, integer), Level (0–10), Pitch (C0–B7 chromatic), and a Metro Enable toggle — all MIDI-mappable. The click is a short sine-wave burst; pitch is relative to A4. No dedicated on-device view — everything lives in the PARAMS menu.
 
 ### 1.2
