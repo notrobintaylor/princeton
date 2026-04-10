@@ -23,14 +23,13 @@ local PARAMS_DEF = {
   { id="loop_speed",     name="Speed",     default=1,    min=0,   max=2,  step=1,   db=false, cat="Looper"  },
 }
 local MIC_NAMES  = { "Center", "Middle", "Edge" }
-local CHAR_NAMES = { "Bright", "Dark" }
 local DIR_NAMES  = { "Forward", "Reverse" }
 local SPD_NAMES  = { "0.5x", "1x", "2x" }
 local DUB_NAMES  = { "Regular", "Overwrite" }
 local NUM_KNOBS  = 7
 
 local LOOP_SR  = 48000
-local LOOP_MAX = LOOP_SR * 60
+local LOOP_MAX = LOOP_SR * 40
 
 local sel = 1
 
@@ -46,11 +45,12 @@ local PEDALS = {
     name       = "Push",
     display    = "Push",
     params     = {
-      { id="push_gain",  name="Gain", default=5.0, min=0, max=10, step=0.1 },
+      { id="push_gain",  name="Gain",  default=5.0, min=0, max=10, step=0.1 },
       { id="push_tone",  name="Tone",  default=5.0, min=0, max=10, step=0.1 },
       { id="push_level", name="Level", default=5.0, min=0, max=10, step=0.1 },
+      { id="push_mix",   name="Mix",   default=2.5, min=0, max=10, step=0.1 },
     },
-    vals       = { 5.0, 5.0, 5.0 },
+    vals       = { 5.0, 5.0, 5.0, 2.5 },
     bypass     = true,
     psel       = 1,
     bypass_cmd = "push_bypass",
@@ -60,11 +60,12 @@ local PEDALS = {
     name       = "Distort",
     display    = "Distort",
     params     = {
-      { id="distort_gain",   name="Gain",   default=5.0, min=0, max=10, step=0.1 },
-      { id="distort_tone", name="Tone", default=7.5, min=0, max=10, step=0.1 },
-      { id="distort_level",    name="Level", default=5.0, min=0, max=10, step=0.1 },
+      { id="distort_gain",    name="Gain",     default=5.0, min=0, max=10, step=0.1 },
+      { id="distort_tone",    name="Tone",     default=7.5, min=0, max=10, step=0.1 },
+      { id="distort_level",   name="Level",    default=5.0, min=0, max=10, step=0.1 },
+      { id="distort_lowcut",  name="Low Cut",  default=0, min=0, max=2, step=1, options={"Off","100 Hz","250 Hz"} },
     },
-    vals       = { 5.0, 7.5, 5.0 },
+    vals       = { 5.0, 7.5, 5.0, 0 },
     bypass     = true,
     psel       = 1,
     bypass_cmd = "distort_bypass",
@@ -77,8 +78,9 @@ local PEDALS = {
       { id="warp_rate",  name="Rate",  default=2.5, min=0, max=10, step=0.1 },
       { id="warp_depth", name="Depth", default=2.5, min=0, max=10, step=0.1 },
       { id="warp_rise",  name="Rise",  default=5.0, min=0, max=10, step=0.1 },
+      { id="warp_mix",   name="Mix",   default=0.0, min=0, max=10, step=0.1 },
     },
-    vals       = { 2.5, 2.5, 5.0 },
+    vals       = { 2.5, 2.5, 5.0, 0.0 },
     bypass     = true,
     psel       = 1,
     bypass_cmd = "warp_bypass",
@@ -103,6 +105,16 @@ local PEDALS = {
 
 local function cur_pedal() return PEDALS[pedal_sel] end
 
+-- Metro pitch: C0..B7 in piano order (0-based index 57 = A4 = 0 semitones from A440)
+local NOTE_NAMES_PIANO = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
+local METRO_PITCH_NAMES = {}
+for oct = 0, 7 do
+  for _, n in ipairs(NOTE_NAMES_PIANO) do
+    METRO_PITCH_NAMES[#METRO_PITCH_NAMES + 1] = n .. oct
+  end
+end
+-- METRO_PITCH_NAMES[58] (1-based) = A4 (0-based index 57); semitones = index - 57
+
 local LOOP_IDLE = 0
 local LOOP_REC  = 1
 local LOOP_DUB  = 2
@@ -122,6 +134,9 @@ local tuner = {
   cents   = 0,
 }
 local tuner_cents_smooth = 0  -- EMA for stable arrow display
+
+local metro_active = false
+local metro_clock  = nil
 
 local k1_clock = nil
 local k2_clock = nil
@@ -523,9 +538,7 @@ local function draw_pedalboard()
   local pd   = cur_pedal()
   local p    = pd.params[pd.psel]
   local v    = params:get(p.id)
-  local vstr = p.id == "characteristic"
-    and CHAR_NAMES[v]
-    or  string.format("%.1f", v)
+  local vstr = p.options and p.options[v] or string.format("%.1f", v)
   draw_strip(pd.name, p.name, vstr)
 
   -- ── Two pedals, snapped to CAB edges ────────────────────────────
@@ -565,6 +578,25 @@ function redraw()
     draw_cabinet()
   end
   screen.update()
+end
+
+local function metro_tick_now()
+  local semitones = params:get("metro_pitch") - 1 - 57  -- 0-based index, A4=57 → 0
+  engine.metro_tick(params:get("metro_level") / 10.0, semitones)
+end
+
+local function metro_clock_start()
+  if metro_clock then clock.cancel(metro_clock) end
+  metro_clock = clock.run(function()
+    while true do
+      metro_tick_now()
+      clock.sleep(60.0 / params:get("metro_bpm"))
+    end
+  end)
+end
+
+local function metro_clock_stop()
+  if metro_clock then clock.cancel(metro_clock); metro_clock = nil end
 end
 
 local function tuner_start()
@@ -761,6 +793,30 @@ function init()
     re()
   end)
 
+  -- ── Metro ───────────────────────────────────────────────────────────
+  params:add_separator("Metro")
+  params:add_option("metro_enable", "Metro Enable", {"Bypass", "Active"}, 1)
+  params:set_action("metro_enable", function(v)
+    metro_active = (v == 2)
+    if metro_active then
+      metro_clock_start()
+    else
+      metro_clock_stop()
+    end
+    re()
+  end)
+  params:add_control("metro_bpm", "Metro BPM",
+    controlspec.new(20, 300, "lin", 1, 120, ""))
+  params:set_action("metro_bpm", function(_)
+    if metro_active then metro_clock_start() end
+    re()
+  end)
+  params:add_control("metro_level", "Metro Level",
+    controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+  params:set_action("metro_level", function(_) re() end)
+  params:add_option("metro_pitch", "Metro Pitch", METRO_PITCH_NAMES, 37)
+  params:set_action("metro_pitch", function(_) re() end)
+
   -- ── Amp ─────────────────────────────────────────────────────────────
   params:add_separator("Amp")
   params:add_option("amp_enable", "Amp Enable", {"Bypass", "Active"}, 2)
@@ -866,11 +922,16 @@ function init()
     engine.distort_bypass(2 - v); re()
   end)
   for _, p in ipairs(PEDALS[2].params) do
-    params:add_control(p.id, PEDALS[2].name .. " " .. p.name,
-      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
-    params:set_action(p.id, function(v)
-      engine[p.id](p.step == 1 and math.floor(v) or v); re()
-    end)
+    if p.options then
+      params:add_option(p.id, PEDALS[2].name .. " " .. p.name, p.options, p.default + 1)
+      params:set_action(p.id, function(v) engine[p.id](v - 1); re() end)
+    else
+      params:add_control(p.id, PEDALS[2].name .. " " .. p.name,
+        controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+      params:set_action(p.id, function(v)
+        engine[p.id](p.step == 1 and math.floor(v) or v); re()
+      end)
+    end
   end
 
   -- ── Warp ────────────────────────────────────────────────────────────
@@ -907,35 +968,6 @@ function init()
       end)
     end
   end
-
-  -- ── Navigation ──────────────────────────────────────────────────────
-  params:add_separator("Navigation")
-  params:add_binary("view_amp", "View: Amp", "trigger", 0)
-  params:set_action("view_amp", function(v)
-    if v ~= 1 then return end
-    if tuner.active then tuner_stop() end
-    pedal_active = false
-    redraw()
-  end)
-  params:add_binary("view_tuner", "View: Tuner", "trigger", 0)
-  params:set_action("view_tuner", function(v)
-    if v ~= 1 then return end
-    if not tuner.active then pedal_active = false; tuner_start() end
-  end)
-  params:add_binary("view_gain", "View: Gain", "trigger", 0)
-  params:set_action("view_gain", function(v)
-    if v ~= 1 then return end
-    if tuner.active then tuner_stop() end
-    pedal_active = true; pedal_sel = 1
-    redraw()
-  end)
-  params:add_binary("view_mod", "View: Mod", "trigger", 0)
-  params:set_action("view_mod", function(v)
-    if v ~= 1 then return end
-    if tuner.active then tuner_stop() end
-    pedal_active = true; pedal_sel = 3
-    redraw()
-  end)
 
   -- ── Pitch poll ──────────────────────────────────────────────────────
   tuner_pitch_poll = poll.set("pitch_in_l", function(freq)
