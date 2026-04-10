@@ -14,7 +14,7 @@ The gain range runs from clean to light overdrive. The spring reverb and bias tr
 
 **Tremolo.** Bias-style amplitude modulation. Speed and Intensity both default to 0. Up to Intensity 1.5 the effect blends in while the dry signal fades; past 1.5 pure tremolo with increasing depth. Peaks always remain at full amplitude. Tremolo can be bypassed independently without losing the Speed and Intensity settings.
 
-**Looper.** 60-second mono buffer, post-tremolo, pre-reverb. The spring reverb washes over the loop and the live signal equally. Forward and reverse. Half, normal, and double speed. Regular overdub layers new material over existing. Overwrite replaces it. The looper continues to run in the background while any other view (tuner, pedalboard) is open.
+**Looper.** 60-second stereo buffer, post-tremolo, pre-reverb. The spring reverb washes over the loop and the live signal equally. Forward and reverse. Half, normal, and double speed. Regular overdub layers new material over existing. Overwrite replaces it. The looper continues to run in the background while any other view (tuner, pedalboard, metro) is open.
 
 **Spring reverb.** Applied to the full mix: live signal and loop together. Amount controls both send level and decay time together. At low values the spring tank is barely audible with a short decay. Turning it up increases both how much signal enters the tank and how long it rings — from a subtle shimmer at 2–3 to a long, washy bloom at 8–10. Reverb can be bypassed independently without losing the Amount setting.
 
@@ -22,21 +22,25 @@ The gain range runs from clean to light overdrive. The spring reverb and bias tr
 
 **Amp bypass.** An Amp Enable toggle is available in the PARAMS menu and can be mapped to a MIDI footswitch. When the amp is bypassed the preamp, tone stack, power amp, and cabinet are all removed from the signal path; tremolo, looper, and spring reverb remain active. The panel lamp dims to indicate bypass.
 
-**Output.** Dual mono. Both outputs carry the same signal.
+**Output.** Stereo. Warp produces a stereo chorus spread (L/R detuned independently). Tremolo alternates between L and R (classic bias-trem ping-pong). The spring reverb outputs a stereo pair via its allpass diffuser. Both norns sends carry full signal.
+
+**Metronome.** A click track that runs independently of the main signal path. Tempo 20–300 BPM, adjustable level, and chromatic pitch. Controlled entirely from the PARAMS menu — BPM, Level, Pitch, and an Active/Bypass toggle (all MIDI-mappable).
 
 ## Signal flow
 
 ```
-guitar → Push → Distort → Warp → Repeat
+guitar → Push → Distort → Warp (→ stereo) → Repeat
        → preamp → tone stack → power amp
        → cabinet (10", 3 mic positions)
-       → tremolo → looper → spring reverb → master → out (dual mono)
+       → tremolo (stereo) → looper (stereo) → spring reverb (stereo) → master → out L/R
 ```
 
 ## Controls
 
 | Control | Function |
 |---------|----------|
+| **E2** | Select parameter |
+| **E3** | Change value |
 | **E2** | Select parameter |
 | **E3** | Change value |
 | **K1 hold 2s** | Tuner on / off (from any view) |
@@ -112,6 +116,17 @@ Center is brightest and most present. Middle is balanced. Edge is darker and rou
 
 Adjustable with E2 while the tuner is open. Saved with your PSET.
 
+### Metro
+
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Metro Enable** | Bypass | Bypass / Active |
+| **BPM** | 120 | 20–300 |
+| **Level** | 5.0 | 0–10 |
+| **Pitch** | C3 | C0–B7 (chromatic) |
+
+All four entries live in the PARAMS menu and are MIDI-mappable. Metro Enable and BPM are the most useful for footswitch / knob control. The click fires as a short sine-wave burst; pitch shifts relative to A4 (440 Hz) in semitones.
+
 ### Looper
 
 | Parameter | Default | Range / Options |
@@ -131,18 +146,20 @@ Speed affects playback only. At half speed the loop plays an octave lower and tw
 | **Gain** | 5.0 | 0–10 |
 | **Tone** | 5.0 | 0–10 |
 | **Level** | 5.0 | 0–10 |
+| **Mix** | 2.5 | 0–10 |
 
-Overdrive with asymmetric diode clipping. Tone sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting) — at low settings the pedal sits wide and open, at high settings it cuts bass and low mids before the amp.
+Overdrive with asymmetric diode clipping. Tone sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting). Mix is a parallel wet/dry blend: at 0 the effect is 100% wet; at 10 the dry signal is mixed back in 50/50. Useful for retaining pick attack and low-end body while adding saturation on top.
 
 ### Distort
 
-| Parameter | Default | Range |
-|-----------|---------|-------|
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
 | **Gain** | 5.0 | 0–10 |
 | **Tone** | 7.5 | 0–10 |
 | **Level** | 5.0 | 0–10 |
+| **Low Cut** | Off | Off / 100 Hz / 250 Hz |
 
-Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, murky) to 5000 Hz (open, cutting) — at high settings the pedal is bright and aggressive, at low settings it rolls back into a thick, dark grind.
+Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, murky) to 5000 Hz (open, cutting). Low Cut applies a post-drive high-pass filter to remove accumulated sub-bass.
 
 ### Warp
 
@@ -151,8 +168,9 @@ Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, mu
 | **Rate** | 2.5 | 0–10 |
 | **Depth** | 2.5 | 0–10 |
 | **Rise** | 5.0 | 0–10 |
+| **Mix** | 0.0 | 0–10 |
 
-BBD-style pitch vibrato, 100% wet. Rise controls how long the effect takes to reach full depth after bypass is lifted.
+Stereo pitch vibrato with independent L/R LFO detuning. At 0 Mix the effect is 100% wet pitch-shifted signal; increasing Mix blends in the dry mono signal, moving from pure vibrato toward a chorus/flange character. Rise controls how long the effect takes to reach full depth after bypass is lifted.
 
 ### Repeat
 
@@ -187,7 +205,7 @@ Transport icons at the bottom of the left display (framed in brackets when a loo
 
 ## MIDI
 
-Every parameter, bypass toggle, looper transport action, and view navigation trigger is available in the PARAMS menu and can be mapped to any MIDI CC using Norns' built-in MIDI learn.
+Every parameter, bypass toggle, and looper transport action is available in the PARAMS menu and can be mapped to any MIDI CC using Norns' built-in MIDI learn.
 
 ### How to map a control
 
@@ -210,19 +228,12 @@ Every parameter, bypass toggle, looper transport action, and view navigation tri
 | Loop Rec/Play | Same as K2: idle → rec → play → dub → play … / stop → play |
 | Loop Stop/Clear | Same as K3: play/dub → stop → idle (buffer cleared) |
 
-**View navigation** — direct triggers for each view:
-
-| PARAMS entry | Action |
-|---|---|
-| View: Amp | Return to amp view from anywhere |
-| View: Tuner | Open tuner (if not already active) |
-| View: Gain | Open Push / Distort pedalboard |
-| View: Mod | Open Warp / Repeat pedalboard |
-
 ### Notes
 
 - MIDI mappings are stored per PSET — each preset can have its own mapping.
 - Looper transport triggers respond on CC value ≥ 64 (send value 127 for reliable triggering).
+- **Enable toggles** use CC ≥ 64 → Active, CC < 64 → Bypass. Your controller must send both values (latch / bi-directional CC) — a toggle that always sends CC 127 will always set the param to Active and never back to Bypass.
+- **After upgrading** from a version where enable params were binary (pre-1.2), delete `dust/data/princeton/princeton.pmap` and re-map your CCs. The param type change from `add_binary` to `add_option` breaks saved mappings silently.
 - All MIDI input is on channel 1 by default. Change the channel in PARAMS > MIDI.
 
 ## User stories
@@ -233,7 +244,7 @@ Every parameter, bypass toggle, looper transport action, and view navigation tri
 - I want the volume knob to behave like a real amp so that low settings are clean and high settings break up naturally.
 - I want a fixed mid scoop in the tone stack so that I get the scooped, open Fender character without having to dial it in.
 - I want three mic positions on the cabinet so that I can choose between a bright on-axis sound, a balanced middle position, and a darker off-axis tone.
-- I want dual mono output so that both norns sends carry signal and stereo effects downstream receive input on both channels.
+- I want stereo output so that the stereo spread of Warp, the ping-pong of the tremolo, and the spatial width of the spring reverb are preserved at the output.
 - I want to bypass the amp so that I can use the looper and reverb as a standalone effect chain without the amp colouration.
 - I want to bypass the cabinet simulation independently so that I can use the preamp tone into an external cab or IR loader without double-amping.
 
@@ -276,6 +287,12 @@ Every parameter, bypass toggle, looper transport action, and view navigation tri
 - I want a mute option in the tuner so that I can tune silently without stopping the looper.
 - I want to navigate directly from the tuner to the pedalboard so that I don't have to pass through the amp view.
 
+**Metro**
+
+- I want a built-in metronome so that I can play to a click without an external device.
+- I want the metronome MIDI-mappable so that I can start and stop it from a footswitch and control BPM from a knob.
+- I want BPM, Level, and Pitch in the PARAMS menu so that I can adjust them and save them with each preset.
+
 **Navigation**
 
 - I want to reach the tuner, gain pedals, and modulation pedals from any view with a single hold so that I never have to navigate back to the amp view first.
@@ -307,11 +324,20 @@ git clone https://github.com/notrobintaylor/princeton
 
 ## Changelog
 
+### 1.3
+
+- **Push Mix.** Parallel wet/dry blend (0–10, default 2.5). At 0 the effect is 100% wet; increasing Mix blends in the unprocessed signal.
+- **Warp Mix.** Same parallel blend for Warp (0–10, default 0). Moves from pure vibrato to chorus/flange character as the dry signal returns.
+- **Distort Low Cut.** Post-drive high-pass filter option: Off / 100 Hz / 250 Hz. Removes accumulated sub-bass from high-gain settings.
+- **Stereo output.** The output is now full stereo. Warp produces an independent L/R chorus spread; tremolo alternates L/R (bias-trem ping-pong); spring reverb outputs a stereo pair. The previous Dual-Mono / Stereo switch in PARAMS has been removed.
+- **Looper stereo.** The 60-second loop buffer now captures and plays back the full stereo signal from the tremolo stage.
+- **Metronome (PARAMS only).** BPM (20–300, integer), Level (0–10), Pitch (C0–B7 chromatic), and a Metro Enable toggle — all MIDI-mappable. The click is a short sine-wave burst; pitch is relative to A4. No dedicated on-device view — everything lives in the PARAMS menu.
+
 ### 1.2
 
 - **Spring reverb redesigned.** New architecture with pre-delay (8 ms), three-channel AllpassL dispersion, BPF twang resonance, and two AllpassN diffusion stages for a truer spring character — chirp on transients, bloom on long decays. Decay range extended so the full 0–10 sweep is useful.
 - **Noise floor lowered.** Input band-limiting (40 Hz–7.5 kHz) applied before all gain stages. Per-stage anti-aliasing filters added on Push and Distort. No noise gate required.
-- **Push Tone reworked.** Tone now sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting) — pre-drive, so it shapes the harmonic content before clipping.
+- **Push Tone reimplemented.** Tone now sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting) — pre-drive, so it shapes the harmonic content before clipping.
 - **Distort refined.** Tone sweep narrowed to 300–5000 Hz; gain range adjusted to 20–800. More musical response across the full sweep.
 - **Cabinet tuned to Jensen C10R.** A bass resonance peak at 120 Hz (+3.5 dB) is now applied before the mic-position EQ in all three positions. Center-mic presence peak moved to 3200 Hz for more attack and definition.
 - **PARAMS: text values.** Enable toggles show "Active" / "Bypass" instead of a checkbox. Mic Position, Loop Direction, Loop Speed, Loop Dub Style, and Repeat Character display their option names.
