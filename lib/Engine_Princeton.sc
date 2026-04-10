@@ -7,7 +7,7 @@ Engine_Princeton : CroneEngine {
 
     alloc {
 
-        loop_buf = Buffer.alloc(context.server, (48000 * 60), 1);
+        loop_buf = Buffer.alloc(context.server, (48000 * 40), 2);
 
         context.server.sync;
 
@@ -17,9 +17,9 @@ Engine_Princeton : CroneEngine {
                 volume = 7.5, bass = 5, treble = 5, master = 5,
                 reverb = 2.5, trem_speed = 0, trem_intensity = 0,
                 mic = 1, characteristic = 0,
-                push_gain = 5, push_tone = 5, push_level = 5, push_bypass = 1,
-                distort_gain = 5, distort_tone = 7.5, distort_level = 5, distort_bypass = 1,
-                warp_rate = 2.5, warp_depth = 2.5, warp_rise = 5, warp_bypass = 1,
+                push_gain = 5, push_tone = 5, push_level = 5, push_bypass = 1, push_mix = 2.5,
+                distort_gain = 5, distort_tone = 7.5, distort_level = 5, distort_bypass = 1, distort_lowcut = 0,
+                warp_rate = 2.5, warp_depth = 2.5, warp_rise = 5, warp_bypass = 1, warp_mix = 0,
                 repeat_time = 5, repeat_feedback = 5, repeat_level = 5, repeat_bypass = 1,
                 loop_rec = 0, loop_dub = 0, loop_play = 0,
                 loop_frames = 2880000, loop_level = 0.75, dub_level = 0.75,
@@ -27,7 +27,7 @@ Engine_Princeton : CroneEngine {
                 mute = 0, amp_bypass = 0,
                 reverb_mute = 0, speaker_bypass = 0;
 
-            var sig, push_sig, push_drive, distort_sig, distort_drive, repeat_sig, repeat_delay, repeat_fb, pre1, toned, pre2, power;
+            var sig, push_sig, push_drive, distort_sig, distort_drive, repeat_delay, repeat_fb, pre1, toned, pre2, power;
             var cab_center, cab_mid, cab_edge, cab;
             var trem_lfo, trem_out, trem_depth, trem_dry;
             var sp1, sp2, sp3, diff, spring_wet, wetmix;
@@ -40,8 +40,10 @@ Engine_Princeton : CroneEngine {
             var loop_reset, loop_phase, loop_rd, loop_preserve;
             var write_sig, loop_out, final_sig, loop_mix;
             var repeat_fb_lp, repeat_jitter, repeat_noise, repeat_dt;
-            var warp_lfo, warp_depth_env, warp_dt, warp_sig;
+            var warp_lfo_L, warp_lfo_R, warp_sig_L, warp_sig_R, warp_depth_env;
             var frames, read_pos, fade_gain, fade_samps, fade_norm, speed_rate, play_phase;
+            var sig_mono;
+            var repeat_gate;
 
             volume         = Lag.kr(volume,         0.05);
             bass           = Lag.kr(bass,           0.05);
@@ -53,11 +55,13 @@ Engine_Princeton : CroneEngine {
             push_gain      = Lag.kr(push_gain,      0.05);
             push_tone      = Lag.kr(push_tone,      0.05);
             push_level     = Lag.kr(push_level,     0.05);
-            distort_gain   = Lag.kr(distort_gain,   0.05);
-            distort_tone   = Lag.kr(distort_tone,   0.05);
-            distort_level  = Lag.kr(distort_level,  0.05);
+            push_mix       = Lag.kr(push_mix,       0.05);
+            distort_gain     = Lag.kr(distort_gain,     0.05);
+            distort_tone     = Lag.kr(distort_tone,     0.05);
+            distort_level    = Lag.kr(distort_level,    0.05);
             warp_rate      = Lag.kr(warp_rate,      0.05);
             warp_rise      = Lag.kr(warp_rise,      0.05);
+            warp_mix       = Lag.kr(warp_mix,       0.05);
             repeat_feedback = Lag.kr(repeat_feedback, 0.05);
             repeat_level   = Lag.kr(repeat_level,   0.05);
             loop_level     = Lag.kr(loop_level,     0.05);
@@ -70,33 +74,42 @@ Engine_Princeton : CroneEngine {
             sig = HPF.ar(sig, 40);
             sig = LPF.ar(sig, 7500);
 
-            push_drive = HPF.ar(sig, 80);
-            push_drive = push_drive * push_gain.linexp(0, 10, 1.0, 200.0);
+            push_drive = HPF.ar(sig, 100);
+            push_drive = LPF.ar(push_drive, 3000);
+            push_drive = push_drive * push_gain.linexp(0, 10, 1.0, 100.0);
             push_drive = LPF.ar(push_drive, 6500);
-            push_drive = (push_drive.max(0) * 1.3).tanh + (push_drive.min(0) * 0.7).tanh;
+            push_drive = (push_drive.max(0) * 1.15).tanh + (push_drive.min(0) * 0.7).tanh;
+            push_drive = LeakDC.ar(push_drive);
             push_drive = HPF.ar(push_drive, push_tone.linexp(0, 10, 100, 750));
-            push_drive = LPF.ar(push_drive, 3500);
+            push_drive = LPF.ar(push_drive, 4200);
             push_sig   = push_drive * push_level.linlin(0, 10, 0.0, 1.3);
-            sig      = XFade2.ar(push_sig, sig, Lag.kr(push_bypass.round(1) * 2 - 1, 0.008));
+            sig      = XFade2.ar(push_sig, sig, Lag.kr(Select.kr(push_bypass.round(1), [push_mix.linlin(0, 10, -1, 1), 1]), 0.008));
 
-            distort_drive = HPF.ar(sig, 100);
-            distort_drive = distort_drive * distort_gain.linexp(0, 10, 20.0, 800.0);
+            distort_drive = HPF.ar(sig, 150);
+            distort_drive = LPF.ar(distort_drive, 4500);
+            distort_drive = distort_drive * distort_gain.linexp(0, 10, 10.0, 500.0);
             distort_drive = LPF.ar(distort_drive, 7000);
-            distort_drive = distort_drive.clip(-0.85, 0.7);
+            distort_drive = distort_drive.clip2(1.0);
             distort_drive = LeakDC.ar(distort_drive);
             distort_drive = LPF.ar(distort_drive, distort_tone.linexp(0, 10, 300, 5000));
-            distort_sig   = distort_drive * distort_level.linlin(0, 10, 0.0, 0.210);
+            distort_drive = HPF.ar(distort_drive, Select.kr(distort_lowcut.round(1), [20, 100, 250]));
+            distort_sig   = distort_drive * distort_level.linlin(0, 10, 0.0, 0.170);
             sig       = XFade2.ar(distort_sig, sig, Lag.kr(distort_bypass.round(1) * 2 - 1, 0.008));
 
             // Lag on warp_depth (not bypass) creates slow onset when pedal engages
             warp_depth_env = Lag.kr(warp_depth.linlin(0, 10, 0.0, 0.012) * (1 - warp_bypass.round(1)),
                               warp_rise.linlin(0, 10, 0.01, 4.0));
-            warp_lfo = SinOsc.ar(
-                warp_rate.linexp(0, 10, 0.3, 8.0) + LFNoise2.kr(4, 0.08),
-                0, warp_depth_env, 0.007);
-            warp_sig = DelayC.ar(sig, 0.02, warp_lfo.clip(0.0001, 0.02));
-            sig     = XFade2.ar(warp_sig, sig, Lag.kr(warp_bypass.round(1) * 2 - 1, 0.008));
+            // Stereo warp: L phase 0, R phase π — two independent LFNoise2 for decorrelation
+            warp_lfo_L = SinOsc.ar(warp_rate.linexp(0, 10, 0.3, 8.0) + LFNoise2.kr(4, 0.08), 0,  warp_depth_env, 0.007);
+            warp_lfo_R = SinOsc.ar(warp_rate.linexp(0, 10, 0.3, 8.0) + LFNoise2.kr(4, 0.08), pi, warp_depth_env, 0.007);
+            warp_sig_L = DelayC.ar(sig, 0.02, warp_lfo_L.clip(0.0001, 0.02));
+            warp_sig_R = DelayC.ar(sig, 0.02, warp_lfo_R.clip(0.0001, 0.02));
+            // sig becomes stereo [L, R] from here on
+            sig = XFade2.ar([warp_sig_L, warp_sig_R], [sig, sig], Lag.kr(Select.kr(warp_bypass.round(1), [warp_mix.linlin(0, 10, -1, 1), 1]), 0.008));
 
+            // Repeat bypass: gate the INPUT only — tail rings out and can self-feedback
+            repeat_gate   = Lag.kr(1 - repeat_bypass.round(1), 0.008);
+            sig_mono      = (sig[0] + sig[1]) * 0.5;
             repeat_jitter = SinOsc.kr(0.3, 0, 0.0003) + LFNoise2.kr(8, 0.0002);
             repeat_dt     = Lag.kr(repeat_time.linlin(0, 10, 0.001, 0.60), 0.15) + repeat_jitter;
             repeat_fb    = LocalIn.ar(1) * repeat_feedback.linlin(0, 10, 0.0, 1.0);
@@ -104,12 +117,14 @@ Engine_Princeton : CroneEngine {
             repeat_fb    = repeat_fb * Select.kr(characteristic.round(1), [1.0, 1.5]);
             repeat_fb    = LPF.ar(repeat_fb, repeat_fb_lp);
             repeat_fb    = (repeat_fb * 1.1).tanh * 0.95;
-            repeat_delay = DelayL.ar(sig + repeat_fb, 0.62, repeat_dt.clip(0.001, 0.62));
+            // New material enters delay only when active; feedback always circulates
+            repeat_delay = DelayL.ar(sig_mono * repeat_gate + repeat_fb, 0.62, repeat_dt.clip(0.001, 0.62));
             // noise goes to LocalOut only — not present in repeat_delay output
             repeat_noise = WhiteNoise.ar(Amplitude.kr(repeat_fb, 0.01, 0.2) * 0.015);
             LocalOut.ar(repeat_delay + repeat_noise);
-            repeat_sig    = sig + (repeat_delay * repeat_level.linlin(0, 10, 0.0, 1.0));
-            sig        = XFade2.ar(repeat_sig, sig, Lag.kr(repeat_bypass.round(1) * 2 - 1, 0.008));
+            // Wet always added — dry sig preserved stereo; tail decays naturally after bypass
+            sig = [sig[0] + repeat_delay * repeat_level.linlin(0, 10, 0.0, 1.0),
+                   sig[1] + repeat_delay * repeat_level.linlin(0, 10, 0.0, 1.0)];
 
             input_gain = volume.clip(0.01, 10).linexp(0.01, 10, 0.35, 22.6);
             pre1 = (sig * input_gain).tanh;
@@ -153,7 +168,11 @@ Engine_Princeton : CroneEngine {
             trem_lfo   = SinOsc.kr(trem_speed.linlin(0, 10, 0.5, 12.0), 0, 0.5, 0.5);
             trem_dry   = Lag.kr(trem_intensity.linlin(0, 1.5, 1.0, 0.0).clip(0, 1), 0.05);
             trem_depth = Lag.kr(trem_intensity.linlin(1.6, 10, 0.0, 0.9).clip(0, 1), 0.05);
-            trem_out   = cab * (trem_dry + (1.0 - trem_dry) * (trem_depth * trem_lfo + (1.0 - trem_depth)));
+            // Stereo tremolo: R channel uses inverted LFO (alternating pulses L/R)
+            trem_out = [
+                cab[0] * (trem_dry + (1.0 - trem_dry) * (trem_depth * trem_lfo         + (1.0 - trem_depth))),
+                cab[1] * (trem_dry + (1.0 - trem_dry) * (trem_depth * (1.0 - trem_lfo) + (1.0 - trem_depth)))
+            ];
 
             frames     = loop_frames.max(2);
             fade_samps = 512;
@@ -172,14 +191,15 @@ Engine_Princeton : CroneEngine {
             fade_gain  = (fade_norm * 0.5 * pi).sin;
             fade_gain  = fade_gain * fade_gain;
 
-            loop_rd    = BufRd.ar(1, loop_buf_num, read_pos,   loop: 1, interpolation: 2);
+            loop_rd    = BufRd.ar(2, loop_buf_num, read_pos,   loop: 1, interpolation: 2);
 
-            loop_preserve = BufRd.ar(1, loop_buf_num, loop_phase, loop: 1, interpolation: 1);
+            loop_preserve = BufRd.ar(2, loop_buf_num, loop_phase, loop: 1, interpolation: 1);
 
+            // Stereo looper: write and read both channels
             write_sig =
-                (loop_preserve                                                              * (1 - (loop_rec + loop_dub).min(1)))
-              + (trem_out                                                                   * loop_rec)
-              + ((trem_out * dub_level + loop_rd * loop_level * (1 - dub_style.round(1))) * loop_dub);
+                (loop_preserve                                                                    * (1 - (loop_rec + loop_dub).min(1)))
+              + (trem_out                                                                          * loop_rec)
+              + ((trem_out * dub_level + loop_rd * loop_level * (1 - dub_style.round(1)))        * loop_dub);
 
             BufWr.ar(write_sig, loop_buf_num, loop_phase);
 
@@ -187,14 +207,15 @@ Engine_Princeton : CroneEngine {
 
             loop_mix = trem_out + loop_out;
 
-            rev_decay = reverb.linlin(0, 10, 0.6, 3.065);
+            rev_decay = reverb.linlin(0, 10, 0.8, 3.5);
             rev_send  = (reverb * 0.85 / 10.0).sqrt * 0.25 * (1 - reverb_mute);
 
-            spring_in = loop_mix * rev_send;
+            // Reverb takes mono input (mix of stereo loop_mix), outputs stereo via allpass diffuser
+            spring_in = (loop_mix[0] + loop_mix[1]) * 0.5 * rev_send;
             preDel    = DelayN.ar(spring_in, 0.02, 0.008);
 
             twang = BPF.ar(preDel, 1350 + LFNoise1.kr(0.5, 100), 3.0);
-            twang = twang * rev_decay.linlin(0.6, 3.5, 0.05, 0.22);
+            twang = twang * rev_decay.linlin(0.8, 3.5, 0.05, 0.22);
 
             sp1 = AllpassL.ar(preDel, 0.04, 0.0163, 0.05);
             sp1 = AllpassL.ar(sp1,    0.04, 0.0271, 0.08);
@@ -212,6 +233,8 @@ Engine_Princeton : CroneEngine {
 
             diff       = AllpassN.ar(sp1 + sp2 + sp3 + (twang * 0.4), 0.05, [0.0137, 0.0211], 0.4);
             diff       = AllpassN.ar(diff[0] + diff[1], 0.03, [0.0091, 0.0173], 0.3);
+            // Mono reverb sum — allpass taps are phase-shifted relative to each other
+            // and would cancel in Dual-Mono; sum first, then SC adds scalar to stereo loop_mix
             spring_wet = (diff[0] + diff[1]) * 0.35;
 
             wetmix = loop_mix + spring_wet;
@@ -219,8 +242,16 @@ Engine_Princeton : CroneEngine {
             out_sig   = wetmix * (master / 10.0).squared * 2.0;
             final_sig = out_sig.softclip * (1.0 - mute);
 
-            Out.ar(out_bus, [final_sig, final_sig]);
+            Out.ar(out_bus, final_sig);
 
+        }).add;
+
+        SynthDef(\metro_click, {
+            arg out_bus = 0, level = 0.5, pitch = 0;
+            var freq = 440 * (2 ** (pitch / 12));
+            var env  = EnvGen.ar(Env.perc(0.001, 0.06), doneAction: 2);
+            var sig  = SinOsc.ar(freq) * env * level.clip(0, 1);
+            Out.ar(out_bus, [sig, sig]);
         }).add;
 
         context.server.sync;
@@ -250,10 +281,11 @@ Engine_Princeton : CroneEngine {
         this.addCommand("master",           "f", { |msg| synth.set(\master,           msg[1]) });
         this.addCommand("mic",              "f", { |msg| synth.set(\mic,              msg[1]) });
         this.addCommand("mute",             "f", { |msg| synth.set(\mute,             msg[1]) });
-        this.addCommand("distort_bypass",   "f", { |msg| synth.set(\distort_bypass,   msg[1]) });
-        this.addCommand("distort_gain",     "f", { |msg| synth.set(\distort_gain,     msg[1]) });
-        this.addCommand("distort_tone",     "f", { |msg| synth.set(\distort_tone,     msg[1]) });
-        this.addCommand("distort_level",    "f", { |msg| synth.set(\distort_level,    msg[1]) });
+        this.addCommand("distort_bypass",  "f", { |msg| synth.set(\distort_bypass,  msg[1]) });
+        this.addCommand("distort_gain",    "f", { |msg| synth.set(\distort_gain,    msg[1]) });
+        this.addCommand("distort_level",   "f", { |msg| synth.set(\distort_level,   msg[1]) });
+        this.addCommand("distort_lowcut",  "f", { |msg| synth.set(\distort_lowcut,  msg[1]) });
+        this.addCommand("distort_tone",    "f", { |msg| synth.set(\distort_tone,    msg[1]) });
         this.addCommand("reverb",           "f", { |msg| synth.set(\reverb,           msg[1]) });
         this.addCommand("treble",           "f", { |msg| synth.set(\treble,           msg[1]) });
         this.addCommand("trem_intensity",   "f", { |msg| synth.set(\trem_intensity,   msg[1]) });
@@ -261,14 +293,23 @@ Engine_Princeton : CroneEngine {
         this.addCommand("push_bypass",      "f", { |msg| synth.set(\push_bypass,      msg[1]) });
         this.addCommand("push_gain",        "f", { |msg| synth.set(\push_gain,        msg[1]) });
         this.addCommand("push_level",       "f", { |msg| synth.set(\push_level,       msg[1]) });
+        this.addCommand("push_mix",         "f", { |msg| synth.set(\push_mix,         msg[1]) });
         this.addCommand("push_tone",        "f", { |msg| synth.set(\push_tone,        msg[1]) });
         this.addCommand("warp_bypass",      "f", { |msg| synth.set(\warp_bypass,      msg[1]) });
         this.addCommand("warp_depth",       "f", { |msg| synth.set(\warp_depth,       msg[1]) });
+        this.addCommand("warp_mix",         "f", { |msg| synth.set(\warp_mix,         msg[1]) });
         this.addCommand("warp_rate",        "f", { |msg| synth.set(\warp_rate,        msg[1]) });
         this.addCommand("warp_rise",        "f", { |msg| synth.set(\warp_rise,        msg[1]) });
         this.addCommand("reverb_mute",      "f", { |msg| synth.set(\reverb_mute,      msg[1]) });
         this.addCommand("speaker_bypass",   "f", { |msg| synth.set(\speaker_bypass,   msg[1]) });
         this.addCommand("volume",           "f", { |msg| synth.set(\volume,           msg[1]) });
+        this.addCommand("metro_tick",       "ff", { |msg|
+            Synth(\metro_click, [
+                \out_bus, context.out_b.index,
+                \level,   msg[1],
+                \pitch,   msg[2]
+            ], context.xg);
+        });
         this.addCommand("loop_clear",       "",  {
             loop_buf.zero;
             synth.set(\loop_rec, 0, \loop_dub, 0, \loop_play, 0);
