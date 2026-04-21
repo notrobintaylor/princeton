@@ -18,13 +18,13 @@ local PARAMS_DEF = {
   { id="mic_position",            name="Position",     default=1,    min=0,   max=2,  step=1,   db=false, cat="Mic"     },
   { id="looper_topology",   name="Topology",   default=3,   min=1,  max=4,  step=1,   db=false, cat="Looper", options={"BBD","Cassette","Digital","Tape"} },
   { id="looper_character", name="Character",  default=0.0, min=0,  max=10, step=0.1, db=false, cat="Looper"  },
-  { id="looper_direction",      name="Direction", default=0,    min=0,   max=1,  step=1,   db=false, cat="Looper"  },
+  { id="looper_direction",      name="Direction", default=0,    min=0,   max=3,  step=1,   db=false, cat="Looper"  },
   { id="looper_dub_level",      name="Dub Level", default=-2.5, min=-40, max=0,  step=0.5, db=true,  cat="Looper"  },
   { id="looper_level",     name="Level",        default=-2.5, min=-40, max=0, step=0.5, db=true,  cat="Looper"  },
   { id="looper_speed",     name="Speed",     default=1,    min=0,   max=2,  step=1,   db=false, cat="Looper"  },
 }
 local MIC_NAMES  = { "Center", "Middle", "Edge" }
-local DIR_NAMES  = { "Forward", "Reverse" }
+local DIR_NAMES  = { "Forward", "Reverse", "Pendulum", "Random" }
 local SPD_NAMES  = { "0.5x", "1x", "2x" }
 local DUB_NAMES  = { "Regular", "Overwrite" }
 local NUM_KNOBS  = 7
@@ -893,7 +893,7 @@ function init()
   params:add_control("looper_character", "Looper Character",
     controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
   params:set_action("looper_character", function(v) engine.looper_character(v); re() end)
-  params:add_option("looper_direction", "Looper Direction", {"Forward", "Reverse"}, 1)
+  params:add_option("looper_direction", "Looper Direction", {"Forward", "Reverse", "Pendulum", "Random"}, 1)
   params:set_action("looper_direction", function(v) engine.looper_direction(v - 1); re() end)
   params:add_control("looper_dub_level", "Looper Dub Level",
     controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
