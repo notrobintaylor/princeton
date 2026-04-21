@@ -49,6 +49,7 @@ Engine_Princeton : CroneEngine {
             var frames, read_pos, fade_gain, fade_samps, fade_norm, speed_rate, play_phase, start_trig;
             var sig_mono;
             var repeat_gate;
+            var wrap_trig, pend_pass, pend_dir, rand_dir, eff_rev;
 
             volume         = Lag.kr(volume,         0.05);
             bass           = Lag.kr(bass,           0.05);
@@ -177,7 +178,13 @@ Engine_Princeton : CroneEngine {
             loop_phase = Phasor.ar(loop_reset + start_trig, 1,          0, frames, 0);
             play_phase = Phasor.ar(loop_reset + start_trig, speed_rate, 0, frames, 0);
 
-            read_pos   = Select.ar(direction.round(1), [
+            wrap_trig = Trig1.ar(HPZ1.ar(play_phase) < -1, SampleDur.ir);
+            pend_pass = PulseCount.ar(wrap_trig, K2A.ar(loop_reset + start_trig));
+            pend_dir  = (pend_pass % 2) > 0.5;
+            rand_dir  = Latch.ar(LFNoise0.ar(1000) > 0, wrap_trig);
+            eff_rev   = Select.ar(direction.round(1), [DC.ar(0), DC.ar(1), pend_dir, rand_dir]);
+
+            read_pos   = Select.ar(eff_rev.round(1), [
                 play_phase,
                 frames - 1 - play_phase
             ]);
