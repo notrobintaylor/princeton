@@ -2,6 +2,8 @@
 
 ### A guitar amp simulator, pedalboard and looper for Monome Norns
 
+[![princeton – Norns Script Demo](https://img.youtube.com/vi/VqkFejb8owY/maxresdefault.jpg)](https://www.youtube.com/watch?v=VqkFejb8owY)
+
 princeton models a small 1960s American combo amp. Plug your electric guitar directly into the left norns input. No preamp needed.
 
 The gain range runs from clean to light overdrive. The spring reverb and bias tremolo are always available. There is a looper between tremolo and reverb: what you loop also gets washed in spring reverb. Four stompbox-style effects sit before the amp.
