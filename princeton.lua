@@ -205,7 +205,7 @@ end
 local function loop_set_engine(st)
   engine.loop_rec (st == LOOP_REC  and 1 or 0)
   engine.loop_dub (st == LOOP_DUB  and 1 or 0)
-  engine.loop_play(st == LOOP_PLAY and 1 or 0)
+  engine.loop_play((st == LOOP_PLAY or st == LOOP_DUB) and 1 or 0)
 end
 
 local function looper_step()
