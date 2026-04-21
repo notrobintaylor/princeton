@@ -22,7 +22,7 @@ The gain range runs from clean to light overdrive. The spring reverb and bias tr
 
 **Amp bypass.** An Amp Enable toggle is available in the PARAMS menu and can be mapped to a MIDI footswitch. When bypassed, the preamp, tone stack, power amp, and cabinet are removed from the signal path. The panel lamp dims to indicate bypass. Every stage — pedals, amp, tremolo, looper, reverb, and cabinet — can be independently bypassed.
 
-**Output.** Stereo. Tremolo alternates between L and R (classic bias-trem ping-pong). The spring reverb outputs a stereo pair via its allpass diffuser. Both norns sends carry full signal.
+**Output.** Stereo. Tremolo alternates between L and R (classic bias-trem ping-pong). The spring reverb outputs a stereo pair via its allpass diffuser. Both norns sends carry the full stereo signal — princeton works as a stereo source in any fx_mod slot.
 
 **Metronome.** A click track that runs independently of the main signal path. Tempo 20–300 BPM, adjustable level, and chromatic pitch. Controlled entirely from the PARAMS menu — BPM, Level, Pitch, and an Active/Bypass toggle (all MIDI-mappable).
 
@@ -33,6 +33,8 @@ guitar → Push → Distort → Warp → Repeat
        → preamp → tone stack → power amp
        → tremolo (stereo) → looper (stereo) → spring reverb (stereo)
        → cabinet (10", 3 mic positions) → master → out L/R
+                                                 → send A (stereo)
+                                                 → send B (stereo)
 ```
 
 ## Controls
@@ -167,9 +169,12 @@ On the device, turn Intensity to 0 to silence the tremolo. A dedicated **Tremolo
 | **Character** | 0.0 | 0–10 |
 | **Direction** | Forward | Forward / Reverse |
 | **Dub Style** | Regular | Regular / Overwrite |
+| **Play from** | Start | Start / Cue |
 | **Dub Level** | −2.5 dB | −40–0 dB |
 | **Level** | −2.5 dB | −40–0 dB |
 | **Speed** | 1x | 0.5x / 1x / 2x |
+
+**Play from** controls what happens when playback resumes after a stop. **Start** always returns to the beginning of the loop. **Cue** resumes from the position where the loop was stopped.
 
 Speed affects both record and replay. At half speed the loop plays an octave lower and twice as long. At double speed an octave higher, half as long.
 
