@@ -23,6 +23,7 @@ Engine_Princeton : CroneEngine {
                 loop_frames = 2880000, loop_level = 0.75, dub_level = 0.75,
                 loop_buf_num = 0, direction = 0, loop_speed = 1, dub_style = 0,
                 loop_degrade_amount = 0, loop_degrade_type = 2,
+                loop_play_from = 0,
                 mute = 0, amp_bypass = 0,
                 reverb_mute = 0, speaker_bypass = 0;
 
@@ -45,7 +46,7 @@ Engine_Princeton : CroneEngine {
             var write_sig, loop_out, final_sig, loop_mix;
             var repeat_fb_lp, repeat_jitter, repeat_noise, repeat_dt;
             var warp_lfo, warp_sig, warp_depth_env;
-            var frames, read_pos, fade_gain, fade_samps, fade_norm, speed_rate, play_phase;
+            var frames, read_pos, fade_gain, fade_samps, fade_norm, speed_rate, play_phase, start_trig;
             var sig_mono;
             var repeat_gate;
 
@@ -82,13 +83,13 @@ Engine_Princeton : CroneEngine {
 
             // ── Push ─────────────────────────────────────────────────────────
             push_drive = HPF.ar(sig, 100);
-            push_drive = LPF.ar(push_drive, 3000);
+            push_drive = LPF.ar(push_drive, 2200);           // was 3000 — narrower input band reduces intermod
             push_drive = push_drive * push_gain.linexp(0, 10, 1.0, 100.0);
-            push_drive = LPF.ar(push_drive, 6500);
-            push_drive = (push_drive.max(0) * 1.15).tanh + (push_drive.min(0) * 0.7).tanh;
+            push_drive = LPF.ar(push_drive, 2400);           // was 5000 — tight pre-clip filter, now useful
+            push_drive = (push_drive.max(0) * 1.02).tanh + (push_drive.min(0) * 0.96).tanh;  // was 1.08/0.75 — near-symmetric, fewer even harmonics
             push_drive = LeakDC.ar(push_drive);
             push_drive = HPF.ar(push_drive, push_tone.linexp(0, 10, 100, 750));
-            push_drive = LPF.ar(push_drive, 4200);
+            push_drive = LPF.ar(push_drive, 3200);           // was 3800 — tighter post-clip filter
             push_sig   = push_drive * push_level.linlin(0, 10, 0.0, 1.3);
             sig      = XFade2.ar(push_sig, sig, Lag.kr(Select.kr(push_bypass.round(1), [push_mix.linlin(0, 10, -1, 1), 1]), 0.008));
 
@@ -171,9 +172,10 @@ Engine_Princeton : CroneEngine {
             fade_samps = 512;
             speed_rate = Select.kr(loop_speed.round(1), [0.5, 1.0, 2.0]);
 
-            loop_reset = Changed.kr(loop_rec) * loop_rec;
-            loop_phase = Phasor.ar(loop_reset, 1,          0, frames, 0);
-            play_phase = Phasor.ar(loop_reset,  speed_rate, 0, frames, 0);
+            loop_reset = Changed.kr(loop_rec)  * loop_rec;
+            start_trig = Changed.kr(loop_play) * loop_play * (1 - loop_play_from.round(1));
+            loop_phase = Phasor.ar(loop_reset + start_trig, 1,          0, frames, 0);
+            play_phase = Phasor.ar(loop_reset + start_trig, speed_rate, 0, frames, 0);
 
             read_pos   = Select.ar(direction.round(1), [
                 play_phase,
@@ -203,12 +205,12 @@ Engine_Princeton : CroneEngine {
 
             // Tape: linexp LPF (audible from ~amount 3), gentle saturation, stronger wow/flutter
             wow_lfo  = SinOsc.kr(0.4 + LFNoise2.kr(0.15, 0.2), 0,
-                         loop_degrade_amount.linlin(0, 10, 0.0, 3000));
+                         loop_degrade_amount.linlin(0, 10, 0.0, 5000));
             flt_lfo  = SinOsc.kr(7.0 + LFNoise2.kr(1.0, 2.0), 0,
-                         loop_degrade_amount.linlin(0, 10, 0.0, 700));
+                         loop_degrade_amount.linlin(0, 10, 0.0, 1200));
             tape_fc  = (loop_degrade_amount.linexp(0, 10, 12000, 800) + wow_lfo + flt_lfo).clip(100, 18000);
             tape_sig = LPF.ar(loop_preserve, tape_fc);
-            sat_drv  = loop_degrade_amount.linlin(0, 10, 1.0, 2.0);
+            sat_drv  = loop_degrade_amount.linlin(0, 10, 1.0, 3.5);
             tape_sig = (tape_sig * sat_drv).tanh * (1.0 / sat_drv);
 
             // Cassette: LFO-modulated BPF centre (no delay — avoids comb filter decay), crinkle
@@ -216,10 +218,10 @@ Engine_Princeton : CroneEngine {
                          loop_degrade_amount.linlin(0, 10, 0.0, 500));
             cas_wonk = LFNoise2.kr(loop_degrade_amount.linlin(0, 10, 0.5, 10),
                          loop_degrade_amount.linlin(0, 10, 0.0, 350));
-            cas_fc   = (loop_degrade_amount.linlin(0, 10, 2800, 1000) + cas_wow + cas_wonk).clip(200, 8000);
-            cas_rq   = loop_degrade_amount.linlin(0, 10, 3.0, 0.25);
+            cas_fc   = (loop_degrade_amount.linlin(0, 10, 2800, 1400) + cas_wow + cas_wonk).clip(200, 8000);
+            cas_rq   = loop_degrade_amount.linlin(0, 10, 3.0, 0.5);
             cas_sig  = BPF.ar(loop_preserve, cas_fc, cas_rq);
-            cas_crinkle = (LFNoise0.kr(loop_degrade_amount.linlin(0, 10, 0.5, 15)) * loop_degrade_amount.linlin(0, 10, 0.0, 0.8) + 1.0).clip(0.2, 1.5);
+            cas_crinkle = (LFNoise0.kr(loop_degrade_amount.linlin(0, 10, 0.5, 15)) * loop_degrade_amount.linlin(0, 10, 0.0, 0.4) + 1.0).clip(0.2, 1.5);
             cas_sig  = cas_sig * cas_crinkle;
 
             // Select degraded type per channel, then crossfade with dry
@@ -300,6 +302,10 @@ Engine_Princeton : CroneEngine {
 
             Out.ar(out_bus, final_sig);
 
+            // ── fx send buses ────────────────────────────────────────────────
+            Out.ar(~sendA, final_sig);
+            Out.ar(~sendB, final_sig);
+
         }).add;
 
         SynthDef(\metro_click, {
@@ -333,7 +339,8 @@ Engine_Princeton : CroneEngine {
         this.addCommand("looper_level",          "f", { |msg| synth.set(\loop_level,       msg[1]) });
         this.addCommand("loop_play",             "f", { |msg| synth.set(\loop_play,        msg[1]) });
         this.addCommand("loop_rec",              "f", { |msg| synth.set(\loop_rec,         msg[1]) });
-        this.addCommand("looper_speed",          "f", { |msg| synth.set(\loop_speed,       msg[1]) });
+        this.addCommand("looper_speed",           "f", { |msg| synth.set(\loop_speed,       msg[1]) });
+        this.addCommand("looper_play_from",       "f", { |msg| synth.set(\loop_play_from,   msg[1]) });
         this.addCommand("looper_character",      "f", { |msg| synth.set(\loop_degrade_amount, msg[1]) });
         this.addCommand("looper_topology",       "f", { |msg| synth.set(\loop_degrade_type,   msg[1]) });
         this.addCommand("amp_master",            "f", { |msg| synth.set(\master,           msg[1]) });
