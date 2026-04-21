@@ -8,20 +8,19 @@ engine.name = "Princeton"
 local initing = true
 
 local PARAMS_DEF = {
-  { id="amp_volume",         name="Volume",    default=7.5,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_bass",           name="Bass",      default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_treble",         name="Treble",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_master",         name="Master",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
-  { id="reverb_amount",     name="Amount",    default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Reverb"  },
-  { id="tremolo_speed",     name="Speed",     default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
-  { id="tremolo_intensity", name="Intensity", default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
-  { id="mic_position",            name="Position",     default=1,    min=0,   max=2,  step=1,   db=false, cat="Mic"     },
-  { id="looper_topology",   name="Topology",   default=3,   min=1,  max=4,  step=1,   db=false, cat="Looper", options={"BBD","Cassette","Digital","Tape"} },
-  { id="looper_character", name="Character",  default=0.0, min=0,  max=10, step=0.1, db=false, cat="Looper"  },
-  { id="looper_direction",      name="Direction", default=0,    min=0,   max=1,  step=1,   db=false, cat="Looper"  },
-  { id="looper_dub_level",      name="Dub Level", default=-2.5, min=-40, max=0,  step=0.5, db=true,  cat="Looper"  },
-  { id="looper_level",     name="Level",        default=-2.5, min=-40, max=0, step=0.5, db=true,  cat="Looper"  },
-  { id="looper_speed",     name="Speed",     default=1,    min=0,   max=2,  step=1,   db=false, cat="Looper"  },
+  { id="volume",         name="Volume",    default=7.5,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
+  { id="bass",           name="Bass",      default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
+  { id="treble",         name="Treble",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
+  { id="master",         name="Master",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
+  { id="rev_amount",     name="Amount",    default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Reverb"  },
+  { id="trem_speed",     name="Speed",     default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
+  { id="trem_intensity", name="Intensity", default=0.0,  min=0,   max=10, step=0.1, db=false, cat="Tremolo" },
+  { id="mic",            name="Axis",      default=1,    min=0,   max=2,  step=1,   db=false, cat="Mic"     },
+  { id="direction",      name="Direction", default=0,    min=0,   max=1,  step=1,   db=false, cat="Looper"  },
+  { id="dub_style",      name="Dub Style", default=0,    min=0,   max=1,  step=1,   db=false, cat="Looper"  },
+  { id="dub_level",      name="Dub Vol",   default=-2.5, min=-40, max=0,  step=0.5, db=true,  cat="Looper"  },
+  { id="loop_level",     name="Loop Vol",  default=-2.5, min=-40, max=0,  step=0.5, db=true,  cat="Looper"  },
+  { id="loop_speed",     name="Speed",     default=1,    min=0,   max=2,  step=1,   db=false, cat="Looper"  },
 }
 local MIC_NAMES  = { "Center", "Middle", "Edge" }
 local DIR_NAMES  = { "Forward", "Reverse" }
@@ -51,6 +50,8 @@ local PEDALS = {
       { id="push_level", name="Level", default=5.0, min=0, max=10, step=0.1 },
       { id="push_mix",   name="Mix",   default=2.5, min=0, max=10, step=0.1 },
     },
+    vals       = { 5.0, 5.0, 5.0, 2.5 },
+    bypass     = true,
     psel       = 1,
     bypass_cmd = "push_bypass",
     enable_id  = "push_enable",
@@ -64,6 +65,8 @@ local PEDALS = {
       { id="distort_level",   name="Level",    default=5.0, min=0, max=10, step=0.1 },
       { id="distort_lowcut",  name="Low Cut",  default=0, min=0, max=2, step=1, options={"Off","100 Hz","250 Hz"} },
     },
+    vals       = { 5.0, 7.5, 5.0, 0 },
+    bypass     = true,
     psel       = 1,
     bypass_cmd = "distort_bypass",
     enable_id  = "distort_enable",
@@ -72,11 +75,13 @@ local PEDALS = {
     name       = "Warp",
     display    = "Warp",
     params     = {
-      { id="warp_rate",  name="Rate",      default=2.5, min=0, max=10, step=0.1 },
-      { id="warp_depth", name="Depth",     default=2.5, min=0, max=10, step=0.1 },
-      { id="warp_rise",  name="Rise/Fall", default=5.0, min=0, max=10, step=0.1 },
-      { id="warp_mix",   name="Mix",       default=0.0, min=0, max=10, step=0.1 },
+      { id="warp_rate",  name="Rate",  default=2.5, min=0, max=10, step=0.1 },
+      { id="warp_depth", name="Depth", default=2.5, min=0, max=10, step=0.1 },
+      { id="warp_rise",  name="Rise",  default=5.0, min=0, max=10, step=0.1 },
+      { id="warp_mix",   name="Mix",   default=0.0, min=0, max=10, step=0.1 },
     },
+    vals       = { 2.5, 2.5, 5.0, 0.0 },
+    bypass     = true,
     psel       = 1,
     bypass_cmd = "warp_bypass",
     enable_id  = "warp_enable",
@@ -85,11 +90,13 @@ local PEDALS = {
     name       = "Repeat",
     display    = "Repeat",
     params     = {
-      { id="repeat_time",           name="Time",      default=7.5, min=0, max=10, step=0.1 },
-      { id="repeat_feedback",       name="Feedback",  default=5.0, min=0, max=10, step=0.1 },
-      { id="repeat_level",          name="Level",     default=5.0, min=0, max=10, step=0.1 },
-      { id="repeat_characteristic", name="Character", default=0,   min=0, max=1,  step=1, options={"Bright","Dark"} },
+      { id="repeat_time",       name="Time",      default=5.0, min=0, max=10, step=0.1 },
+      { id="repeat_feedback",     name="Feedback",   default=5.0, min=0, max=10, step=0.1 },
+      { id="repeat_level",      name="Level",     default=5.0, min=0, max=10, step=0.1 },
+      { id="characteristic", name="Character", default=0,   min=0, max=1,  step=1, options={"Bright","Dark"} },
     },
+    vals       = { 5.0, 5.0, 5.0, 0 },
+    bypass     = true,
     psel       = 1,
     bypass_cmd = "repeat_bypass",
     enable_id  = "repeat_enable",
@@ -126,11 +133,7 @@ local tuner = {
   octave  = 0,
   cents   = 0,
 }
-local tuner_cents_smooth    = 0
-local tuner_note_candidate  = "--"
-local tuner_oct_candidate   = 0
-local tuner_note_hold       = 0
-local TUNER_HOLD_FRAMES     = 3   -- consecutive frames before note name switches
+local tuner_cents_smooth = 0  -- EMA for stable arrow display
 
 local metro_active = false
 local metro_clock  = nil
@@ -167,8 +170,8 @@ local SEP_Y  = INT.y + PANEL_H
 local KNOB_R       = 2
 local KNOB_Y       = PANEL.y + math.floor((PANEL.h - 1) / 2)
 -- Panel layout: [1 gap][B1][1 gap][B2][1 gap][7 knobs @ 6px][logo 23px][1 gap][lamp][1 gap]
-local PANEL_BUCHSE1 = PANEL.x
-local PANEL_BUCHSE2 = PANEL.x + 2
+local PANEL_BUCHSE1 = PANEL.x + 1
+local PANEL_BUCHSE2 = PANEL.x + 3
 local PANEL_LAMP    = PANEL.x + PANEL.w - 2
 local KNOB_SPACING  = 6
 local KNOB_START    = PANEL.x + 5   -- after: 1 gap + B1 + 1 gap + B2 + 1 gap
@@ -188,17 +191,12 @@ end
 local function fmt_val(idx)
   local id = PARAMS_DEF[idx].id
   local v  = params:get(id)
-  if PARAMS_DEF[idx].options then return PARAMS_DEF[idx].options[v] end
-  if id == "mic_position"    then return MIC_NAMES[v] end
-  if id == "looper_direction" then return DIR_NAMES[v] end
-  if id == "looper_speed"    then return SPD_NAMES[v] end
+  if id == "mic"        then return MIC_NAMES[v] end
+  if id == "direction"  then return DIR_NAMES[v] end
+  if id == "loop_speed" then return SPD_NAMES[v] end
+  if id == "dub_style"  then return DUB_NAMES[v] end
   if PARAMS_DEF[idx].db then return string.format("%.1fdB", v) end
   return string.format("%.1f", v)
-end
-
-local function snap_val(v, step)
-  if step == 1 then return math.floor(v + 0.5)
-  else return math.floor(v * 10 + 0.5) / 10 end
 end
 
 
@@ -218,9 +216,8 @@ local function looper_step()
     local elapsed = util.time() - loop_rec_start
     loop_frames = math.max(math.min(math.floor(elapsed * LOOP_SR), LOOP_MAX), 2)
     engine.loop_frames(loop_frames)
-    local next = params:get("looper_transport") == 2 and LOOP_DUB or LOOP_PLAY
-    loop_state = next
-    loop_set_engine(next)
+    loop_state = LOOP_PLAY
+    loop_set_engine(LOOP_PLAY)
   elseif loop_state == LOOP_PLAY then
     loop_state = LOOP_DUB
     loop_set_engine(LOOP_DUB)
@@ -280,25 +277,12 @@ local function rect_outline(x, y, w, h, lv)
   screen.stroke()
 end
 
-local function draw_icon_filled_circle(cx, y)
-  -- Manual pixel circle: 4px-thick cross + 2×2 corner fills → octagon, r≈5
-  screen.rect(cx - 5, y - 2, 10, 4)   -- horizontal arm
-  screen.rect(cx - 2, y - 5, 4, 10)   -- vertical arm
-  screen.rect(cx - 4, y - 4, 2, 2)    -- corner top-left
-  screen.rect(cx + 2, y - 4, 2, 2)    -- corner top-right
-  screen.rect(cx - 4, y + 2, 2, 2)    -- corner bottom-left
-  screen.rect(cx + 2, y + 2, 2, 2)    -- corner bottom-right
-  screen.fill()
-end
-
 local function draw_icon_record(cx, y, lv)
-  screen.level(lv)
-  draw_icon_filled_circle(cx, y)
+  screen.level(lv); screen.circle(cx, y, 5); screen.fill()
 end
 
 local function draw_icon_dub(cx, y, lv)
-  screen.level(lv)
-  draw_icon_filled_circle(cx, y)
+  screen.level(lv); screen.circle(cx, y, 5); screen.fill()
   screen.line_width(1)
   local px, py = cx + 8, y - 7
   screen.move(px-2, py); screen.line(px+1, py); screen.stroke()
@@ -386,7 +370,7 @@ local function draw_grillcloth()
     return
   end
 
-  local mic_sel = PARAMS_DEF[sel] and PARAMS_DEF[sel].id == "mic_position"
+  local mic_sel = PARAMS_DEF[sel] and PARAMS_DEF[sel].id == "mic"
   if mic_sel then
     screen.level(0); screen.rect(gx, gy, gw, gh); screen.fill()
 
@@ -402,7 +386,7 @@ local function draw_grillcloth()
     screen.level(B.MED)
     screen.circle(cx, cy, 5); screen.stroke()
 
-    local mic_val = params:get("mic_position") - 1
+    local mic_val = params:get("mic") - 1
     local x_offsets = { 0, 8, 14 }
     for i = 1, 3 do
       local r   = x_offsets[i]
@@ -439,8 +423,8 @@ local function draw_tuner()
   screen.text_center(tuner.note)
 
   if tuner.note ~= "--" then
-    screen.font_size(8); screen.level(15)
-    screen.move(cx + 15, 19)
+    screen.font_size(8); screen.level(B.MED)
+    screen.move(cx + 10, 24)
     screen.text(tostring(tuner.octave))
 
     local abs_cents = math.abs(tuner.cents)
@@ -462,9 +446,9 @@ local function draw_tuner()
     end
   end
 
-  screen.font_size(8)
-  screen.level(5);  screen.move(38, 61); screen.text("A = ")
-  screen.level(15); screen.text(string.format("%.1f Hz", tuner.ref_hz))
+  screen.font_size(8); screen.level(B.MED)
+  screen.move(cx, 61)
+  screen.text_center(string.format("A = %.1f Hz", tuner.ref_hz))
 
   if tuner.muted then
     screen.font_size(8); screen.level(B.MED)
@@ -616,15 +600,11 @@ local function metro_clock_stop()
 end
 
 local function tuner_start()
-  tuner.active         = true
-  tuner.muted          = false
-  tuner.note           = "--"
-  tuner.octave         = 0
-  tuner.cents          = 0
-  tuner_cents_smooth   = 0
-  tuner_note_candidate = "--"
-  tuner_oct_candidate  = 0
-  tuner_note_hold      = 0
+  tuner.active = true
+  tuner.muted  = false
+  tuner.note   = "--"
+  tuner.octave = 0
+  tuner.cents  = 0
   engine.mute(0)
   tuner_pitch_poll:start()
   redraw()
@@ -651,7 +631,9 @@ function enc(n, d)
     elseif n == 3 then
       local pd = cur_pedal()
       local p  = pd.params[pd.psel]
-      params:set(p.id, snap_val(params:get(p.id) + d * p.step, p.step))
+      local v  = params:get(p.id) + d * p.step
+      if p.step == 1 then v = math.floor(v + 0.5) else v = math.floor(v * 10 + 0.5) / 10 end
+      params:set(p.id, v)
     end
     return
   end
@@ -668,7 +650,13 @@ function enc(n, d)
     redraw()
   elseif n == 3 then
     local p = PARAMS_DEF[sel]
-    params:set(p.id, snap_val(params:get(p.id) + d * p.step, p.step))
+    local v = params:get(p.id) + d * p.step
+    if p.step == 1 then
+      v = math.floor(v + 0.5)
+    else
+      v = math.floor(v * 10 + 0.5) / 10
+    end
+    params:set(p.id, v)
   end
 end
 
@@ -829,96 +817,24 @@ function init()
   params:add_option("metro_pitch", "Metro Pitch", METRO_PITCH_NAMES, 37)
   params:set_action("metro_pitch", function(_) re() end)
 
-  -- ── Pedals (Push / Distort / Warp / Repeat) ─────────────────────────
-  local function register_pedal(ped)
-    params:add_separator(ped.name)
-    params:add_option(ped.enable_id, ped.name .. " Enable", {"Bypass", "Active"}, 1)
-    params:set_action(ped.enable_id, function(v) engine[ped.bypass_cmd](2 - v); re() end)
-    for _, p in ipairs(ped.params) do
-      if p.options then
-        params:add_option(p.id, ped.name .. " " .. p.name, p.options, p.default + 1)
-        params:set_action(p.id, function(v) engine[p.id](v - 1); re() end)
-      else
-        params:add_control(p.id, ped.name .. " " .. p.name,
-          controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
-        params:set_action(p.id, function(v)
-          engine[p.id](p.step == 1 and math.floor(v) or v); re()
-        end)
-      end
-    end
-  end
-
-  for _, ped in ipairs(PEDALS) do register_pedal(ped) end
-
   -- ── Amp ─────────────────────────────────────────────────────────────
   params:add_separator("Amp")
   params:add_option("amp_enable", "Amp Enable", {"Bypass", "Active"}, 2)
   params:set_action("amp_enable", function(v)
     engine.amp_bypass(2 - v); re()
   end)
-  params:add_control("amp_volume", "Amp Volume",
+  params:add_control("volume", "Amp Volume",
     controlspec.new(0, 10, "lin", 0.1, 7.5, ""))
-  params:set_action("amp_volume", function(v) engine.amp_volume(v); re() end)
-  params:add_control("amp_bass", "Amp Bass",
+  params:set_action("volume", function(v) engine.volume(v); re() end)
+  params:add_control("bass", "Amp Bass",
     controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-  params:set_action("amp_bass",   function(v) engine.amp_bass(v);   re() end)
-  params:add_control("amp_treble", "Amp Treble",
+  params:set_action("bass",   function(v) engine.bass(v);   re() end)
+  params:add_control("treble", "Amp Treble",
     controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-  params:set_action("amp_treble", function(v) engine.amp_treble(v); re() end)
-  params:add_control("amp_master", "Amp Master",
+  params:set_action("treble", function(v) engine.treble(v); re() end)
+  params:add_control("master", "Amp Master",
     controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-  params:set_action("amp_master", function(v) engine.amp_master(v); re() end)
-
-  -- ── Tremolo ─────────────────────────────────────────────────────────
-  params:add_separator("Tremolo")
-  params:add_option("tremolo_enable", "Tremolo Enable", {"Bypass", "Active"}, 2)
-  params:set_action("tremolo_enable", function(v)
-    engine.tremolo_intensity(v == 2 and params:get("tremolo_intensity") or 0)
-    re()
-  end)
-  params:add_control("tremolo_speed", "Tremolo Speed",
-    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
-  params:set_action("tremolo_speed",     function(v) engine.tremolo_speed(v);     re() end)
-  params:add_control("tremolo_intensity", "Tremolo Intensity",
-    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
-  params:set_action("tremolo_intensity", function(v)
-    if params:get("tremolo_enable") == 2 then engine.tremolo_intensity(v) end
-    re()
-  end)
-
-  -- ── Looper ──────────────────────────────────────────────────────────
-  params:add_separator("Looper")
-  params:add_option("looper_topology", "Looper Topology", {"BBD","Cassette","Digital","Tape"}, 3)
-  params:set_action("looper_topology", function(v) engine.looper_topology(v - 1); re() end)
-  params:add_control("looper_character", "Looper Character",
-    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
-  params:set_action("looper_character", function(v) engine.looper_character(v); re() end)
-  params:add_option("looper_direction", "Looper Direction", {"Forward", "Reverse"}, 1)
-  params:set_action("looper_direction", function(v) engine.looper_direction(v - 1); re() end)
-  params:add_control("looper_dub_level", "Looper Dub Level",
-    controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-  params:set_action("looper_dub_level",  function(v) engine.looper_dub_level(db_to_lin(v));  re() end)
-  params:add_control("looper_level", "Looper Level",
-    controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-  params:set_action("looper_level", function(v) engine.looper_level(db_to_lin(v)); re() end)
-  params:add_option("looper_speed", "Looper Speed", {"0.5x", "1x", "2x"}, 2)
-  params:set_action("looper_speed", function(v) engine.looper_speed(v - 1); re() end)
-  params:add_option("looper_dub_style", "Looper Dub Style", {"Regular", "Overwrite"}, 1)
-  params:set_action("looper_dub_style", function(v) engine.looper_dub_style(v - 1); re() end)
-  params:add_option("looper_play_from", "Looper Play From", {"Start", "Cue"}, 1)
-  params:set_action("looper_play_from", function(v) engine.looper_play_from(v - 1); re() end)
-  params:add_option("looper_transport", "Looper Transport", {"Rec·Play·Dub", "Rec·Dub·Play"}, 1)
-  params:set_action("looper_transport", function(_) re() end)
-  params:add_binary("looper_rec_play", "Looper Rec/Play", "trigger", 0)
-  params:set_action("looper_rec_play", function(v)
-    if v ~= 1 then return end
-    looper_step()
-  end)
-  params:add_binary("looper_stop_clear", "Looper Stop/Clear", "trigger", 0)
-  params:set_action("looper_stop_clear", function(v)
-    if v ~= 1 then return end
-    looper_stop_clear()
-  end)
+  params:set_action("master", function(v) engine.master(v); re() end)
 
   -- ── Reverb ──────────────────────────────────────────────────────────
   params:add_separator("Reverb")
@@ -927,56 +843,145 @@ function init()
     engine.reverb_mute(v == 2 and 0 or 1)
     re()
   end)
-  params:add_control("reverb_amount", "Reverb Amount",
+  params:add_control("rev_amount", "Reverb Amount",
     controlspec.new(0, 10, "lin", 0.1, 2.5, ""))
-  params:set_action("reverb_amount", function(v)
-    engine.reverb_amount(v)
+  params:set_action("rev_amount", function(v)
+    engine.reverb(v)
     re()
   end)
 
-  -- ── Speaker & Mic ────────────────────────────────────────────────────
-  params:add_separator("Speaker & Mic")
+  -- ── Tremolo ─────────────────────────────────────────────────────────
+  params:add_separator("Tremolo")
+  params:add_option("tremolo_enable", "Tremolo Enable", {"Bypass", "Active"}, 2)
+  params:set_action("tremolo_enable", function(v)
+    engine.trem_intensity(v == 2 and params:get("trem_intensity") or 0)
+    re()
+  end)
+  params:add_control("trem_speed", "Tremolo Speed",
+    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
+  params:set_action("trem_speed",     function(v) engine.trem_speed(v);     re() end)
+  params:add_control("trem_intensity", "Tremolo Intensity",
+    controlspec.new(0, 10, "lin", 0.1, 0.0, ""))
+  params:set_action("trem_intensity", function(v)
+    if params:get("tremolo_enable") == 2 then engine.trem_intensity(v) end
+    re()
+  end)
+
+  -- ── Mic ─────────────────────────────────────────────────────────────
+  params:add_separator("Mic & Speaker")
+  params:add_option("mic", "Mic Position", {"Center", "Middle", "Edge"}, 2)
+  params:set_action("mic", function(v) engine.mic(v - 1); re() end)
   params:add_option("speaker_enable", "Speaker Enable", {"Bypass", "Active"}, 2)
   params:set_action("speaker_enable", function(v)
     engine.speaker_bypass(2 - v); re()
   end)
-  params:add_option("mic_position", "Mic Position", {"Center", "Middle", "Edge"}, 2)
-  params:set_action("mic_position", function(v) engine.mic_position(v - 1); re() end)
+
+  -- ── Looper ──────────────────────────────────────────────────────────
+  params:add_separator("Looper")
+  params:add_option("direction", "Loop Direction", {"Forward", "Reverse"}, 1)
+  params:set_action("direction", function(v) engine.direction(v - 1); re() end)
+  params:add_option("dub_style", "Loop Dub Style", {"Regular", "Overwrite"}, 1)
+  params:set_action("dub_style", function(v) engine.dub_style(v - 1); re() end)
+  params:add_control("dub_level", "Loop Dub Vol",
+    controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
+  params:set_action("dub_level",  function(v) engine.dub_level(db_to_lin(v));  re() end)
+  params:add_control("loop_level", "Loop Vol",
+    controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
+  params:set_action("loop_level", function(v) engine.loop_level(db_to_lin(v)); re() end)
+  params:add_option("loop_speed", "Loop Speed", {"0.5x", "1x", "2x"}, 2)
+  params:set_action("loop_speed", function(v) engine.loop_speed(v - 1); re() end)
+  params:add_binary("loop_rec_play", "Loop Rec/Play", "trigger", 0)
+  params:set_action("loop_rec_play", function(v)
+    if v ~= 1 then return end
+    looper_step()
+  end)
+  params:add_binary("loop_stop_clear", "Loop Stop/Clear", "trigger", 0)
+  params:set_action("loop_stop_clear", function(v)
+    if v ~= 1 then return end
+    looper_stop_clear()
+  end)
+
+  -- ── Push ────────────────────────────────────────────────────────────
+  params:add_separator("Push")
+  params:add_option("push_enable", "Push Enable", {"Bypass", "Active"}, 1)
+  params:set_action("push_enable", function(v)
+    engine.push_bypass(2 - v); re()
+  end)
+  for _, p in ipairs(PEDALS[1].params) do
+    params:add_control(p.id, PEDALS[1].name .. " " .. p.name,
+      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+    params:set_action(p.id, function(v)
+      engine[p.id](p.step == 1 and math.floor(v) or v); re()
+    end)
+  end
+
+  -- ── Distort ─────────────────────────────────────────────────────────
+  params:add_separator("Distort")
+  params:add_option("distort_enable", "Distort Enable", {"Bypass", "Active"}, 1)
+  params:set_action("distort_enable", function(v)
+    engine.distort_bypass(2 - v); re()
+  end)
+  for _, p in ipairs(PEDALS[2].params) do
+    if p.options then
+      params:add_option(p.id, PEDALS[2].name .. " " .. p.name, p.options, p.default + 1)
+      params:set_action(p.id, function(v) engine[p.id](v - 1); re() end)
+    else
+      params:add_control(p.id, PEDALS[2].name .. " " .. p.name,
+        controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+      params:set_action(p.id, function(v)
+        engine[p.id](p.step == 1 and math.floor(v) or v); re()
+      end)
+    end
+  end
+
+  -- ── Warp ────────────────────────────────────────────────────────────
+  params:add_separator("Warp")
+  params:add_option("warp_enable", "Warp Enable", {"Bypass", "Active"}, 1)
+  params:set_action("warp_enable", function(v)
+    engine.warp_bypass(2 - v); re()
+  end)
+  for _, p in ipairs(PEDALS[3].params) do
+    params:add_control(p.id, PEDALS[3].name .. " " .. p.name,
+      controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+    params:set_action(p.id, function(v)
+      engine[p.id](p.step == 1 and math.floor(v) or v); re()
+    end)
+  end
+
+  -- ── Repeat ──────────────────────────────────────────────────────────
+  params:add_separator("Repeat")
+  params:add_option("repeat_enable", "Repeat Enable", {"Bypass", "Active"}, 1)
+  params:set_action("repeat_enable", function(v)
+    engine.repeat_bypass(2 - v); re()
+  end)
+  for _, p in ipairs(PEDALS[4].params) do
+    if p.options then
+      params:add_option(p.id, PEDALS[4].name .. " " .. p.name, p.options, p.default + 1)
+      params:set_action(p.id, function(v)
+        engine[p.id](v - 1); re()
+      end)
+    else
+      params:add_control(p.id, PEDALS[4].name .. " " .. p.name,
+        controlspec.new(p.min, p.max, "lin", p.step, p.default, ""))
+      params:set_action(p.id, function(v)
+        engine[p.id](p.step == 1 and math.floor(v) or v); re()
+      end)
+    end
+  end
 
   -- ── Pitch poll ──────────────────────────────────────────────────────
   tuner_pitch_poll = poll.set("pitch_in_l", function(freq)
     if not tuner.active then return end
     if freq and freq > 30 then
-      local note, oct, _ = freq_to_note(freq)
+      tuner.note, tuner.octave, _ = freq_to_note(freq)
       local c = cents_to_ref(freq, tuner.ref_hz)
-
-      -- longer EMA window (~190 ms τ at 55 ms poll rate)
-      tuner_cents_smooth = tuner_cents_smooth * 0.75 + c * 0.25
-      -- hysteresis: only update displayed cents when change > 2
-      if math.abs(math.floor(tuner_cents_smooth + 0.5) - tuner.cents) > 2 then
-        tuner.cents = math.floor(tuner_cents_smooth + 0.5)
-      end
-
-      -- note hold: require TUNER_HOLD_FRAMES consistent frames before switching
-      if note == tuner_note_candidate and oct == tuner_oct_candidate then
-        tuner_note_hold = tuner_note_hold + 1
-        if tuner_note_hold >= TUNER_HOLD_FRAMES then
-          tuner.note   = tuner_note_candidate
-          tuner.octave = tuner_oct_candidate
-        end
-      else
-        tuner_note_candidate = note
-        tuner_oct_candidate  = oct
-        tuner_note_hold      = 1
-      end
+      tuner_cents_smooth = tuner_cents_smooth * 0.5 + c * 0.5
+      tuner.cents = math.floor(tuner_cents_smooth + 0.5)
     else
-      tuner.note          = "--"
-      tuner.octave        = 0
-      tuner.cents         = 0
-      tuner_cents_smooth  = 0
-      tuner_note_candidate = "--"
-      tuner_oct_candidate  = 0
-      tuner_note_hold      = 0
+      tuner.note         = "--"
+      tuner.octave       = 0
+      tuner.cents        = 0
+      tuner_cents_smooth = 0
     end
     redraw()
   end)
@@ -985,10 +990,4 @@ function init()
   params:bang()
   initing = false
   redraw()
-
-  -- params:read fires after init() and may restore a saved monitor_level; defer wins.
-  clock.run(function()
-    clock.sleep(0.2)
-    audio.level_monitor(0)
-  end)
 end
