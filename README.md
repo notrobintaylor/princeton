@@ -265,7 +265,7 @@ Destructive write paths
 
 Non-destructive read path (modulates playback only, never writes back)
 
-  buffer ──BufRd──► Tape/Cas read-path wow ──► output → Tremolo → Spring reverb → ...
+  buffer ──BufRd──► Tape/Cas read-path wow ──► output → Spring reverb → ...
 ```
 
 #### Quantization
