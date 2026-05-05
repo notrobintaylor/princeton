@@ -43,7 +43,7 @@ The looper carries the script. Four storage media (BBD, Cassette, Digital, Tape)
                                                   ▼
                                                  Amp
                                                   │
-                             ───────────── stereo from here ─────────────
+                                    ──── stereo from here ─────
                                                   │
                                                   ▼
                                                Tremolo
@@ -62,9 +62,8 @@ The looper carries the script. Four storage media (BBD, Cassette, Digital, Tape)
                                                   │
                                                   ▼
                                                 Limit
-                                                  │
-                                   ┌──────────────┼──────────────┐
-                                   ▼              ▼              ▼
+                                   ┌──────────────┼─────────────┐
+                                   ▼              ▼             ▼
                                 OUT L/R        SEND A         SEND B
 ```
 
