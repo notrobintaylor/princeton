@@ -4,39 +4,68 @@
 
 [![princeton – Norns Script Demo](https://img.youtube.com/vi/VqkFejb8owY/maxresdefault.jpg)](https://www.youtube.com/watch?v=VqkFejb8owY)
 
-princeton models a small 1960s American combo amp. Plug your electric guitar directly into the left norns input. No preamp needed.
+princeton is a guitar amp, pedalboard, and looper for Monome Norns. The amp sits in the middle: a small American combo from the early 1960s, recreated in code. Around it, four pedals before the input, bias tremolo and spring reverb after, and a 40-second stereo looper riding between them. What you loop washes through the same reverb as the live signal.
 
-The gain range runs from clean to light overdrive. The spring reverb and bias tremolo are always available. There is a looper between tremolo and reverb: what you loop also gets washed in spring reverb. Four stompbox-style effects sit before the amp.
+Plug a guitar into the left input. No preamp or interface required.
+
+The looper carries the script. Four storage media (BBD, Cassette, Digital, Tape) colour the loop. Imprint sets how much of that colour gets baked in the moment you record; Wear sets how much further the loop erodes on every pass. Four playback modes (Overdub, Overwrite, Sample, Resample) and four direction modes (Forward, Reverse, Pendulum, Random) sit underneath. Tremolo and reverb stay on. The amp stays clean unless you push it past Volume 7. For harder distortion, reach for Push or Distort up the chain.
 
 ## What it does
 
-**Amp.** Two preamp stages, passive tone stack with a fixed mid scoop, power amp compression that blooms under hard picking. Volume below 5 stays clean. Past 7 the preamp stages begin to saturate.
+**Looper.** A 40-second stereo buffer between tremolo and reverb, so anything you record sits in the same spring tank as the live string. Medium picks the storage type the loop pretends to be: BBD darkens and saturates, Cassette wobbles and crinkles, Digital quantises and drops samples, Tape softens and drifts. Imprint controls how strongly the medium colours the signal as it lands in the buffer (the first repeat already sounds like the medium). Wear controls how much further the medium erodes the loop on every subsequent pass; at 0 the loop is stable, at higher values it ages over time. Direction can run forward, reverse, pendulum, or random. Mode covers Overdub (layer), Overwrite (replace), Sample (one-shot, K2 retriggers), and Resample (record the loop output back into the buffer, including its own ageing). Speed transposes by an octave in either direction in Steps mode, or sweeps continuously in Smooth mode. The looper keeps running while you open the tuner or pedalboard.
 
-**Tone stack.** Position 5 on Bass and Treble gives a moderate boost to the low and high bands — the typical Fender voice with the amp open. Turn below 3 to cut; keep at 5–7 for warmth and sparkle. The mid scoop is fixed and permanent.
+**Pedalboard.** Four effects sit between the input and the amp, paired by character: Push and Distort handle gain, Warp and Repeat handle modulation. Each is independently bypassable. Open the pedalboard view from any other view with K2 (gain pair) or K3 (modulation pair) held; the active pair's label brightens.
 
-**Tremolo.** Bias-style amplitude modulation. Speed and Intensity both default to 0. Up to Intensity 1.5 the effect blends in while the dry signal fades; past 1.5 pure tremolo with increasing depth. Peaks always remain at full amplitude. Tremolo can be bypassed independently without losing the Speed and Intensity settings.
+**Amp.** A small American combo from the early 1960s. Volume below 5 stays clean; past 7 it begins to break up. Bass and Treble at 5 give the open Fender voice; below 3 they cut. The mid-scoop in the tone stack is fixed.
 
-**Looper.** 40-second stereo buffer, post-tremolo, pre-reverb. The spring reverb washes over the loop and the live signal equally. Forward and reverse. Half, normal, and double speed. Regular overdub layers new material over existing. Overwrite replaces it. The looper continues to run in the background while any other view (tuner, pedalboard, metro) is open.
+**Tremolo.** Bias-style amplitude modulation, always available at the output of the amp. Intensity defaults to 0, so nothing is happening until you turn it up. Up to 15 % the dry signal fades while the tremolo blends in; past 15 % it's pure tremolo with rising depth. Peaks stay at full amplitude. Speed defaults to 2.5 Hz and can sync to the Norns clock.
 
-**Spring reverb.** Applied to the full mix: live signal and loop together. Amount controls both send level and decay time together. At low values the spring tank is barely audible with a short decay. Turning it up increases both how much signal enters the tank and how long it rings — from a subtle shimmer at 2–3 to a long, washy bloom at 8–10. Reverb can be bypassed independently without losing the Amount setting.
+**Spring reverb.** Applied to the full stereo mix, live signal and loop together. Amount sets both send level and decay; Length adjusts decay independently if you want longer wash without more signal in the tank. Low Shelf and High Shelf colour the wet path. At 25 % Amount the spring tank sits behind the signal; turn it up for the long shimmer.
 
-**Pedalboard.** Four effects run before the amp. Push and Distort are a distortion pair; Warp and Repeat are a modulation pair. Each effect is independently bypassable. The active effect's label appears at full brightness.
+**Cab & Mic.** A 10" Jensen-style cabinet model with three mic positions (Center, Middle, Edge). Or, if you'd rather, load your own impulse responses (one per channel) and run those instead. Or bypass cabinet processing entirely for a raw DI tone or to feed an external cab.
 
-**Amp bypass.** An Amp Enable toggle is available in the PARAMS menu and can be mapped to a MIDI footswitch. When bypassed, the preamp, tone stack, power amp, and cabinet are removed from the signal path. The panel lamp dims to indicate bypass. Every stage — pedals, amp, tremolo, looper, reverb, and cabinet — can be independently bypassed.
+**Limit.** An optional output compander after the cabinet, bypassed by default. Useful when sending princeton into another script's input or when the looper output needs a ceiling.
 
-**Output.** Stereo. Tremolo alternates between L and R (classic bias-trem ping-pong). The spring reverb outputs a stereo pair via its allpass diffuser. Both norns sends carry the full stereo signal — princeton works as a stereo source in any fx_mod slot.
+**Output.** Stereo throughout the post-amp section. Tremolo alternates between L and R (the classic bias-trem ping-pong). The spring reverb outputs a stereo pair via its allpass diffuser. Both Norns sends carry the full stereo signal, so princeton works as a stereo source in any fx_mod slot.
 
-**Metronome.** A click track that runs independently of the main signal path. Tempo 20–300 BPM, adjustable level, and chromatic pitch. Controlled entirely from the PARAMS menu — BPM, Level, Pitch, and an Active/Bypass toggle (all MIDI-mappable).
+**Bypass.** Every stage can be bypassed independently: pedals, amp, tremolo, looper, reverb, cabinet, limit. The amp bypass also dims the panel lamp on screen; the others are toggled from PARAMS or via MIDI.
+
+**Metronome.** A click track running independently of the signal path. Tempo, level, and chromatic pitch are set from PARAMS; Division locks the click to the Norns clock when one is running, or free-runs at the BPM field when the clock is stopped.
 
 ## Signal flow
 
 ```
-guitar → Push → Distort → Warp → Repeat
-       → preamp → tone stack → power amp
-       → tremolo (stereo) → looper (stereo) → spring reverb (stereo)
-       → cabinet (10", 3 mic positions) → master → out L/R
-                                                 → send A (stereo)
-                                                 → send B (stereo)
+                                    mono through pedals and amp
+                                    ───────────────────────────
+
+  guitar IN L ──► Push ──► Distort ──► Warp ──► Repeat
+                                                  │
+                                                  ▼
+                                                 Amp
+                                                  │
+                             ───────────── stereo from here ─────────────
+                                                  │
+                                                  ▼
+                                               Tremolo
+                                                  │
+                                                  ▼
+                                                Looper
+                                                  │
+                                                  ▼
+                                            Spring reverb
+                                                  │
+                                                  ▼
+                                              Cab & Mic
+                                                  │
+                                                  ▼
+                                             Master gain
+                                                  │
+                                                  ▼
+                                                Limit
+                                                  │
+                                   ┌──────────────┼──────────────┐
+                                   ▼              ▼              ▼
+                                OUT L/R        SEND A         SEND B
 ```
 
 ## Controls
@@ -51,7 +80,7 @@ guitar → Push → Distort → Warp → Repeat
 | **K3** | Looper: stop → clear (double press) / Bypass toggle (pedalboard) / Mute (tuner) |
 | **K3 hold 2s** | Modulation Pedals (Warp / Repeat) on / off (from any view) |
 
-When the pedalboard is open, **E1** selects between the two visible effects, **E2** selects a parameter, and **E3** changes its value. Looper transport (K2, K3) is disabled while the pedalboard or tuner is open; the loop continues to run in the background.
+When the pedalboard is open, **E1** selects between the two visible effects, **E2** selects a parameter, and **E3** changes its value. Looper transport (K2, K3) is disabled while the pedalboard or tuner is open. The loop keeps running in the background.
 
 ## Navigation
 
@@ -66,9 +95,11 @@ Any hold (2 s) navigates directly to the target view from wherever you are. Hold
 
 ## Tuner
 
-Hold K1 for 2 seconds to open the tuner. The note name and octave are shown at large size. An arrow indicates flat or sharp; a dot indicates in tune. Press K3 to mute the output while tuning — the looper keeps playing. Hold K1 again to return to the amp view, K2 to open Gain Pedals, or K3 to open Modulation Pedals.
+Hold K1 for 2 seconds from any view to open the tuner. The note name and octave appear at large size. An arrow points flat or sharp; a dot means in tune. Press K3 to mute the output while tuning. The looper keeps playing under the mute, so a tuning pause doesn't break the loop. Hold K1 again for the amp view, K2 for Gain Pedals, or K3 for Modulation Pedals.
 
-Turn E2 while the tuner is open to adjust the reference pitch (420–460 Hz). The setting is saved with your PSET.
+Turn E3 while the tuner is open to adjust the reference pitch (420 to 460 Hz). The setting is saved with your PSET.
+
+princeton's tuner runs its own pitch detector inside the engine on a boosted, band-limited copy of the input. Passive electric guitars sit too low for the Norns built-in pitch poll to track reliably; the in-engine version stays locked through string decay.
 
 ## Parameters
 
@@ -80,18 +111,21 @@ Parameters are listed in PARAMS menu order.
 |-----------|---------|-------|
 | **Reference** | 440.0 Hz | 420–460 Hz |
 
-Adjustable with E2 while the tuner is open. Saved with your PSET.
+Adjustable with E3 while the tuner is open. Saved with your PSET.
 
 ### Metro
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Metro Enable** | Bypass | Bypass / Active |
+| **Metro Enable** | Off | Off / On |
 | **BPM** | 120 | 20–300 |
+| **Division** | 1/4 | 1/1 / 1/2 / 1/4 / 1/8 / 1/16 |
 | **Level** | 5.0 | 0–10 |
 | **Pitch** | C3 | C0–B7 (chromatic) |
 
-All four entries live in the PARAMS menu and are MIDI-mappable. Metro Enable and BPM are the most useful for footswitch / knob control. The click fires as a short sine-wave burst; pitch shifts relative to A4 (440 Hz) in semitones.
+All five entries live in the PARAMS menu and are MIDI-mappable. Metro Enable and BPM are the most useful for footswitch / knob control. The click fires as a short sine-wave burst; pitch shifts relative to A4 (440 Hz) in semitones.
+
+When the Norns clock is running, **Division** sets the click subdivision relative to the clock; the metro stays in lockstep with any synced effect. With the clock stopped the metro free-runs at the BPM field.
 
 ### Push
 
@@ -101,9 +135,9 @@ All four entries live in the PARAMS menu and are MIDI-mappable. Metro Enable and
 | **Gain** | 5.0 | 0–10 |
 | **Tone** | 5.0 | 0–10 |
 | **Level** | 5.0 | 0–10 |
-| **Mix** | 2.5 | 0–10 |
+| **Mix** | 25 % | 0–100 % |
 
-Overdrive with asymmetric diode clipping. Tone sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting). Mix is a parallel wet/dry blend: at 0 the effect is 100% wet; at 10 the dry signal is mixed back in 50/50. Useful for retaining pick attack and low-end body while adding saturation on top.
+Overdrive with asymmetric diode clipping. Tone sweeps a high-pass filter from 100 Hz (warm, full) to 750 Hz (tight, cutting). Mix is a parallel wet/dry blend: at 0 % the effect is 100 % wet; at 100 % the dry signal is mixed back in 50/50. Useful for retaining pick attack and low-end body while adding saturation on top.
 
 ### Distort
 
@@ -122,88 +156,201 @@ Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, mu
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Warp Enable** | Bypass | Bypass / Active |
-| **Rate** | 2.5 | 0–10 |
-| **Depth** | 2.5 | 0–10 |
-| **Rise/Fall** | 5.0 | 0–10 |
-| **Mix** | 0.0 | 0–10 |
+| **Rate** | 2.5 Hz | 0.1–25 Hz (exp) |
+| **Depth** | 5 % | 0–100 % |
+| **Rise/Fall** | 2.5 s | 0.01–5.0 s (exp) |
+| **Mix** | 0 % | 0–100 % |
+| **Synchronization** | Off | Off / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Synchronization Feel** | Note | Note / Dotted / Triplet |
 
-Pitch vibrato via modulated delay. At 0 Mix the effect is 100% wet; increasing Mix blends in the dry signal, moving from pure vibrato toward a chorus character. Rise/Fall controls the onset time when bypass is lifted and the fade time when bypass is engaged.
+Pitch vibrato via modulated delay. At 0 % Mix the effect is 100 % wet; increasing Mix blends in the dry signal, moving from pure vibrato toward a chorus character. Rise/Fall controls the onset time when bypass is lifted and the fade time when bypass is engaged.
+
+Set **Synchronization** to a division to lock Rate to the Norns clock. See [Synchronization](#synchronization) for the full model.
 
 ### Repeat
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Repeat Enable** | Bypass | Bypass / Active |
-| **Time** | 7.5 | 0–10 |
-| **Feedback** | 5.0 | 0–10 |
-| **Level** | 5.0 | 0–10 |
-| **Character** | Bright | Bright / Dark |
+| **Time** | 250 ms | 1–1000 ms |
+| **Feedback** | 50 % | 0–100 % |
+| **Level** | 50 % | 0–100 % |
+| **Color** | Bright | Bright / Dark |
+| **Synchronization** | Off | Off / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Synchronization Feel** | Note | Note / Dotted / Triplet |
 
-BBD-style analog delay with jitter and saturation in the feedback path. Character switches between a brighter and a darker feedback tone.
+BBD-style analog delay with jitter and saturation in the feedback path. Color switches between a brighter and a darker feedback tone.
+
+Set **Synchronization** to a division to lock Time to the Norns clock. See [Synchronization](#synchronization) for the full model.
 
 ### Amp
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Amp Enable** | Active | Active / Bypass |
-| **Volume** | 7.5 | 0–10 |
+| **Volume** | 5.0 | 0–10 |
 | **Bass** | 5.0 | 0–10 |
 | **Treble** | 5.0 | 0–10 |
-| **Master** | 5.0 | 0–10 |
+| **Master** | 7.5 | 0–10 |
 
-A dedicated **Amp Enable** toggle is available in the PARAMS menu for MIDI mapping — same behaviour as Reverb and Tremolo bypass.
+A dedicated **Amp Enable** toggle lives in the PARAMS menu for MIDI mapping. Same behaviour as Reverb and Tremolo bypass.
 
 ### Tremolo
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Tremolo Enable** | Active | Active / Bypass |
-| **Speed** | 0.0 | 0–10 |
-| **Intensity** | 0.0 | 0–10 |
+| **Speed** | 2.5 Hz | 0.1–25 Hz (exp) |
+| **Intensity** | 0 % | 0–100 % |
+| **Synchronization** | Off | Off / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Synchronization Feel** | Note | Note / Dotted / Triplet |
 
-On the device, turn Intensity to 0 to silence the tremolo. A dedicated **Tremolo Enable** toggle is available in the PARAMS menu for MIDI mapping — same rationale as Reverb Enable.
+On the device, turn Intensity to 0 to silence the tremolo. A dedicated **Tremolo Enable** toggle lives in the PARAMS menu for MIDI mapping, same rationale as Reverb Enable.
+
+Set **Synchronization** to a division to lock Speed to the Norns clock. The encoder strip then displays the division name (e.g. `1/8`, `1/4.`) instead of Hz. See [Synchronization](#synchronization) for the full model.
 
 ### Looper
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Topology** | Digital | BBD / Cassette / Digital / Tape |
-| **Character** | 0.0 | 0–10 |
-| **Direction** | Forward | Forward / Reverse |
-| **Dub Style** | Regular | Regular / Overwrite |
-| **Play from** | Start | Start / Cue |
-| **Dub Level** | −2.5 dB | −40–0 dB |
-| **Level** | −2.5 dB | −40–0 dB |
-| **Speed** | 1x | 0.5x / 1x / 2x |
+| **Step Order** | Rec·Play·Dub | Rec·Play·Dub / Rec·Dub·Play |
+| **Play From** | Start | Start / Cue |
+| **Mode** | Overdub | Overdub / Overwrite / Sample / Resample |
+| **Direction** | Forward | Forward / Reverse / Pendulum / Random |
+| **Rec Level** | −2.5 dB | −40–0 dB |
+| **Play Level** | −2.5 dB | −40–0 dB |
+| **Fade Level** | −2.5 dB | −40–0 dB |
+| **Speed** | 0 % | −100–+100 % |
+| **Speed Control** | Steps | Steps / Smooth |
 
-**Play from** controls what happens when playback resumes after a stop. **Start** always returns to the beginning of the loop. **Cue** resumes from the position where the loop was stopped.
+**Step Order** picks which K2 sequence the looper follows: `Rec → Play → Dub → Play …` (default) or `Rec → Dub → Play …`. K3 is unaffected.
 
-Speed affects both record and replay. At half speed the loop plays an octave lower and twice as long. At double speed an octave higher, half as long.
+**Play From** controls what happens when playback resumes after a stop. **Start** always returns to the beginning of the loop. **Cue** resumes from the position where the loop was stopped.
 
-**Topology** selects the degradation circuit applied to the loop buffer on every write pass. **Character** controls the intensity — at 0 all circuits pass through transparently. Degradation accumulates on each loop pass:
+**Mode** selects how dub passes interact with the buffer. **Overdub** layers new material over existing. **Overwrite** replaces it. **Sample** stops after one playback pass; K2 retriggers from the **Play From** position. **Resample** records the loop output back into the buffer including the medium's degradation chain.
 
-- **BBD** — LPF roll-off, tanh saturation, high-end noise (above Character 5).
-- **Cassette** — LFO-modulated BPF centre with slow wow, fast wonk, and crinkle amplitude noise.
-- **Digital** — quantisation steps with random sample dropouts.
-- **Tape** — exponential LPF with wow/flutter and gentle saturation.
+**Direction** sets the loop playback direction. **Forward** is conventional. **Reverse** plays the buffer backwards. **Pendulum** alternates forward and reverse at each loop boundary. **Random** flips direction unpredictably at each boundary for generative texture.
+
+**Rec Level** and **Play Level** control recording gain (initial pass and overdub) and playback gain independently. **Fade Level** sets the gain curve at the loop boundary fade.
+
+**Speed** is bipolar. In **Steps** mode it snaps to −100 % (half speed, octave down), 0 % (normal), or +100 % (double speed, octave up). In **Smooth** mode it moves continuously across the full range, exponentially mapped (`2 ^ (Speed/100)`). Speed affects both record and replay.
+
+#### Medium
+
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Medium** | Digital | BBD / Cassette / Digital / Tape |
+| **Imprint** | 50 % | 0–100 % |
+| **Wear** | 5 % | 0–100 % |
+| **M: BBD Tone** | Bright | Bright / Dark |
+| **M: Cassette Wow** | 5 % | 0–100 % |
+| **M: Digital Glitch** | 0 % | 0–100 % |
+| **M: Tape Wow** | 5 % | 0–100 % |
+
+**Medium** picks the storage type the loop pretends to be. **Imprint** controls how strongly the medium colours the signal at the moment of recording: at 0 % the buffer captures your input clean, at 100 % the first repeat already has the mediums full character. **Wear** controls how much the medium degrades the loop on each subsequent pass: at 0 % the loop holds its captured state indefinitely, at higher values it erodes a little more every cycle. The two combine: a small Wear over a meaningful Imprint gives you a recording that lands aged and continues to age slowly. The four media, with their characteristic flavour:
+
+- **BBD.** Bandwidth-limited LPF, op-amp bias, tanh saturation. Compander noise creeps in above 30 %. **M: BBD Tone** picks between two LPF curves (Bright or Dark).
+- **Cassette.** LFO-modulated bandpass with slow wow and fast wonk, amplitude crinkle, a subtle FM artefact. **M: Cassette Wow** controls wow depth independently of Imprint and Wear.
+- **Digital.** Quantisation steps and timing jitter. Random dropouts and skip-reads enter above 67 %. **M: Digital Glitch** scales dropout and skip rates independently of Imprint and Wear.
+- **Tape.** Wide LPF with wow and flutter, misbias saturation, compander LPF, short print-through. **M: Tape Wow** controls wow depth.
+
+Imprint and Wear apply on the destructive write side, but at different stages. Imprint colours the input as it enters the buffer (a one-shot effect at record time, scaled by the Imprint amount). Wear processes the buffer's existing content on every loop pass and folds the result back in (an accumulating effect over time, scaled by the Wear amount). Tape and Cassette also apply a small amount of wow on the read side, which is non-destructive (it modulates playback only and never writes back). With Imprint at 0 and Wear at 0, the buffer captures your input clean and holds it indefinitely.
+
+```
+Destructive write paths
+
+  input  ──► Medium (scaled by Imprint) ──► BufWr ──► buffer        (one-shot at record)
+  buffer ──BufRd──► Medium (scaled by Wear) ──► BufWr ──► buffer    (accumulates per pass)
+                                                              ↺
+
+Non-destructive read path (modulates playback only, never writes back)
+
+  buffer ──BufRd──► Tape/Cas read-path wow ──► output → Tremolo → Spring reverb → ...
+```
+
+#### Quantization
+
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Quantization** | Off | Off / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Quantization Feel** | Note | Note / Dotted / Triplet |
+
+When the Norns clock is running and **Quantization** is set to a division, every K2 transition (record start, record end, play→dub, dub→play, stop) waits for the next beat boundary. **Off** is free-running. See [Synchronization](#synchronization) for how the division and feel combine.
 
 ### Reverb
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Reverb Enable** | Active | Active / Bypass |
-| **Amount** | 2.5 | 0–10 |
+| **Amount** | 25 % | 0–100 % |
+| **Length** | 2.5 s | 0.5–5.0 s |
+| **Low Shelf** | 0 dB | −5–+5 dB |
+| **High Shelf** | 0 dB | −5–+5 dB |
 
-On the device, turn Amount to 0 to silence the reverb. A dedicated **Reverb Enable** toggle is available in the PARAMS menu for MIDI mapping — useful when you want to kill the reverb instantly from a footswitch and restore it to the same Amount with a second press.
+On the device, turn Amount to 0 to silence the reverb. A dedicated **Reverb Enable** toggle lives in the PARAMS menu for MIDI mapping. Useful when you want to kill the reverb instantly from a footswitch and restore it to the same Amount with a second press.
 
-### Speaker & Mic
+**Length** sets the spring tank decay independently of Amount, so you can keep the send level low and still get a long ring. **Low Shelf** at 250 Hz and **High Shelf** at 3500 Hz colour the wet path. Pull the high shelf down for a darker bloom; lift it for a brighter shimmer.
+
+### Cab & Mic Simulation, IRs
 
 | Parameter | Default | Options |
 |-----------|---------|---------|
-| **Speaker Enable** | Active | Active / Bypass |
-| **Position** | Middle | Center / Middle / Edge |
+| **Cab Mode** | Cab & Mic Sim | Bypass / Cab & Mic Sim / IR |
+| **Mic Position** | Middle | Center / Middle / Edge |
+| **IR Left** | (none) | file path (.wav, 48 kHz) |
+| **IR Right** | (none) | file path (.wav, 48 kHz) |
 
-**Speaker Enable** bypasses the cabinet simulation while keeping the preamp and tone stack active — useful for a raw DI tone or when running into an external powered cab. The grill area goes blank on screen when bypassed. Center is brightest and most present. Middle is balanced. Edge is darker and rounder.
+**Cab Mode** picks the cabinet processing path. **Bypass** removes all cabinet colour, useful for a raw DI tone or for feeding an external powered cab. **Cab & Mic Sim** runs the built-in Jensen 10" model at the **Mic Position** you set: Center is brightest and most present, Middle is balanced, Edge is darker and rounder. **IR** convolves the signal with impulse responses loaded via **IR Left** and **IR Right**.
+
+In IR mode the left strip shows the loaded IR file names while the Mic Position parameter is selected. Mic Position is hidden from the PARAMS menu in IR mode; IR Left and IR Right are hidden in Cab & Mic Sim and Bypass modes.
+
+**IR file requirements.** 48 kHz mono or stereo WAV (left channel is used). Only the first 2048 samples (≈ 42 ms) are convolved; longer tails are silently discarded. Convert with `ffmpeg -ar 48000 input.wav output.wav` or Audacity. A 44.1 kHz file will play back about 5 % fast and sharp, without an error message.
+
+### Limit
+
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Limit Enable** | Bypass | Bypass / Active |
+| **Threshold** | −10 dB | −40–0 dB |
+| **Ratio** | 4.0 :1 | 2.0–20.0 :1 |
+| **Gain** | 0 dB | −20–+20 dB |
+| **Attack** | 10 ms | 1–100 ms |
+| **Decay** | 50 ms | 50–2000 ms |
+
+Output compander after the cabinet. Bypassed by default. Engage it when sending into another script's input, or when looper peaks need a ceiling. Threshold sets the knee; signal above it is compressed at the chosen Ratio. Gain compensates for the level reduction. Attack and Decay shape the envelope follower.
+
+## Synchronization
+
+When the Norns clock is running and a stage's **Synchronization** parameter is set to a division (anything except **Off**), the stage's rate parameter is derived from the BPM instead of its standalone value:
+
+- Tremolo Speed → derived from BPM
+- Warp Rate → derived from BPM
+- Repeat Time → derived from BPM (`1000 / Hz` ms)
+- Looper Quantization → snaps K2 transitions to the next beat boundary
+
+The conversion is `beats = base_beats × feel_multiplier`, where:
+
+| Division | base_beats |
+|---|---|
+| `1/1` | 4 |
+| `1/2` | 2 |
+| `1/4` | 1 |
+| `1/8` | 0.5 |
+| `1/16` | 0.25 |
+| `1/32` | 0.125 |
+| `1/64` | 0.0625 |
+
+| Feel | feel_multiplier |
+|---|---|
+| Note | × 1.0 |
+| Dotted | × 1.5 |
+| Triplet | × 2/3 |
+
+Resulting `Hz = BPM / (beats × 60)`. At 120 BPM: `1/4 Note` = 2 Hz, `1/4 Dotted` = 1.33 Hz, `1/4 Triplet` = 3 Hz.
+
+Each effect's range still applies (Tremolo 0.1–25 Hz, Warp 0.1–25 Hz, Repeat 1–1000 ms). When a synced division falls outside the effect's range, the encoder strip dims the value to indicate the clamp.
+
+When the Norns clock source switches to **MIDI** (PARAMS > CLOCK > SOURCE), all four sync defaults activate automatically (`1/4` for Tremolo, Warp, Repeat, and Looper Quantization). Switching back to internal clock deactivates them. Stopping the clock holds the last derived values.
 
 ## Looper transport
 
@@ -216,7 +363,7 @@ play / dub ── K3 ──► stop ── K3 ──► idle (buffer cleared)
 stop ── K2 ──► play
 ```
 
-The loop keeps running when you open the tuner or pedalboard. Transport keys (K2, K3) are inactive in those views — the loop is not affected.
+The loop keeps running when you open the tuner or pedalboard. Transport keys (K2, K3) are inactive in those views; the loop is not affected.
 
 Transport icons at the bottom of the left display (framed in brackets when a looper parameter is selected):
 
@@ -233,17 +380,19 @@ Every parameter, bypass toggle, and looper transport action is available in the 
 
 1. Open the PARAMS menu (press K1 from the main screen, navigate to PARAMS)
 2. Scroll to the parameter or action you want to map
-3. Press K3 to enter MIDI learn mode — the entry flashes
+3. Press K3 to enter MIDI learn mode (the entry flashes)
 4. Send a CC from your MIDI controller
-5. Norns assigns that CC to the parameter — the mapping is saved with your PSET
+5. Norns assigns that CC to the parameter; the mapping is saved with your PSET
 
 ### What can be mapped
 
-**Pedals / Amp / Tremolo / Looper / Reverb / Speaker & Mic** — all continuous parameters respond to CC values scaled to their parameter range.
+**Pedals, Amp, Tremolo, Looper, Reverb, Cab & Mic, Limit, Metro.** All continuous parameters respond to CC values scaled to their parameter range.
 
-**Enable toggles** (Amp, Speaker, Reverb, Tremolo, Push, Distort, Warp, Repeat) — CC ≥ 64 enables (Active), CC < 64 bypasses.
+**Enable toggles** (Amp, Reverb, Tremolo, Limit, Push, Distort, Warp, Repeat). CC ≥ 64 enables (Active), CC < 64 bypasses. **Cab Mode** is a 3-way option (Bypass / Cab & Mic Sim / IR); the CC value is scaled to the option range.
 
-**Looper transport** — each action is a trigger entry visible in both PARAMS and MAP:
+**Synchronization.** Each stage's `Synchronization` (Tremolo / Warp / Repeat) and `Quantization` (Looper) is an option-type param mappable to a CC. Useful for tap-style division switching from a controller knob.
+
+**Looper transport.** Each action is a trigger entry visible in both PARAMS and MAP:
 
 | Entry | Action |
 |---|---|
@@ -252,83 +401,11 @@ Every parameter, bypass toggle, and looper transport action is available in the 
 
 ### Notes
 
-- MIDI mappings are stored per PSET — each preset can have its own mapping.
-- Looper transport triggers respond on CC value ≥ 64 (send value 127 for reliable triggering).
-- **Enable toggles** use CC ≥ 64 → Active, CC < 64 → Bypass. Your controller must send both values (latch / bi-directional CC) — a toggle that always sends CC 127 will always set the param to Active and never back to Bypass.
+- MIDI mappings are stored per PSET; each preset can have its own mapping.
+- Looper transport triggers respond on CC value ≥ 64. Send value 127 for reliable triggering.
+- **Enable toggles** use CC ≥ 64 for Active and CC < 64 for Bypass. Your controller must send both values (latch or bi-directional CC). A toggle that always sends CC 127 will set the param to Active forever.
 - **After upgrading** from a pre-release build (pre-0.3), delete `dust/data/princeton/princeton.pmap` and re-map your CCs. The param type change from `add_binary` to `add_option` breaks saved mappings silently.
 - All MIDI input is on channel 1 by default. Change the channel in PARAMS > MIDI.
-
-## User stories
-
-**Pedalboard**
-
-- I want four effects before the amp so that I can shape the tone before it hits the preamp stages.
-- I want Push and Distort on one key pair and Warp and Repeat on another so that distortion and modulation are logically separated.
-- I want each effect independently bypassable so that I can toggle individual colours without leaving the pedalboard view.
-- I want the active effect label to appear at full brightness so that I can see at a glance what is engaged without reading carefully.
-- I want click-free bypass switching so that engaging or disengaging an effect doesn't interrupt the signal.
-- I want Push into Distort to stack so that I can drive the Distort input harder for a thicker sound.
-- I want Warp before Repeat in the chain so that pitch-modulated signal feeds the delay, creating slowly shifting repeats.
-
-**Amp**
-
-- I want to plug my guitar directly into norns so that I don't need an external preamp or audio interface.
-- I want the volume knob to behave like a real amp so that low settings are clean and high settings break up naturally.
-- I want a fixed mid scoop in the tone stack so that I get the scooped, open Fender character without having to dial it in.
-- I want stereo output so that the ping-pong of the tremolo and the spatial width of the spring reverb are preserved at the output.
-- I want to bypass the amp so that I can pass the guitar signal through with zero colouration.
-
-**Tremolo**
-
-- I want tremolo that defaults to off so that I don't have to turn it down every time I load the script.
-- I want Speed and Intensity as separate controls so that I can set a rate without any modulation and bring it in gradually with Intensity.
-- I want the peaks to stay at full amplitude when tremolo is engaged so that the overall level doesn't drop.
-- I want a MIDI-mappable tremolo bypass so that I can kill and restore the tremolo from a footswitch without losing my Speed and Intensity settings.
-
-**Looper**
-
-- I want the looper between tremolo and reverb so that the spring reverb washes over the loop and the live guitar together, making the loop sit in the same acoustic space.
-- I want record → play → dub on a single button so that I can capture a loop and layer over it without menu diving.
-- I want a separate stop button so that I can freeze the loop mid-performance and re-enter playback at will.
-- I want to clear the buffer with a second press of the stop button so that the clear action is deliberate and can't happen accidentally while a loop is playing.
-- I want the loop to keep running when I open the tuner or pedalboard so that I can tune or adjust effects without interrupting the loop.
-- I want Regular and Overwrite dub styles so that I can choose between layering and replacing what's already in the buffer.
-- I want half and double speed so that I can transpose the loop by an octave in either direction, or change loop length without re-recording.
-- I want reverse playback so that I can play melodic or textural material backwards against the live signal.
-- I want independent Level and Dub Level so that I can control how loud the loop sits in the mix and how hot overdubs land separately.
-
-**Reverb**
-
-- I want a MIDI-mappable reverb bypass so that I can kill and restore the spring reverb from a footswitch without losing the Amount setting.
-
-**Speaker & Mic**
-
-- I want three mic positions on the cabinet so that I can choose between a bright on-axis sound, a balanced middle position, and a darker off-axis tone.
-- I want to bypass the cabinet simulation independently so that I can use the preamp tone into an external cab or IR loader without double-amping.
-
-**Tuner**
-
-- I want a chromatic tuner accessible from any view so that I can tune between songs without leaving the script.
-- I want a mute option in the tuner so that I can tune silently without stopping the looper.
-- I want to navigate directly from the tuner to the pedalboard so that I don't have to pass through the amp view.
-
-**Metro**
-
-- I want a built-in metronome so that I can play to a click without an external device.
-- I want the metronome MIDI-mappable so that I can start and stop it from a footswitch and control BPM from a knob.
-- I want BPM, Level, and Pitch in the PARAMS menu so that I can adjust them and save them with each preset.
-
-**Navigation**
-
-- I want to reach the tuner, gain pedals, and modulation pedals from any view with a single hold so that I never have to navigate back to the amp view first.
-- I want holding the same key again to return me to the amp view so that I always have a consistent exit gesture.
-
-**MIDI**
-
-- I want every parameter available as a MIDI-mappable control so that I can operate the script from a hardware controller without touching norns.
-- I want bypass toggles for every effect available as MIDI triggers so that I can mute and unmute any stage from a footswitch.
-- I want looper transport (record, play, dub, stop, clear) available as MIDI triggers so that I can control the looper hands-free while playing.
-- I want MIDI mappings saved with my presets so that each saved setup remembers which controller CC does what.
 
 ## Install
 
