@@ -395,16 +395,26 @@ local function looper_step()
       redraw()
     end)
   elseif loop_state == LOOP_STOP then
-    loop_state = LOOP_PLAY
-    loop_set_engine(LOOP_PLAY)
     if params:get("looper_dub_style") == 3 then
+      loop_state = LOOP_PLAY
+      loop_set_engine(LOOP_PLAY)
       if params:get("looper_play_from") == 2 then
         sample_retrig_val = 1 - sample_retrig_val
         engine.loop_sample_retrig(sample_retrig_val)
       end
       sample_oneshot_start()
+      redraw()
+    else
+      if loop_quant_pending then return end
+      loop_quant_pending = true
+      looper_quantize_then(function()
+        loop_quant_pending = false
+        loop_state = LOOP_PLAY
+        loop_set_engine(LOOP_PLAY)
+        redraw()
+      end)
+      redraw()
     end
-    redraw()
   end
 end
 
