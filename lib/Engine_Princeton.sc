@@ -5,6 +5,7 @@ Engine_Princeton : CroneEngine {
     var ir_buf_l, ir_buf_r;
     var ir_trig_l_val, ir_trig_r_val;
     var tuner_freq_bus;
+    var metro_bus;
 
     alloc {
 
@@ -12,19 +13,21 @@ Engine_Princeton : CroneEngine {
         ir_buf_l = Buffer.alloc(context.server, 2048, 1);
         ir_buf_r = Buffer.alloc(context.server, 2048, 1);
         tuner_freq_bus = Bus.control(context.server, 1);
+        metro_bus = Bus.audio(context.server, 1);
         ir_trig_l_val = 0;
         ir_trig_r_val = 0;
 
         context.server.sync;
 
-        ir_buf_l.set(0, 1.0);  // dirac delta: transparent until real IR loaded
+        ir_buf_l.set(0, 1.0);
         ir_buf_r.set(0, 1.0);
 
         context.server.sync;
 
         SynthDef(\princeton, {
 
-            arg out_bus = 0, in_bus = 0,
+            arg out_bus = 0, in_bus = 0, in_bus_r = 0,
+                signal_input = 1,
                 volume = 5.0, bass = 5, treble = 5, master = 7.5,
                 reverb = 25, reverb_length = 2.5, reverb_low_shelf = 0, reverb_high_shelf = 0,
                 trem_speed = 2.5, trem_intensity = 0,
@@ -36,19 +39,21 @@ Engine_Princeton : CroneEngine {
                 loop_rec = 0, loop_dub = 0, loop_play = 0,
                 loop_frames = 1920000, loop_level = 0.75, dub_level = 0.75, loop_fade = 0.75,
                 loop_buf_num = 0, direction = 0, loop_speed = 1, dub_style = 0,
-                loop_wear_amt = 5, loop_imprint_amt = 50, loop_medium_type = 2,
+                loop_wear_amt = 5, loop_imprint_amt = 50, loop_medium_type = 3,
                 loop_play_from = 0, loop_sample_retrig = 0,
                 mute = 0, amp_bypass = 0,
                 reverb_mute = 0, cab_mode = 1,
                 ir_buf_l_num = 0, ir_buf_r_num = 0, ir_trig_l = 0, ir_trig_r = 0,
                 loop_wow_tape = 5, loop_wow_cas = 5,
-                loop_bbd_tone = 0, loop_dig_glitch = 0,
+                loop_bbd_tone = 0, loop_chip_crush = 0, loop_cd_errors = 0, loop_vinyl_noise = 10,
                 cab_level = 1.0,
                 ir_level_l = 0.31623, ir_level_r = 0.31623,
                 limit_bypass = 1, limit_threshold = 0.31623, limit_ratio = 4.0, limit_gain = 1.0, limit_attack = 10, limit_decay = 50,
-                tuner_freq_bus_num = 0;
+                tuner_freq_bus_num = 0,
+                metro_bus_num = 0;
 
-            var sig, push_sig, push_drive, distort_sig, distort_drive, repeat_delay, repeat_fb, pre1, toned, pre2, power;
+            var sig, sig_l_in, sig_r_in, metro_in, sig_input_norm, input_level_gain;
+            var push_sig, push_drive, distort_sig, distort_drive, repeat_delay, repeat_fb, pre1, toned, pre2, power;
             var cab_center, cab_mid, cab_edge, cab;
             var trem_lfo, trem_out, trem_depth, trem_dry;
             var sp1, sp2, sp3, diff, spring_wet, wetmix;
@@ -59,12 +64,15 @@ Engine_Princeton : CroneEngine {
             var bass_gain, treble_gain;
             var bass_lf, bass_hf, treble_lf, treble_hf;
             var loop_reset, loop_phase, loop_rd, loop_preserve;
-            var dig_glitch_env;
-            var dig_skip_rate, dig_skip_out;
-            var apply_topology, trem_imprinted, loop_preserve_out;
-            var is_digital, medium_lag;
+            var cd_errors_curve, cd_scratch_env;
+            var cd_skip_rate, cd_skip_trig, cd_skip_pos, cd_skip_phase, cd_skip_rd, cd_skip_env, cd_skip_out;
+            var cd_stutter_rate, cd_stutter_trig, cd_stutter_lock_pos;
+            var cd_stutter_phase, cd_stutter_rd, cd_stutter_env, cd_stutter_out;
+            var apply_topology, bbd_dsp, cas_dsp, cd_dsp, chip_dsp, tape_dsp, vinyl_dsp;
+            var trem_imprinted, loop_preserve_out;
+            var is_cd, is_chip, is_vinyl, medium_lag;
             var bbd_bias_lfo, tape_bias_lfo, cas_bias_lfo, tape_flt_lfo, cas_fm_carrier_lfo;
-            var dig_noise_src, dig_jitter_src;
+            var chip_noise_src;
             var write_sig, loop_out, final_sig, loop_mix, dub_style_r, is_resample;
             var repeat_fb_lp, repeat_jitter, repeat_noise, repeat_dt;
             var warp_lfo, warp_sig, warp_depth_env;
@@ -73,11 +81,13 @@ Engine_Princeton : CroneEngine {
             var retrig_kr, in_sample_mode, oneshot_done, sample_gate;
             var sig_mono;
             var repeat_gate;
-            var cab_dsp, cab_mode_r, ir_l, ir_r;
-            var loop_rd_wow, rd_wow_depth_tape, rd_wow_depth_cas;
-            var delay_time_tape_l, delay_time_tape_r, delay_time_cas_l, delay_time_cas_r;
-            var wow_tape_l, wow_tape_r, wow_cas_l, wow_cas_r;
-            var wow_tape_hz, wow_cas_hz, wow_tape_jit_hz, wow_cas_jit_hz, wow_tape_jit_amt, wow_cas_jit_amt;
+            var cab_dsp, ir_l, ir_r;
+            var loop_rd_wow, rd_wow_depth_tape, rd_wow_depth_cas, rd_wow_depth_vinyl;
+            var delay_time_tape_l, delay_time_tape_r, delay_time_cas_l, delay_time_cas_r, delay_time_vinyl_l, delay_time_vinyl_r;
+            var wow_tape_l, wow_tape_r, wow_cas_l, wow_cas_r, wow_vinyl_l, wow_vinyl_r;
+            var wow_tape_hz, wow_cas_hz, wow_vinyl_hz;
+            var wow_tape_jit_hz, wow_cas_jit_hz, wow_vinyl_jit_hz;
+            var wow_tape_jit_amt, wow_cas_jit_amt, wow_vinyl_jit_amt;
             var limit_ctrl, limit_out;
             var tuner_in, tuner_pitch_freq, tuner_pitch_has;
 
@@ -112,7 +122,9 @@ Engine_Princeton : CroneEngine {
             mute           = Lag.kr(mute,           0.02);
             loop_wow_tape   = Lag.kr(loop_wow_tape,   0.05);
             loop_wow_cas    = Lag.kr(loop_wow_cas,    0.05);
-            loop_dig_glitch = Lag.kr(loop_dig_glitch, 0.05);
+            loop_chip_crush  = Lag.kr(loop_chip_crush,  0.05);
+            loop_cd_errors   = Lag.kr(loop_cd_errors,   0.05);
+            loop_vinyl_noise = Lag.kr(loop_vinyl_noise, 0.05);
             cab_level           = Lag.kr(cab_level,           0.05);
             ir_level_l          = Lag.kr(ir_level_l,          0.05);
             ir_level_r          = Lag.kr(ir_level_r,          0.05);
@@ -121,15 +133,31 @@ Engine_Princeton : CroneEngine {
             limit_gain           = Lag.kr(limit_gain,           0.05);
             limit_attack         = Lag.kr(limit_attack,         0.10);
             limit_decay          = Lag.kr(limit_decay,          0.10);
+            signal_input         = Lag.kr(signal_input,         0.05);
+            characteristic       = Lag.kr(characteristic,       0.05);
+            mic                  = Lag.kr(mic,                  0.05);
+            cab_mode             = Lag.kr(cab_mode,             0.05);
+            loop_bbd_tone        = Lag.kr(loop_bbd_tone,        0.05);
+            loop_speed           = Lag.kr(loop_speed,           0.05);
 
             // ── Input ────────────────────────────────────────────────────────
-            sig = In.ar(in_bus, 1);
+            sig_l_in = In.ar(in_bus,   1);
+            sig_r_in = In.ar(in_bus_r, 1);
+            metro_in = In.ar(metro_bus_num, 1);
+
+            sig_input_norm   = (signal_input - 1).clip(0, 1);
+            input_level_gain = ((1 - sig_input_norm) * 1.0) + (sig_input_norm * 0.31623);
+
+            sig = [
+                (sig_l_in                                                          * input_level_gain) + metro_in,
+                ((sig_l_in * (1 - sig_input_norm)) + (sig_r_in * sig_input_norm))  * input_level_gain  + metro_in
+            ];
             sig = LeakDC.ar(sig);
             sig = HPF.ar(sig, 40);
             sig = LPF.ar(sig, 7500);
 
             // ── Tuner pitch detection ────────────────────────────────────────
-            tuner_in = sig * 4.0;
+            tuner_in = sig[0] * 4.0;
             tuner_in = HPF.ar(tuner_in, 70);
             tuner_in = LPF.ar(tuner_in, 2000);
             # tuner_pitch_freq, tuner_pitch_has = Pitch.kr(tuner_in,
@@ -162,31 +190,25 @@ Engine_Princeton : CroneEngine {
             sig       = XFade2.ar(distort_sig, sig, Lag.kr(distort_bypass.round(1) * 2 - 1, 0.008));
 
             // ── Warp ─────────────────────────────────────────────────────────
-            // Lag on warp_depth (not bypass) creates slow onset when pedal engages
             warp_depth_env = Lag.kr(warp_depth.linlin(0, 100, 0.0, 0.012) * (1 - warp_bypass.round(1)),
                               warp_rise);
-            // Mono warp
             warp_lfo = SinOsc.ar(warp_rate + LFNoise2.kr(4, 0.08), 0, warp_depth_env, 0.007);
             warp_sig = DelayC.ar(sig, 0.02, warp_lfo.clip(0.0001, 0.02));
             sig = XFade2.ar(warp_sig, sig, LagUD.kr(Select.kr(warp_bypass.round(1), [warp_mix.linlin(0, 100, -1, 1), 1]), warp_rise, 0.008));
 
             // ── Repeat ───────────────────────────────────────────────────────
-            // Repeat bypass: gate the INPUT only — tail rings out and can self-feedback
             repeat_gate   = Lag.kr(1 - repeat_bypass.round(1), 0.008);
-            sig_mono      = sig;
+            sig_mono      = (sig[0] + sig[1]) * 0.5;
             repeat_jitter = SinOsc.kr(0.3, 0, 0.0003) + LFNoise2.kr(8, 0.0002);
             repeat_dt     = Lag.kr(repeat_time * 0.001, 0.15) + repeat_jitter;
             repeat_fb    = LocalIn.ar(1) * (repeat_feedback / 100.0);
-            repeat_fb_lp = Select.kr(characteristic.round(1), [5000, 2500]);
-            repeat_fb    = repeat_fb * Select.kr(characteristic.round(1), [1.063, 1.063]);
+            repeat_fb_lp = SelectX.kr(characteristic, [5000, 2500]);
+            repeat_fb    = repeat_fb * 1.063;
             repeat_fb    = LPF.ar(repeat_fb, repeat_fb_lp);
             repeat_fb    = (repeat_fb * 1.1).tanh * 0.95;
-            // New material enters delay only when active; feedback always circulates
             repeat_delay = DelayL.ar(sig_mono * repeat_gate + repeat_fb, 1.001, repeat_dt.clip(0.001, 1.0));
-            // noise goes to LocalOut only — not present in repeat_delay output
             repeat_noise = WhiteNoise.ar(Amplitude.kr(repeat_fb, 0.01, 0.2) * 0.015);
             LocalOut.ar(repeat_delay + repeat_noise);
-            // Wet always added — dry sig preserved mono; tail decays naturally after bypass
             sig = sig + (repeat_delay * (repeat_level / 100.0));
 
             // ── Amp: preamp → tone stack → power amp ─────────────────────────
@@ -209,7 +231,7 @@ Engine_Princeton : CroneEngine {
             pre2 = (toned * 1.7).tanh * 0.55;
             pre2 = HPF.ar(pre2, 80);
 
-            sag      = Amplitude.ar(pre2, 0.004, 0.12);
+            sag      = Amplitude.ar((pre2[0] + pre2[1]) * 0.5, 0.004, 0.12);
             sag_gain = 1.0 / (1.0 + sag * 0.35);
             power    = (pre2 * sag_gain * 2.2).softclip * 0.5;
 
@@ -218,8 +240,8 @@ Engine_Princeton : CroneEngine {
             trem_dry   = Lag.kr(trem_intensity.linlin(0, 15, 1.0, 0.0).clip(0, 1), 0.05);
             trem_depth = Lag.kr(trem_intensity.linlin(16, 100, 0.0, 0.9).clip(0, 1), 0.05);
             trem_out = [
-                power * (trem_dry + (1.0 - trem_dry) * (trem_depth * trem_lfo                              + (1.0 - trem_depth))),
-                power * (trem_dry + (1.0 - trem_dry) * (trem_depth * SinOsc.kr(trem_speed, pi * 0.5, 0.5, 0.5) + (1.0 - trem_depth)))
+                power[0] * (trem_dry + (1.0 - trem_dry) * (trem_depth * trem_lfo                              + (1.0 - trem_depth))),
+                power[1] * (trem_dry + (1.0 - trem_dry) * (trem_depth * SinOsc.kr(trem_speed, pi * 0.5, 0.5, 0.5) + (1.0 - trem_depth)))
             ];
 
             // ── Looper ───────────────────────────────────────────────────────
@@ -276,96 +298,137 @@ Engine_Princeton : CroneEngine {
             loop_preserve = BufRd.ar(2, loop_buf_num, loop_phase, loop: 1, interpolation: 1);
 
             medium_lag = Lag.kr(loop_medium_type, 0.05);
-            is_digital = (1 - (medium_lag - 2).abs).max(0).min(1);
+            is_cd    = (1 - (medium_lag - 2).abs).max(0).min(1);
+            is_chip  = (1 - (medium_lag - 3).abs).max(0).min(1);
+            is_vinyl = (1 - (medium_lag - 5).abs).max(0).min(1);
             wow_tape_hz      = 1.1;
             wow_cas_hz       = 0.7;
+            wow_vinyl_hz     = 0.4;
             wow_tape_jit_hz  = 0.2;
             wow_cas_jit_hz   = 0.3;
+            wow_vinyl_jit_hz = 0.05;
             wow_tape_jit_amt = 0.20;
             wow_cas_jit_amt  = 0.25;
-            wow_tape_l = SinOsc.kr(wow_tape_hz + LFNoise2.kr(wow_tape_jit_hz, wow_tape_jit_amt), 0,         1.0);
-            wow_tape_r = SinOsc.kr(wow_tape_hz + LFNoise2.kr(wow_tape_jit_hz, wow_tape_jit_amt), pi * 0.5,  1.0);
-            wow_cas_l  = SinOsc.kr(wow_cas_hz  + LFNoise2.kr(wow_cas_jit_hz,  wow_cas_jit_amt),  0,         1.0);
-            wow_cas_r  = SinOsc.kr(wow_cas_hz  + LFNoise2.kr(wow_cas_jit_hz,  wow_cas_jit_amt),  pi * 0.75, 1.0);
+            wow_vinyl_jit_amt = 0.05;
+            wow_tape_l  = SinOsc.kr(wow_tape_hz  + LFNoise2.kr(wow_tape_jit_hz,  wow_tape_jit_amt),  0,         1.0);
+            wow_tape_r  = SinOsc.kr(wow_tape_hz  + LFNoise2.kr(wow_tape_jit_hz,  wow_tape_jit_amt),  pi * 0.5,  1.0);
+            wow_cas_l   = SinOsc.kr(wow_cas_hz   + LFNoise2.kr(wow_cas_jit_hz,   wow_cas_jit_amt),   0,         1.0);
+            wow_cas_r   = SinOsc.kr(wow_cas_hz   + LFNoise2.kr(wow_cas_jit_hz,   wow_cas_jit_amt),   pi * 0.75, 1.0);
+            wow_vinyl_l = SinOsc.kr(wow_vinyl_hz + LFNoise2.kr(wow_vinyl_jit_hz, wow_vinyl_jit_amt), 0,         1.0);
+            wow_vinyl_r = SinOsc.kr(wow_vinyl_hz + LFNoise2.kr(wow_vinyl_jit_hz, wow_vinyl_jit_amt), pi * 0.6,  1.0);
 
-            // Shared LFOs (amt-independent; reused across wear + imprint paths)
             bbd_bias_lfo       = LFNoise2.kr(0.1);
             tape_bias_lfo      = LFNoise2.kr(0.12);
             cas_bias_lfo       = LFNoise2.kr(0.15);
             tape_flt_lfo       = SinOsc.kr(7.0 + LFNoise2.kr(1.0, 2.0), 0, 1.0);
             cas_fm_carrier_lfo = LFNoise2.kr(0.1).exprange(120, 400);
-            dig_noise_src      = LFNoise0.ar(48000);
-            dig_jitter_src     = LFNoise2.ar(200);
+            chip_noise_src     = LFNoise0.ar(48000);
 
             // ── Topology DSP ─────────────────────────────────────────────────
+            bbd_dsp = { |input, amt|
+                var amt_fc, sig, drv, bias;
+                amt_fc = SelectX.kr(loop_bbd_tone, [
+                             amt.linexp(0, 100, 5000, 300),
+                             amt.linexp(0, 100, 2500, 150)
+                         ]);
+                sig    = HPF.ar(input, 80);
+                sig    = LPF.ar(sig, amt_fc);
+                bias   = bbd_bias_lfo * amt.linlin(0, 100, 0.0, 0.04);
+                drv    = 1.1 + amt.linlin(0, 100, 0.0, 3.9);
+                sig    = ((sig + bias) * drv).tanh * (0.95 / drv);
+                sig    = LeakDC.ar(sig);
+                sig    = sig + WhiteNoise.ar(Amplitude.kr(sig, 0.01, 0.2) * amt.linlin(0, 100, 0.0, 0.03));
+                sig
+            };
+
+            chip_dsp = { |input, amt|
+                var crush_boost, step, sr, sig;
+                crush_boost = loop_chip_crush.linlin(0, 100, 1.0, 2.0);
+                sr          = amt.linexp(0, 100, 24000, 4500) / crush_boost.sqrt;
+                step        = amt.linlin(0, 100, 0.00001, 0.05) * crush_boost;
+                sig         = Latch.ar(input, Impulse.ar(sr));
+                sig         = (sig / step).round(1.0) * step;
+                sig         = sig + (chip_noise_src * step * amt.linlin(0, 100, 0.0, 0.08));
+                sig
+            };
+
+            cd_dsp = { |input, amt|
+                LPF.ar(input, amt.linexp(0, 100, 18000, 6000))
+            };
+
+            tape_dsp = { |input, amt|
+                var amt_fc, wow, flt, fc, sig, drv, bias, comp_fc, print;
+                amt_fc  = amt.linlin(0, 100, 16000, 400);
+                wow     = [wow_tape_l, wow_tape_r] * loop_wow_tape.linlin(0, 100, 0.0, 3000);
+                flt     = tape_flt_lfo * loop_wow_tape.linlin(0, 100, 0.0, 1500);
+                fc      = (amt_fc + wow + flt).clip(100, 18000);
+                sig     = LPF.ar(input, fc);
+                print   = DelayN.ar(input, 0.025, 0.019) * amt.linlin(0, 100, 0.0, 0.04);
+                drv     = amt.linlin(0, 100, 1.0, 5.0);
+                bias    = tape_bias_lfo * amt.linlin(0, 100, 0.0, 0.06);
+                sig     = ((sig + bias) * drv).tanh * (1.0 / drv);
+                sig     = LeakDC.ar(sig);
+                comp_fc = (Amplitude.kr(sig, 0.005, 0.15) * amt.linlin(0, 100, 0.0, -5000) + 5500).clip(2500, 5500);
+                sig     = LPF.ar(sig, comp_fc);
+                sig     = sig + print;
+                sig
+            };
+
+            cas_dsp = { |input, amt|
+                var amt_fc, wonk_osc, wow, wonk, fc, rq, sig, drv, bias, comp_fc, crinkle, fm_idx, fm_out;
+                amt_fc   = amt.linlin(0, 100, 3200, 800);
+                wonk_osc = LFNoise2.kr(amt.linlin(0, 100, 0.5, 10), 1.0);
+                wow      = [wow_cas_l, wow_cas_r] * loop_wow_cas.linlin(0, 100, 0.0, 300);
+                wonk     = wonk_osc * loop_wow_cas.linlin(0, 100, 0.0, 450);
+                fc       = (amt_fc + wow + wonk).clip(200, 8000);
+                rq       = amt.linlin(0, 100, 3.0, 1.0);
+                sig      = BPF.ar(input, fc, rq);
+                drv      = amt.linlin(0, 100, 1.0, 4.5);
+                bias     = cas_bias_lfo * amt.linlin(0, 100, 0.0, 0.07);
+                sig      = ((sig + bias) * drv).tanh / drv.sqrt;
+                sig      = LeakDC.ar(sig);
+                comp_fc  = (Amplitude.kr(sig, 0.005, 0.15) * amt.linlin(0, 100, 0.0, -6000) + 5000).clip(2000, 5000);
+                sig      = LPF.ar(sig, comp_fc);
+                crinkle  = (LFNoise0.kr(amt.linlin(0, 100, 0.5, 15)) * (amt - 68).max(0).linlin(0, 32, 0.0, 0.5) + 1.0).clip(0.2, 1.5);
+                sig      = sig * crinkle;
+                fm_idx   = amt.linlin(0, 100, 0.0, 0.012);
+                fm_out   = SinOsc.ar(cas_fm_carrier_lfo + (sig * cas_fm_carrier_lfo * fm_idx));
+                sig      = sig + (fm_out * fm_idx * 0.2);
+                sig
+            };
+
+            vinyl_dsp = { |input, amt|
+                var sig, hf_db, noise_amt, crk_rate, crk_amp, pop_rate, pop_amp, dust_amp;
+                var crk_l, crk_r, pop_l, pop_r, dust_l, dust_r;
+                hf_db     = amt.linlin(0, 100, 0.0, -8.0);
+                sig       = BHiShelf.ar(input, 4000, 1, hf_db);
+                noise_amt = (loop_vinyl_noise / 100.0) * (amt / 100.0) * is_vinyl;
+                crk_rate  = noise_amt.pow(1.5) * 20.0;
+                crk_amp   = noise_amt * 0.5;
+                pop_rate  = noise_amt.pow(1.8) * 2.5;
+                pop_amp   = noise_amt.pow(0.6) * 0.8;
+                dust_amp  = noise_amt.pow(1.3) * 0.010;
+                crk_l     = HPF.ar(Dust2.ar(crk_rate, crk_amp), 2000);
+                crk_r     = HPF.ar(Dust2.ar(crk_rate, crk_amp), 2000);
+                pop_l     = LPF.ar(HPF.ar(Decay2.ar(Dust.ar(pop_rate) * pop_amp, 0.0005, 0.04) * WhiteNoise.ar(), 200), 2500);
+                pop_r     = LPF.ar(HPF.ar(Decay2.ar(Dust.ar(pop_rate) * pop_amp, 0.0005, 0.04) * WhiteNoise.ar(), 200), 2500);
+                dust_l    = LPF.ar(PinkNoise.ar(dust_amp), 8000);
+                dust_r    = LPF.ar(PinkNoise.ar(dust_amp), 8000);
+                sig + [crk_l + pop_l + dust_l, crk_r + pop_r + dust_r]
+            };
+
             apply_topology = { |input, amt|
-                var amt_fc_bbd, amt_fc_tape, amt_fc_cas, amt_deg_mix;
-                var bbd_sig, bbd_drv, bbd_bias;
-                var dig_step, dig_sig, dig_drop_rate, dig_drop_env_local, dig_jitter;
-                var tape_wow, tape_flt, tape_fc, tape_sig, tape_drv, tape_bias, tape_comp_fc, tape_print;
-                var cas_wow, cas_wonk, cas_sig, cas_fc, cas_rq, cas_drv, cas_crinkle, cas_fm_idx, cas_fm_out, cas_bias, cas_comp_fc;
-                var wonk_osc;
-                var deg_sel;
-
-                amt_fc_bbd  = Select.kr(loop_bbd_tone.round(1), [
-                                  amt.linexp(0, 100, 5000, 300),
-                                  amt.linexp(0, 100, 2500, 150)
-                              ]);
-                amt_fc_tape = amt.linlin(0, 100, 16000, 400);
-                amt_fc_cas  = amt.linlin(0, 100, 3200, 800);
+                var amt_deg_mix, bbd_sig, cas_sig, cd_sig, chip_sig, tape_sig, vinyl_sig, deg_sel;
                 amt_deg_mix = amt / 100.0;
-                wonk_osc    = LFNoise2.kr(amt.linlin(0, 100, 0.5, 10), 1.0);
-
-                bbd_sig   = HPF.ar(input, 80);
-                bbd_sig   = LPF.ar(bbd_sig, amt_fc_bbd);
-                bbd_bias  = bbd_bias_lfo * amt.linlin(0, 100, 0.0, 0.04);
-                bbd_drv   = 1.1 + amt.linlin(0, 100, 0.0, 3.9);
-                bbd_sig   = ((bbd_sig + bbd_bias) * bbd_drv).tanh * (0.95 / bbd_drv);
-                bbd_sig   = LeakDC.ar(bbd_sig);
-                bbd_sig   = bbd_sig + WhiteNoise.ar(Amplitude.kr(bbd_sig, 0.01, 0.2) * amt.linlin(0, 100, 0.0, 0.03));
-
-                dig_step      = (amt - 67).max(0).linlin(0, 33, 0.00001, 0.04);
-                dig_sig       = (input / dig_step).round(1.0) * dig_step;
-                dig_sig       = dig_sig + (dig_noise_src * dig_step * amt.linlin(0, 100, 0.0, 0.08));
-                dig_jitter    = dig_jitter_src * amt.linlin(0, 100, 0.0, 0.00008);
-                dig_sig       = DelayC.ar(dig_sig, 0.001, (0.0005 + dig_jitter.abs).clip(0.0001, 0.001));
-                dig_drop_rate = (amt - 68).max(0).linlin(0, 32, 0.0, 8.0);
-                dig_drop_env_local = EnvGen.kr(Env.perc(0.002, 0.04, 1, -4), Dust.kr(dig_drop_rate * is_digital));
-                dig_sig       = dig_sig * (1.0 - dig_drop_env_local);
-
-                tape_wow      = [wow_tape_l, wow_tape_r] * loop_wow_tape.linlin(0, 100, 0.0, 3000);
-                tape_flt      = tape_flt_lfo * loop_wow_tape.linlin(0, 100, 0.0, 1500);
-                tape_fc       = (amt_fc_tape + tape_wow + tape_flt).clip(100, 18000);
-                tape_sig      = LPF.ar(input, tape_fc);
-                tape_print    = DelayN.ar(input, 0.025, 0.019) * amt.linlin(0, 100, 0.0, 0.04);
-                tape_drv      = amt.linlin(0, 100, 1.0, 5.0);
-                tape_bias     = tape_bias_lfo * amt.linlin(0, 100, 0.0, 0.06);
-                tape_sig      = ((tape_sig + tape_bias) * tape_drv).tanh * (1.0 / tape_drv);
-                tape_sig      = LeakDC.ar(tape_sig);
-                tape_comp_fc  = (Amplitude.kr(tape_sig, 0.005, 0.15) * amt.linlin(0, 100, 0.0, -5000) + 5500).clip(2500, 5500);
-                tape_sig      = LPF.ar(tape_sig, tape_comp_fc);
-                tape_sig      = tape_sig + tape_print;
-
-                cas_wow  = [wow_cas_l, wow_cas_r] * loop_wow_cas.linlin(0, 100, 0.0, 300);
-                cas_wonk = wonk_osc * loop_wow_cas.linlin(0, 100, 0.0, 450);
-                cas_fc   = (amt_fc_cas + cas_wow + cas_wonk).clip(200, 8000);
-                cas_rq   = amt.linlin(0, 100, 3.0, 1.0);
-                cas_sig  = BPF.ar(input, cas_fc, cas_rq);
-                cas_drv        = amt.linlin(0, 100, 1.0, 4.5);
-                cas_bias       = cas_bias_lfo * amt.linlin(0, 100, 0.0, 0.07);
-                cas_sig        = ((cas_sig + cas_bias) * cas_drv).tanh / cas_drv.sqrt;
-                cas_sig        = LeakDC.ar(cas_sig);
-                cas_comp_fc    = (Amplitude.kr(cas_sig, 0.005, 0.15) * amt.linlin(0, 100, 0.0, -6000) + 5000).clip(2000, 5000);
-                cas_sig        = LPF.ar(cas_sig, cas_comp_fc);
-                cas_crinkle    = (LFNoise0.kr(amt.linlin(0, 100, 0.5, 15)) * (amt - 68).max(0).linlin(0, 32, 0.0, 0.5) + 1.0).clip(0.2, 1.5);
-                cas_sig        = cas_sig * cas_crinkle;
-                cas_fm_idx     = amt.linlin(0, 100, 0.0, 0.012);
-                cas_fm_out     = SinOsc.ar(cas_fm_carrier_lfo + (cas_sig * cas_fm_carrier_lfo * cas_fm_idx));
-                cas_sig        = cas_sig + (cas_fm_out * cas_fm_idx * 0.2);
-
+                bbd_sig     = bbd_dsp.(input, amt);
+                cas_sig     = cas_dsp.(input, amt);
+                cd_sig      = cd_dsp.(input, amt);
+                chip_sig    = chip_dsp.(input, amt);
+                tape_sig    = tape_dsp.(input, amt);
+                vinyl_sig   = vinyl_dsp.(input, amt);
                 deg_sel = [
-                    SelectX.ar(medium_lag, [bbd_sig[0], cas_sig[0], dig_sig[0], tape_sig[0]]),
-                    SelectX.ar(medium_lag, [bbd_sig[1], cas_sig[1], dig_sig[1], tape_sig[1]])
+                    SelectX.ar(medium_lag, [bbd_sig[0], cas_sig[0], cd_sig[0], chip_sig[0], tape_sig[0], vinyl_sig[0]]),
+                    SelectX.ar(medium_lag, [bbd_sig[1], cas_sig[1], cd_sig[1], chip_sig[1], tape_sig[1], vinyl_sig[1]])
                 ];
                 (input * (1.0 - amt_deg_mix)) + (deg_sel * amt_deg_mix)
             };
@@ -373,23 +436,29 @@ Engine_Princeton : CroneEngine {
             loop_preserve_out = apply_topology.(loop_preserve, loop_wear_amt);
             trem_imprinted    = apply_topology.(trem_out,      loop_imprint_amt);
 
-            // ── Read-path glitches ───────────────────────────────────────────
-            dig_glitch_env  = { EnvGen.kr(Env.perc(0.002, 0.04, 1, -4), Dust.kr(loop_dig_glitch.linlin(0, 100, 0.0, 8.0) * is_digital)) }.dup(2);
-            dig_skip_rate   = loop_dig_glitch.linlin(0, 100, 0.0, 3.0) * is_digital;
-            dig_skip_out    = { |ch|
-                var trig, pos, phase, rd, env;
-                trig  = Dust.kr(dig_skip_rate);
-                pos   = TRand.kr(0.0, frames - 1.0, trig);
-                phase = Phasor.ar(K2A.ar(trig), speed_rate, 0, frames, pos);
-                rd    = BufRd.ar(2, loop_buf_num, phase, loop: 1, interpolation: 2);
-                env   = EnvGen.kr(Env.perc(0.001, 0.15, 1, -4), trig);
-                rd[ch] * env
-            }.dup(2);
+            // ── CD read-path events (skip, stutter, dropout) ─────────────────
+            cd_errors_curve = loop_cd_errors.max(0).sqrt * 10.0;
+            cd_skip_rate    = cd_errors_curve.linlin(0, 100, 0.0, 2.0) * is_cd;
+            cd_skip_trig    = Dust.kr(cd_skip_rate);
+            cd_skip_pos     = TRand.kr(0.0, frames - 1.0, cd_skip_trig);
+            cd_skip_phase   = Phasor.ar(K2A.ar(cd_skip_trig), speed_rate * is_cd, 0, frames, cd_skip_pos);
+            cd_skip_rd      = BufRd.ar(2, loop_buf_num, cd_skip_phase, loop: 1, interpolation: 2);
+            cd_skip_env     = EnvGen.kr(Env.perc(0.001, 0.15, 1, -4), cd_skip_trig);
+            cd_skip_out     = cd_skip_rd * cd_skip_env;
 
-            // Stereo looper: write and read both channels
+            cd_stutter_rate     = cd_errors_curve.linlin(0, 100, 0.0, 0.8) * is_cd;
+            cd_stutter_trig     = Dust.kr(cd_stutter_rate);
+            cd_stutter_lock_pos = Latch.kr(A2K.kr(play_phase), cd_stutter_trig);
+            cd_stutter_phase    = (Phasor.ar(K2A.ar(cd_stutter_trig), speed_rate * is_cd, 0, 4800, 0) + K2A.ar(cd_stutter_lock_pos)).wrap(0, frames - 1);
+            cd_stutter_rd       = BufRd.ar(2, loop_buf_num, cd_stutter_phase, loop: 1, interpolation: 2);
+            cd_stutter_env      = EnvGen.kr(Env([0, 1, 1, 0], [0.001, 0.3, 0.005]), cd_stutter_trig);
+            cd_stutter_out      = cd_stutter_rd * cd_stutter_env;
+
+            cd_scratch_env   = EnvGen.kr(Env.perc(0.002, 0.04, 1, -4), Dust.kr(cd_errors_curve.linlin(0, 100, 0.0, 5.0) * is_cd));
+
             write_sig =
                 (loop_preserve_out * (1 - (loop_rec + loop_dub).min(1)))
-              + (trem_imprinted    * loop_rec)
+              + (trem_imprinted    * dub_level * loop_rec)
               + (
                   (
                     (
@@ -404,18 +473,23 @@ Engine_Princeton : CroneEngine {
             BufWr.ar(write_sig, loop_buf_num, loop_phase);
 
             // ── Read-path wow ────────────────────────────────────────────────
-            rd_wow_depth_tape = loop_wow_tape.linlin(0, 100, 0.0, 0.025) / speed_rate.max(1.0);
-            rd_wow_depth_cas  = loop_wow_cas.linlin(0, 100, 0.0, 0.018) / speed_rate.max(1.0);
-            delay_time_tape_l = (rd_wow_depth_tape * 0.5 + wow_tape_l * rd_wow_depth_tape * 0.5).clip(0.0001, 0.030);
-            delay_time_tape_r = (rd_wow_depth_tape * 0.5 + wow_tape_r * rd_wow_depth_tape * 0.5).clip(0.0001, 0.030);
-            delay_time_cas_l  = (rd_wow_depth_cas  * 0.5 + wow_cas_l  * rd_wow_depth_cas  * 0.5).clip(0.0001, 0.025);
-            delay_time_cas_r  = (rd_wow_depth_cas  * 0.5 + wow_cas_r  * rd_wow_depth_cas  * 0.5).clip(0.0001, 0.025);
+            rd_wow_depth_tape  = loop_wow_tape.linlin(0, 100, 0.0, 0.025) / speed_rate.max(1.0);
+            rd_wow_depth_cas   = loop_wow_cas.linlin(0, 100, 0.0, 0.018) / speed_rate.max(1.0);
+            rd_wow_depth_vinyl = 0.005 / speed_rate.max(1.0);
+            delay_time_tape_l  = (rd_wow_depth_tape  * 0.5 + wow_tape_l  * rd_wow_depth_tape  * 0.5).clip(0.0001, 0.030);
+            delay_time_tape_r  = (rd_wow_depth_tape  * 0.5 + wow_tape_r  * rd_wow_depth_tape  * 0.5).clip(0.0001, 0.030);
+            delay_time_cas_l   = (rd_wow_depth_cas   * 0.5 + wow_cas_l   * rd_wow_depth_cas   * 0.5).clip(0.0001, 0.025);
+            delay_time_cas_r   = (rd_wow_depth_cas   * 0.5 + wow_cas_r   * rd_wow_depth_cas   * 0.5).clip(0.0001, 0.025);
+            delay_time_vinyl_l = (rd_wow_depth_vinyl * 0.5 + wow_vinyl_l * rd_wow_depth_vinyl * 0.5).clip(0.0001, 0.020);
+            delay_time_vinyl_r = (rd_wow_depth_vinyl * 0.5 + wow_vinyl_r * rd_wow_depth_vinyl * 0.5).clip(0.0001, 0.020);
             loop_rd_wow = [
-                SelectX.ar(medium_lag, [loop_rd[0], DelayC.ar(loop_rd[0], 0.030, delay_time_cas_l),  loop_rd[0], DelayC.ar(loop_rd[0], 0.030, delay_time_tape_l)]),
-                SelectX.ar(medium_lag, [loop_rd[1], DelayC.ar(loop_rd[1], 0.030, delay_time_cas_r),  loop_rd[1], DelayC.ar(loop_rd[1], 0.030, delay_time_tape_r)])
+                SelectX.ar(medium_lag, [loop_rd[0], DelayC.ar(loop_rd[0], 0.030, delay_time_cas_l), loop_rd[0], loop_rd[0], DelayC.ar(loop_rd[0], 0.030, delay_time_tape_l), DelayC.ar(loop_rd[0], 0.030, delay_time_vinyl_l)]),
+                SelectX.ar(medium_lag, [loop_rd[1], DelayC.ar(loop_rd[1], 0.030, delay_time_cas_r), loop_rd[1], loop_rd[1], DelayC.ar(loop_rd[1], 0.030, delay_time_tape_r), DelayC.ar(loop_rd[1], 0.030, delay_time_vinyl_r)])
             ];
 
-            loop_out  = (loop_rd_wow * fade_gain * (1.0 - dig_glitch_env) + dig_skip_out)
+            loop_out  = (loop_rd_wow * fade_gain * (1 - cd_skip_env) * (1 - cd_stutter_env)
+                         + cd_skip_out + cd_stutter_out)
+                        * (1 - cd_scratch_env)
                         * loop_level * (loop_play + loop_dub).min(1) * sample_gate;
 
             loop_mix = trem_out + loop_out;
@@ -424,7 +498,6 @@ Engine_Princeton : CroneEngine {
             rev_decay = reverb_length;
             rev_send  = (reverb * 0.85 / 100.0).sqrt * 0.25 * (1 - reverb_mute);
 
-            // Reverb takes mono input (mix of stereo loop_mix), outputs stereo via allpass diffuser
             spring_in = (loop_mix[0] + loop_mix[1]) * 0.5 * rev_send;
             preDel    = DelayN.ar(spring_in, 0.02, 0.008);
 
@@ -447,7 +520,6 @@ Engine_Princeton : CroneEngine {
 
             diff       = AllpassN.ar(sp1 + sp2 + sp3 + (twang * 0.4), 0.05, [0.0137, 0.0211], 0.4);
             diff       = AllpassN.ar(diff[0] + diff[1], 0.03, [0.0091, 0.0173], 0.3);
-            // Stereo reverb: two allpass taps produce independent L/R decorrelation
             spring_wet = diff * 0.35;
             spring_wet = BLowShelf.ar(spring_wet, 250,  1.0, reverb_low_shelf);
             spring_wet = BHiShelf.ar(spring_wet,  3500, 1.0, reverb_high_shelf);
@@ -455,8 +527,8 @@ Engine_Princeton : CroneEngine {
             wetmix = loop_mix + spring_wet;
 
             // ── Cabinet ───────────────────────────────────────────────────────
-            cab_center = MidEQ.ar(wetmix,     120, 1.4,   3.5);  // Jensen C10R bass resonance
-            cab_center = MidEQ.ar(cab_center, 3200, 1.0,  4.0);  // center-mic presence
+            cab_center = MidEQ.ar(wetmix,     120, 1.4,   3.5);
+            cab_center = MidEQ.ar(cab_center, 3200, 1.0,  4.0);
             cab_center = LPF.ar(HPF.ar(cab_center, 90),  6500);
 
             cab_mid    = MidEQ.ar(wetmix,  120, 1.4,   3.5);
@@ -468,17 +540,16 @@ Engine_Princeton : CroneEngine {
             cab_edge   = LPF.ar(HPF.ar(cab_edge, 100), 3800);
 
             cab_dsp = [
-                Select.ar(mic.round(1), [cab_center[0], cab_mid[0], cab_edge[0]]) * cab_level,
-                Select.ar(mic.round(1), [cab_center[1], cab_mid[1], cab_edge[1]]) * cab_level
+                SelectX.ar(mic, [cab_center[0], cab_mid[0], cab_edge[0]]) * cab_level,
+                SelectX.ar(mic, [cab_center[1], cab_mid[1], cab_edge[1]]) * cab_level
             ];
             ir_l = Convolution2.ar(wetmix[0], ir_buf_l_num, K2A.ar(Changed.kr(ir_trig_l)), 2048) * ir_level_l;
             ir_r = Convolution2.ar(wetmix[1], ir_buf_r_num, K2A.ar(Changed.kr(ir_trig_r)), 2048) * ir_level_r;
-            cab_mode_r = cab_mode.round(1);
             cab = [
-                Select.ar(cab_mode_r, [wetmix[0], cab_dsp[0], ir_l]),
-                Select.ar(cab_mode_r, [wetmix[1], cab_dsp[1], ir_r])
+                SelectX.ar(cab_mode, [wetmix[0], cab_dsp[0], ir_l]),
+                SelectX.ar(cab_mode, [wetmix[1], cab_dsp[1], ir_r])
             ];
-            cab = XFade2.ar(cab, [sig, sig], Lag.kr(amp_bypass.round(1) * 2 - 1, 0.008));  // full dry bypass
+            cab = XFade2.ar(cab, sig, Lag.kr(amp_bypass.round(1) * 2 - 1, 0.008));
 
             out_sig   = cab * (master / 10.0).squared * 2.0;
             final_sig = out_sig.softclip * (1.0 - mute);
@@ -501,11 +572,12 @@ Engine_Princeton : CroneEngine {
         }).add;
 
         SynthDef(\metro_click, {
-            arg out_bus = 0, level = 0.5, pitch = 0;
+            arg out_bus = 0, level = 0.5, pitch = 0, length = 50, metro_bus_num = 0, position = 0;
             var freq = 440 * (2 ** (pitch / 12));
-            var env  = EnvGen.ar(Env.perc(0.001, 0.06), doneAction: 2);
+            var env  = EnvGen.ar(Env.perc(0.001, length * 0.001), doneAction: 2);
             var sig  = SinOsc.ar(freq) * env * level.clip(0, 1);
-            Out.ar(out_bus, [sig, sig]);
+            Out.ar(out_bus,       [sig, sig] * (1 - position.round(1)));
+            Out.ar(metro_bus_num, sig * position.round(1));
         }).add;
 
         context.server.sync;
@@ -513,10 +585,12 @@ Engine_Princeton : CroneEngine {
         synth = Synth(\princeton, [
             \out_bus,            context.out_b.index,
             \in_bus,             context.in_b[0].index,
+            \in_bus_r,           context.in_b[1].index,
             \loop_buf_num,       loop_buf.bufnum,
             \ir_buf_l_num,       ir_buf_l.bufnum,
             \ir_buf_r_num,       ir_buf_r.bufnum,
-            \tuner_freq_bus_num, tuner_freq_bus.index
+            \tuner_freq_bus_num, tuner_freq_bus.index,
+            \metro_bus_num,      metro_bus.index
         ], context.xg);
 
         // ── Simple param commands ────────────────────────────────────────
@@ -561,7 +635,9 @@ Engine_Princeton : CroneEngine {
             ["looper_wow_tape",      \loop_wow_tape],
             ["looper_wow_cas",       \loop_wow_cas],
             ["looper_bbd_tone",      \loop_bbd_tone],
-            ["looper_dig_glitch",    \loop_dig_glitch],
+            ["looper_chip_crush",    \loop_chip_crush],
+            ["looper_cd_errors",     \loop_cd_errors],
+            ["looper_vinyl_noise",   \loop_vinyl_noise],
             ["looper_level",         \loop_level],
             ["looper_dub_level",     \dub_level],
             ["looper_fade_level",    \loop_fade],
@@ -583,17 +659,21 @@ Engine_Princeton : CroneEngine {
             ["limit_gain",           \limit_gain],
             ["limit_attack",         \limit_attack],
             ["limit_decay",          \limit_decay],
-            ["mute",                 \mute]
+            ["mute",                 \mute],
+            ["signal_input",         \signal_input]
         ].do { |pair|
             this.addCommand(pair[0], "f", { |msg| synth.set(pair[1], msg[1]) });
         };
 
         // ── Special commands ─────────────────────────────────────────────
-        this.addCommand("metro_tick", "ff", { |msg|
+        this.addCommand("metro_tick", "ffff", { |msg|
             Synth(\metro_click, [
-                \out_bus, context.out_b.index,
-                \level,   msg[1],
-                \pitch,   msg[2]
+                \out_bus,        context.out_b.index,
+                \level,          msg[1],
+                \pitch,          msg[2],
+                \length,         msg[3],
+                \metro_bus_num,  metro_bus.index,
+                \position,       msg[4]
             ], context.xg);
         });
 
@@ -639,5 +719,6 @@ Engine_Princeton : CroneEngine {
         ir_buf_l.free;
         ir_buf_r.free;
         tuner_freq_bus.free;
+        metro_bus.free;
     }
 }
