@@ -1,8 +1,3 @@
--- princeton lfo
---
--- Mod Rack LFO subsystem: state, clocks, target dropdowns, modulation dispatch
--- and the LFO-half drawing for the Group 1 panes.
-
 local sync      = include("lib/sync")
 local sprites   = include("lib/sprites")
 local modtarget = include("lib/modtarget")
@@ -119,8 +114,8 @@ local function lfo_g(field, idx)
   return lfo.mod[field][idx] or params:get("lfo"..idx.."_"..field)
 end
 
-local LFO_TICK_MIN = 1/30   -- fastest continuous-LFO tick (cap)
-local LFO_TICK_MAX = 0.5    -- longest gap between continuous-LFO ticks (0.5 s = 2 Hz tick floor, keeps targets re-responsive)
+local LFO_TICK_MIN = 1/30
+local LFO_TICK_MAX = 0.5
 
 local function lfo_adaptive_dt(idx, rate)
   local t = TARGET_PARAMS[lfo.last_global[idx] or 1]
@@ -183,8 +178,6 @@ end
 lfo.mark_modulated   = mark_modulated
 lfo.unmark_modulated = unmark_modulated
 
--- Identical to env's predicate: a target's selectability depends on its own
--- sync/waveform mode. Used by the shared modtarget filter (binding.visible).
 local function target_visible(target_id)
   if target_id == "tremolo_sync_div" or target_id == "tremolo_sync_feel" then return params:get("tremolo_sync_div") > 1 end
   if target_id == "warp_sync_div"    or target_id == "warp_sync_feel"    then return params:get("warp_sync_div")    > 1 end
@@ -453,10 +446,6 @@ function lfo.init(deps)
     end
   end
 
-  -- Shared ownership/filter machinery (modtarget). LFO and Sense share
-  -- lfo.target_owner; on_rebuilt also rebuilds Sense (on_target_change) + menu.
-  -- LFO extras: numeric tag, an LFO cannot target itself (device_excluded), and
-  -- on_release also clears that target's sync override.
   binding = {
     num              = NUM_LFOS,
     prefix           = function(i) return "lfo" .. i end,

@@ -1,7 +1,3 @@
--- princeton tuner
---
--- Pitch-tracking state, math, drawing and engine pitch-poll setup.
-
 local scales    = include("lib/scales")
 local lifecycle = include("lib/lifecycle")
 

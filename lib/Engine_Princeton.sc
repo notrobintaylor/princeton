@@ -30,15 +30,10 @@ Engine_Princeton : CroneEngine {
         push_gain_v = 5; push_tone_v = 5; push_level_v = 5; push_mix_v = 25;
         distort_gain_v = 5; distort_tone_v = 7.5; distort_level_v = 5; distort_lowcut_v = 0;
         imp_amt_v = 50; imp_bbd_tone_v = 0; imp_medium_v = 3;
-        mediaNames = [\bbd, \cas, \cd, \chip, \tape, \vinyl];  // variant order; index = imp_medium_v
+        mediaNames = [\bbd, \cas, \cd, \chip, \tape, \vinyl];
 
         context.server.sync;
 
-        // Single medium character chain (prc_t106): builds ONE medium's destructive
-        // base DSP via .switch, so a per-medium SynthDef only instantiates that one
-        // chain. Source of truth for all six media; wrapped by mediumBlend (the dry/wet
-        // mix) and used by the per-medium looper wear and imprint variants (one each).
-        // input is stereo; returns stereo. bbd_tone_fc supplied by the caller.
         mediumChain = { |med, input, amt, bbd_tone_fc|
             med.switch(
                 \bbd, {
@@ -109,17 +104,11 @@ Engine_Princeton : CroneEngine {
             )
         };
 
-        // Single medium dry/wet blend (prc_t106): wraps mediumChain with the Imprint/Wear
-        // amount mix. Used by BOTH the per-medium looper wear and the per-medium imprint
-        // variants, so there is no all-six SelectX medium path left anywhere.
         mediumBlend = { |med, input, amt, bbd_tone_fc|
             var m = amt / 100.0;
             (input * (1.0 - m)) + (mediumChain.(med, input, amt, bbd_tone_fc) * m)
         };
 
-        // Single medium read-path effect (prc_t106): the playback-side M: colouring for
-        // ONE medium. rd is stereo [L, R]; returns stereo. Used by the per-medium looper
-        // variants (one each) in place of the former SelectX-over-six.
         mediumRead = { |med, rd, bbd_tone_fc, loop_wow_tape, loop_wow_cas, loop_chip_crush, speed_rate|
             med.switch(
                 \bbd, { [LPF.ar(rd[0], bbd_tone_fc), LPF.ar(rd[1], bbd_tone_fc)] },
@@ -246,12 +235,7 @@ Engine_Princeton : CroneEngine {
             ReplaceOut.ar(bus, XFade2.ar(dry, distort_sig, env * 2 - 1));
         }).add;
 
-        // ── Imprint sub-synths (prc_t100/t106): the record/dub base-character colouring,
-        // one variant per medium (matches the looper variant, since the medium is fixed
-        // for a loop's life). Spawned only while recording/dubbing, so playback pays
-        // nothing. Reads trem_out from imprint_in_bus, writes the coloured result to
-        // imprint_out_bus (main reads it with InFeedback, L50). Same mediumBlend as the
-        // looper wear, so one medium's chain runs, not six.
+        // ── Imprint sub-synths ───────────────────────────────────────
         mediaNames.do { |med|
         SynthDef(("princeton_imprint_" ++ med).asSymbol, {
             arg in_bus = 0, out_bus = 0, gate = 1, fade = 0.025,
@@ -266,14 +250,7 @@ Engine_Princeton : CroneEngine {
         }).add;
         };
 
-        // ── Looper sub-synths (prc_t106): one variant per medium, generated below.
-        // The medium character is baked into each variant (only that medium's wear
-        // chain, read-path effect, and for CD/Vinyl the event/noise blocks are
-        // instantiated), so a running looper computes ONE medium, not six. The medium
-        // is fixed for a loop's life: Lua spawns the matching variant at REC, and a
-        // medium change while a loop exists clears it back to IDLE (prc_t106). Reads
-        // trem_out from looper_in_bus, outputs loop_out to looper_out_bus (main reads
-        // it via InFeedback, L50).
+        // ── Looper sub-synths ────────────────────────────────────────
         mediaNames.do { |med|
         SynthDef(("princeton_looper_" ++ med).asSymbol, {
             arg looper_in_bus = 0, looper_out_bus = 0,
@@ -362,14 +339,12 @@ Engine_Princeton : CroneEngine {
 
             bbd_tone_fc = SelectX.kr(loop_bbd_tone, [5000, 2500]);
 
-            // Wear: only this variant's medium chain (prc_t106).
             loop_preserve_out = mediumBlend.(med, loop_preserve, loop_wear_amt, bbd_tone_fc);
 
             ReplaceOut.ar(imprint_in_bus_num, input);
             trem_imprinted    = InFeedback.ar(imprint_out_bus_num, 2);
             trem_imprinted    = LPF.ar(trem_imprinted, (speed_rate * 21600).clip(2000, 22000));
 
-            // CD read-path events (skip/stutter/scratch): only the CD variant.
             if(med == \cd, {
                 var cd_errors_curve, cd_skip_rate, cd_skip_trig, cd_skip_pos, cd_skip_phase, cd_skip_rd;
                 var cd_stutter_rate, cd_stutter_trig, cd_stutter_lock_pos, cd_stutter_phase, cd_stutter_rd;
@@ -409,7 +384,6 @@ Engine_Princeton : CroneEngine {
 
             BufWr.ar(write_sig, loop_buf_num, loop_phase);
 
-            // Read-path: only this variant's medium effect (prc_t106).
             loop_rd_wow = mediumRead.(med, loop_rd, bbd_tone_fc, loop_wow_tape, loop_wow_cas, loop_chip_crush, speed_rate);
 
             loop_out  = (loop_rd_wow * fade_gain * (1 - cd_skip_env) * (1 - cd_stutter_env)
@@ -417,7 +391,6 @@ Engine_Princeton : CroneEngine {
                         * (1 - cd_scratch_env)
                         * loop_level * (loop_play + loop_dub).min(1) * sample_gate;
 
-            // Vinyl surface noise: only the vinyl variant.
             if(med == \vinyl, {
                 var vinyl_noise_amt, vinyl_noise_sig;
                 vinyl_noise_amt = loop_vinyl_noise / 100.0;
@@ -553,9 +526,7 @@ Engine_Princeton : CroneEngine {
                 power[1] * (trem_dry + (1.0 - trem_dry) * (trem_depth * SinOsc.kr(trem_speed, pi * 0.5, 0.5, 0.5) + (1.0 - trem_depth)))
             ];
 
-            // ── Looper (per-medium \princeton_looper_* sub-synths, prc_t100/t106) ──
-            // Amp/tremolo output goes to the looper sub; read its loop_out back with
-            // InFeedback (the sub runs after main, L50). loop_mix feeds reverb + cab.
+            // ── Looper ───────────────────────────────────────────────
             ReplaceOut.ar(looper_in_bus_num, trem_out);
             loop_mix = trem_out + InFeedback.ar(looper_out_bus_num, 2);
 
@@ -667,10 +638,6 @@ Engine_Princeton : CroneEngine {
             \looper_out_bus_num,  looper_out_bus.index
         ]);
 
-        // Looper sub-synth (prc_t100): spawned on demand (looper_on) by Lua only when
-        // the looper is in use (not IDLE), so an idle script pays nothing for it. When
-        // not spawned, looper_out_bus stays at 0 (the looper always reaches IDLE from a
-        // loop_play = 0 state, so its last output was 0), so main reads 0 cleanly.
 
         // ── Simple param commands ────────────────────────────────────────
         [
@@ -710,7 +677,7 @@ Engine_Princeton : CroneEngine {
             this.addCommand(pair[0], "f", { |msg| synth.set(pair[1], msg[1]) });
         };
 
-        // ── Looper param commands -> looper sub-synth (prc_t100) ─────────
+        // ── Looper param commands ────────────────────────────────────
         [
             ["loop_rec",             \loop_rec],
             ["loop_dub",             \loop_dub],
@@ -789,8 +756,7 @@ Engine_Princeton : CroneEngine {
         this.addCommand("distort_level",  "f", { |msg| distort_level_v  = msg[1]; if(distort_synth.notNil) { distort_synth.set(\distort_level,  msg[1]) } });
         this.addCommand("distort_lowcut", "f", { |msg| distort_lowcut_v = msg[1]; if(distort_synth.notNil) { distort_synth.set(\distort_lowcut, msg[1]) } });
 
-        // ── Looper on-demand (prc_t100): spawned by Lua when leaving IDLE, freed on
-        // entering IDLE. Immediate free is clean because loop_out is 0 at that point.
+        // ── Looper on-demand ─────────────────────────────────────────
         this.addCommand("looper_on", "", {
             if(looper_synth.isNil) {
                 var medName = mediaNames.clipAt(imp_medium_v.asInteger);
@@ -810,7 +776,7 @@ Engine_Princeton : CroneEngine {
             };
         });
 
-        // ── Imprint on-demand (prc_t100): spawned by Lua only during record/dub ──
+        // ── Imprint on-demand ────────────────────────────────────────
         this.addCommand("imprint_on", "", {
             if(imprint_synth.isNil and: { looper_synth.notNil }) {
                 var medName = mediaNames.clipAt(imp_medium_v.asInteger);
@@ -830,10 +796,6 @@ Engine_Princeton : CroneEngine {
             };
         });
 
-        // looper_imprint sets the imprint amount. looper_bbd_tone feeds the active
-        // looper variant (its bbd read-path/wear cutoff) and the imprint when live.
-        // looper_medium only caches imp_medium_v: that index picks which per-medium
-        // variant looper_on/imprint_on spawn (prc_t106); there is no live medium arg.
         this.addCommand("looper_imprint", "f", { |msg|
             imp_amt_v = msg[1];
             if(imprint_synth.notNil) { imprint_synth.set(\amt, msg[1]) };

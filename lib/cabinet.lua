@@ -1,7 +1,3 @@
--- princeton cabinet
---
--- Cabinet panel + grillcloth geometry and rendering for the amp view.
-
 local cabinet = {}
 
 local DIM  = 0

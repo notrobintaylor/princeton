@@ -1,8 +1,3 @@
--- princeton env follower
---
--- Mod Rack Envelope Follower subsystem: state, target dropdowns, modulation
--- dispatch driven by SC polls, and the half-pane visualizer for Group 1.
-
 local env = {}
 local modtarget = include("lib/modtarget")
 
@@ -188,8 +183,6 @@ function env.init(deps)
     end
   end
 
-  -- Shared ownership/filter machinery (modtarget). Sense and LFO share lfo.target_owner;
-  -- on_rebuilt also rebuilds the (not-yet-migrated) LFO dropdowns + the menu.
   binding = {
     num              = env.NUM,
     prefix           = function(i) return "env" .. i end,

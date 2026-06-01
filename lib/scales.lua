@@ -1,7 +1,3 @@
--- princeton scales
---
--- Note names, scale intervals, and pitch quantization for the metro and tuner.
-
 local scales = {}
 
 scales.NOTE_NAMES  = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}

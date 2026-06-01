@@ -1,8 +1,3 @@
--- princeton looper
---
--- Loop state machine, quantize-then helper, sample-mode oneshot, and the
--- quantize-LED clock for the looper panel.
-
 local sync = include("lib/sync")
 
 local looper = {}
@@ -48,13 +43,6 @@ function looper.speed_value()
   end
 end
 
--- prc_t100: the whole looper DSP lives in a sub-synth spawned only while in use, so
--- an idle script (no loop) pays nothing. On spawn we re-send the setting params (the
--- fresh sub starts at defaults); transport (rec/dub/play) and loop length follow.
--- looper_medium is intentionally NOT here (prc_t106): the medium picks which looper
--- variant spawns (engine reads its cached medium in looper_on), so there is no
--- loop_medium_type to re-send. Re-sending it here would also re-fire the medium
--- action mid-activation and clear the loop we are just starting.
 local LOOP_SETTINGS = {
   "looper_wear", "looper_bbd_tone", "looper_wow_cas",
   "looper_cd_errors", "looper_chip_crush", "looper_wow_tape", "looper_vinyl_noise",
@@ -66,11 +54,6 @@ local engine_active = false
 local function looper_ensure_active()
   if not engine_active then
     engine.looper_on()
-    -- Re-send every setting to the fresh sub (it spawns at SynthDef defaults).
-    -- Must :bang() not params:set(id, params:get(id)): Norns only fires a
-    -- param action when the value CHANGES, so re-setting the current value is
-    -- a no-op and would leave the sub on defaults (e.g. medium stuck on Chip,
-    -- which silently broke Imprint/Wear/M: character).
     for _, id in ipairs(LOOP_SETTINGS) do params:lookup_param(id):bang() end
     engine_active = true
   end
@@ -83,10 +66,6 @@ local function looper_deactivate()
   end
 end
 
--- Clear the loop back to IDLE and free BOTH on-demand subs (prc_t100/t106). Shared
--- by every clear route (trigger force_clear, medium switch, the stop_clear IDLE
--- branches) so each one frees the looper AND the imprint, with no idle-CPU leak.
--- engine.imprint_off / looper_off are idempotent (no-op when already freed).
 local function clear_to_idle()
   if sample_done_clock then clock.cancel(sample_done_clock); sample_done_clock = nil end
   quant_pending = false
@@ -103,8 +82,6 @@ local function set_engine(st)
   engine.loop_rec (st == REC  and 1 or 0)
   engine.loop_dub (st == DUB  and 1 or 0)
   engine.loop_play((st == PLAY or st == DUB) and 1 or 0)
-  -- Imprint colouring only runs while recording/dubbing (prc_t100); engine guards
-  -- the spawn/free so repeated calls are idempotent.
   if st == REC or st == DUB then engine.imprint_on() else engine.imprint_off() end
 end
 
@@ -258,10 +235,6 @@ function looper.force_clear()
   clear_to_idle()
 end
 
--- prc_t106: each medium is its own looper variant, so the medium cannot change
--- under a live loop. Changing it while a loop exists clears the loop and returns
--- to IDLE; the new medium takes effect at the next REC (which spawns its variant).
--- No-op when already IDLE, so picking a medium before recording just works.
 function looper.medium_changed()
   if looper.state == IDLE then return end
   clear_to_idle()

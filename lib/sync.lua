@@ -1,8 +1,3 @@
--- princeton sync
---
--- Clock-sync data tables and helpers shared across LFO, trigger, repeat,
--- tremolo, warp and looper quantization paths.
-
 local sync = {}
 
 local MED  = 5

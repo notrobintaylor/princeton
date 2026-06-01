@@ -1,35 +1,3 @@
--- princeton modtarget
---
--- Shared modulation-target ownership + filtered target dropdowns for every
--- modulator (LFO, Sense/env, Trigger). One implementation guarantees the guard
--- (a target can be owned by only one modulator) behaves identically everywhere.
---
--- Each modulator hands in a `binding` describing its target space and owner
--- table; modtarget owns the filtered device/param dropdowns, the rebuild logic
--- and set_target (claim / release). Per-modulator specifics come from binding
--- callbacks. Bindings whose targets live in the SAME owner table (LFO + Sense)
--- are rebuilt together via each other's `on_rebuilt` hook.
---
--- binding fields:
---   num                      number of instances
---   prefix(idx) -> string    param prefix, e.g. "env"..idx
---   owner                    owner table (shared or own), keyed by target id
---   tag(idx)                 owner tag, unique across a shared owner table
---   devices                  device-name list (filtered dropdown source)
---   device_params            dev -> array of { global_idx=, ... }
---   target_device_of         global -> dev index
---   targets                  global -> { id=, ... }
---   label_of(entry) -> str   param-dropdown label for a device_params entry
---   device_filter            per-idx filtered map table (modtarget writes)
---   param_filter             per-idx filtered map table (modtarget writes)
---   last_global              per-idx current global target
---   visible(global) -> bool  target visibility predicate
---   device_excluded(idx, di) -> bool  optional, hide device di for instance idx
---   enabled(idx) -> bool     instance enabled?
---   on_claim(global, idx)    optional, after claiming ownership
---   on_release(global, idx)  optional, after releasing ownership
---   on_rebuilt()             optional, after a set_target rebuild (cross + menu)
-
 local modtarget = {}
 
 local function owner_key(b, g)
@@ -37,17 +5,12 @@ local function owner_key(b, g)
   return t and t.id
 end
 
--- owner_ok: target is free or already owned by this instance.
 local function owner_ok(b, idx, g)
   local key   = owner_key(b, g)
   local owner = key and b.owner[key]
   return owner == nil or owner == b.tag(idx)
 end
 
--- available: selectable in the PARAM dropdown (free AND mode-visible).
--- The DEVICE dropdown only requires a free target (owner_ok), matching the
--- original LFO/Sense behaviour: a device with a free-but-hidden param still
--- shows (its param dropdown then resolves to "-").
 local function available(b, idx, g)
   return b.visible(g) and owner_ok(b, idx, g)
 end
@@ -130,10 +93,6 @@ function modtarget.set_target(b, idx, new_global)
 
   b.last_global[idx] = new_global
 
-  -- Claim on SELECTION, not on enable: a target is reserved (and marked "(M)")
-  -- as soon as a modulator points at it, so Sense and LFO can never select the
-  -- same target. Whether the modulator is actually enabled is a separate gate,
-  -- handled in each modulator's apply path.
   if new_global > 1 then
     local key = owner_key(b, new_global)
     if key and not b.owner[key] then

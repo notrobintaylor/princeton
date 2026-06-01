@@ -1,8 +1,3 @@
--- princeton trigger
---
--- Mod Rack Trigger subsystem: per-trigger clocks, target dispatch, LFO-suspend
--- coupling, dropdowns and the Trigger-half drawing for the Group 1 panes.
-
 local sync      = include("lib/sync")
 local sprites   = include("lib/sprites")
 local modtarget = include("lib/modtarget")
@@ -21,9 +16,6 @@ trigs.strip_fn    = {}
 trigs.fn          = {}
 trigs.strip_sel   = {1, 1, 1, 1}
 
--- Triggers own a SEPARATE target space (their targets are actions, not the
--- continuous params LFO/Sense modulate), so no two triggers can fire the same
--- action. Same modtarget machinery, distinct owner table.
 trigs.target_owner         = {}
 trigs.target_device_filter = {}
 trigs.target_param_filter  = {}
@@ -128,7 +120,6 @@ trigs.DEVICES, trigs.DEVICE_PARAMS = (function()
   return devices, dparams
 end)()
 
--- global target index -> device index (for modtarget device-dropdown rebuilds).
 trigs.TARGET_DEVICE_OF = {}
 for di, plist in pairs(trigs.DEVICE_PARAMS) do
   for _, e in ipairs(plist) do trigs.TARGET_DEVICE_OF[e.global_idx] = di end
@@ -179,7 +170,6 @@ function trigs.fn.start_clock(idx)
       if prob > 0 and (prob >= 100 or math.random() * 100 < prob) then
         local g = trigs.last_global[idx] or 1
         local entry = trigs.TARGETS[g]
-        -- An LFO-Randomize target only fires while that LFO is in step-random mode.
         if entry and entry.action and (not entry.lfo_idx or lfo.is_step_random(entry.lfo_idx)) then
           entry.action()
         end
@@ -202,8 +192,6 @@ function trigs.fn.rebuild_target_param_dropdown(idx, dev_idx)
   modtarget.rebuild_param(binding, idx, dev_idx)
 end
 
--- An LFO leaving/entering step-random mode changes which of its Randomize
--- targets are visible; rebuild every trigger dropdown so hidden targets drop out.
 function trigs.fn.refresh_dropdowns_for_lfo(lfo_idx)
   modtarget.rebuild_all(binding)
   if _menu and _menu.rebuild_params then _menu.rebuild_params() end
@@ -231,8 +219,6 @@ function trigs.init(deps)
     trigs.target_param_filter[i] = {1}
   end
 
-  -- Filtered ownership/dropdown machinery in the triggers' own target space.
-  -- Off (global 1) has no id, so it is never claimed and always selectable.
   binding = {
     num              = trigs.N,
     prefix           = function(i) return "trig" .. i end,
