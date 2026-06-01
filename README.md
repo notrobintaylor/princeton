@@ -12,7 +12,7 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
 
 ## What it does
 
-**Looper.** A 40-second stereo buffer between tremolo and reverb, so anything you record sits in the same spring tank as the live string. Medium picks the storage type the loop pretends to be: BBD darkens and saturates, Cassette wobbles and crinkles, CD plays clean until it skips and stutters, Chip quantises and aliases like an early sampler, Tape softens and drifts, Vinyl crackles and pops over a gentle high-frequency rolloff. Imprint controls how strongly the medium colours the signal as it lands in the buffer (the first repeat already sounds like the medium). Wear controls how much further the medium erodes the loop on every subsequent pass; at 0 the loop is stable, at higher values it ages over time. Direction can run forward, reverse, pendulum, or random. Mode covers Overdub (layer), Overwrite (replace), Sample (one-shot, K2 retriggers), and Resample (record the loop output back into the buffer, including its own ageing). Speed transposes by an octave in either direction in Steps mode, or sweeps continuously in Smooth mode. The looper keeps running while you open the tuner or pedalboard.
+**Looper.** A 40-second stereo buffer between tremolo and reverb, so anything you record sits in the same spring tank as the live string. Medium picks the storage type the loop pretends to be: BBD darkens and saturates, Cassette wobbles and crinkles, CD plays clean until it skips and stutters, Chip quantises and aliases like an early sampler, Tape softens and drifts, Vinyl crackles and wobbles over a gentle high-frequency rolloff. Imprint controls how strongly the medium colours the signal as it lands in the buffer (the first repeat already sounds like the medium). Wear controls how much further the medium erodes the loop on every subsequent pass; at 0 the loop is stable, at higher values it ages over time. Direction can run forward, reverse, pendulum, or random. Mode covers Overdub (layer), Overwrite (replace), Sample (one-shot, K2 retriggers), and Resample (record the loop output back into the buffer, including its own ageing). Speed transposes by an octave in either direction in Steps mode, or sweeps continuously in Smooth mode. The looper keeps running while you open the tuner or pedalboard.
 
 **Pedalboard.** Four effects sit between the input and the amp, paired by character: Push and Distort handle gain, Warp and Repeat handle modulation. Each is independently bypassable. Open the pedalboard view from any other view with K2 (gain pair) or K3 (modulation pair) held; the active pair's label brightens.
 
@@ -22,7 +22,7 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
 
 **Spring reverb.** Applied to the full stereo mix, live signal and loop together. Amount sets both send level and decay; Length adjusts decay independently if you want longer wash without more signal in the tank. Low Shelf and High Shelf colour the wet path. At 25 % Amount the spring tank sits behind the signal; turn it up for the long shimmer.
 
-**Cab & Mic.** A 10" Jensen-style cabinet model with three mic positions (Center, Middle, Edge). Or, if you'd rather, load your own impulse responses (one per channel) and run those instead. Or bypass cabinet processing entirely for a raw DI tone or to feed an external cab.
+**Cab & Mic.** A 10" Jensen-style cabinet model with three mic positions (Center, Middle, Edge). Or bypass cabinet processing entirely for a raw DI tone or to feed an external cab.
 
 **Limit.** An optional output compander after the cabinet, bypassed by default. Useful when sending princeton into another script's input or when the looper output needs a ceiling.
 
@@ -32,7 +32,11 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
 
 **Metronome.** A click track running independently of the signal path. Tempo, level, and chromatic pitch are set from PARAMS; Division locks the click to the Norns clock when one is running, or free-runs at the BPM field when the clock is stopped.
 
-**Mod Rack.** Eight LFOs with six waveforms (Sine, Triangle, Saw, Square, Smooth Random, Step Random) that modulate any continuous parameter in the signal chain. Rate runs from 0.1 to 25 Hz with optional sync to the Norns clock. Each LFO has its own Depth, Direction (positive, negative, or bipolar), Rate Slew, Sync division and Sync Feel. Step Random is a shift-register pattern generator: Steps sets the register length (1–16 bits) and Stability controls the probability of feeding back the MSB versus its complement, producing anything from a regular clock to dense noise. LFOs can target other LFO rates and depths, creating compound motion. Modulation targets span all pedal parameters, amp, tremolo speed and sync, reverb, looper levels, looper speed, looper quantization division, metronome division, and other LFO rates and depths. Each target can be owned by at most one LFO at a time; the ownership model prevents interference between LFOs on the same target. The Mod Rack lives in the Practice view (K1 hold): the first pair shows Tuner and Metro, each subsequent pair shows two LFOs.
+**Mod Rack.** Eight LFOs with six waveforms (Sine, Triangle, Saw, Square, Smooth Random, Stepped Random) that modulate any continuous parameter in the signal chain. Rate runs from 0.1 to 25 Hz with optional sync to the Norns clock. Each LFO has its own Depth, Direction (positive, negative, or bipolar), Rate Slew, Sync division and Sync Feel. Stepped Random is a shift-register pattern generator: Steps sets the register length (1–16 bits) and Stability controls the probability of feeding back the MSB versus its complement, producing anything from a regular clock to dense noise. LFOs can target other LFO rates and depths, creating compound motion. Modulation targets span all pedal parameters, amp, tremolo speed and sync, reverb, looper levels, looper speed, looper quantization division, metronome division, and other LFO rates and depths. Each target can be owned by at most one modulation source at a time; the ownership model prevents interference between sources on the same target, and is shared with Sense. The Mod Rack lives in the Practice view (K1 hold): the first pair shows Tuner and Metro, one pair shows the two Sense modules, the next four pairs show the LFOs, and the last two pairs show four Triggers.
+
+**Sense.** Two envelope followers that track the amplitude of the raw input signal (pre-pedals) and modulate a chosen continuous parameter in proportion. Depth scales the contribution, Direction picks upward or downward modulation, Slew sets the attack and release time of the detector. The ownership pool is shared with the Mod Rack: a parameter can be claimed by an LFO or by a Sense module, never both at once. Each Sense pane shows a live amplitude visualizer with a horizontal centerline; a bar fills upward or downward depending on Direction. Useful for input-driven dynamics: a soft attack opens up Distort Tone, a louder pick attack pulls down Reverb Amount, and so on.
+
+**Triggers.** Four event triggers ride alongside the LFOs in the Practice view. Each fires at a chosen rate (free in Hz or synced to the Norns clock) with a probability gate, and dispatches a single action per fire. Targets cover pedal and effect bypass toggles (Push, Distort, Warp, Repeat, Amp, Tremolo, Reverb, Limit), per-LFO randomize triggers (active when the destination LFO is in Stepped Random), and two looper transport actions (Rec walks K3 order, Clear empties the buffer). Defaults route Trigger N to Pedal N's Toggle and ship disabled, so the practice space stays silent until you enable one with K3.
 
 ## Signal flow
 
@@ -77,7 +81,7 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
 | **E1** | Switch sub-pane (Amp / Looper in the main view, gain / modulation pair in the pedalboard, scroll panes in the practice view) |
 | **E2** | Select parameter |
 | **E3** | Change value |
-| **K1 hold 2s** | Practice view (Tuner / Metro / LFOs) on / off (from any view) |
+| **K1 hold 2s** | Practice view (Tuner / Metro / Sense / LFOs / Triggers) on / off (from any view) |
 | **K2** | Looper: stop → clear (main view) |
 | **K2 hold 2s** | Gain Pedals (Push / Distort) on / off (from any view) |
 | **K3** | Looper: record → play → dub → play (main view) / Bypass toggle (pedalboard) / Mute (tuner) |
@@ -87,7 +91,7 @@ The main view has two sub-panes: **Amp** (the cabinet sprite with the tone-stack
 
 When the pedalboard is open, **E1** selects between the two visible effects, **E2** selects a parameter, and **E3** changes its value. Looper transport (K2, K3) is disabled while the pedalboard or tuner is open. The loop keeps running in the background.
 
-In the Practice view (K1 hold), **E1** moves between panes: the first pair shows Tuner (left) and Metro (right); the remaining pairs show LFO 1/2, 3/4, 5/6, and 7/8. **E2** scrolls the parameter strip for the focused half; **E3** changes the value. Short-press **K2** on an LFO pane randomises the focused LFO's Step Random register. Short-press **K3** on an LFO pane toggles the LFO on or off; on the Metro pane it toggles the metronome.
+In the Practice view (K1 hold), **E1** moves between panes: the first pair shows Tuner (left) and Metro (right); the next pair shows Sense 1 and Sense 2; the next four pairs show LFO 1/2, 3/4, 5/6, and 7/8; the final two pairs show Trigger 1/2 and Trigger 3/4. **E2** scrolls the parameter strip for the focused half; **E3** changes the value. Short-press **K2** on an LFO pane randomises the focused LFO's Stepped Random register. Short-press **K3** on an LFO pane toggles the LFO on or off; on a Sense pane it toggles the Sense module on or off; on the Metro pane it toggles the metronome; on a Trigger pane it toggles the trigger on or off.
 
 ## Navigation
 
@@ -140,18 +144,19 @@ Adjustable with E3 while the tuner is open. Saved with your PSET.
 | **BPM** | 120 | 20–300 |
 | **Division** | 1/4 | 1/1 / 1/2 / 1/4 / 1/8 / 1/16 |
 | **Level** | 5.0 | 0–10 |
-| **Pitch** | C3 | C0–B7 (chromatic) |
+| **Root** | C | C / C# / D / D# / E / F / F# / G / G# / A / A# / B |
+| **Register** | 3 | 0 / 1 / 2 / 3 / 4 / 5 / 6 / 7 |
 | **Length** | 50 ms | 1–500 ms |
 | **Position** | Parallel | Parallel / Inline |
 | **Scale** | Chromatic | Chromatic / Major / Minor / Dorian / Pent Maj / Pent Min / Blues |
 
-All eight entries live in the PARAMS menu and are MIDI-mappable. Metro Enable and BPM are the most useful for footswitch / knob control. The click fires as a short sine-wave burst; pitch shifts relative to A4 (440 Hz) in semitones.
+All nine entries live in the PARAMS menu and are MIDI-mappable. Metro Enable and BPM are the most useful for footswitch / knob control. The click fires as a short sine-wave burst; pitch shifts relative to A4 (440 Hz) in semitones. **Root** picks the chromatic note name; **Register** picks the octave (0 to 7). Together they cover C0 to B7. Defaults give C3.
 
 **Length** sets the decay time of the click envelope. Short values (1–20 ms) give a tight transient; longer values turn the click into a tone burst.
 
 **Position** controls where the click enters the signal chain. **Parallel** sends the click directly to the output, bypassing all engine processing. **Inline** routes it through the full chain (Pedals, Amp, Tremolo, Looper, Reverb, Cab), so the click takes on the character of whatever is dialled in. In Inline mode, a click that fires during a looper recording lands in the buffer.
 
-**Scale** snaps Mod Rack pitch modulation to a musical scale rooted at the current **Pitch** setting. Pitch C3 with Scale Major constrains the LFO to C major across the full range. Direct user edits to Pitch are never quantised; Scale only applies when an LFO targets Metro: Pitch.
+**Scale** snaps Mod Rack root-note modulation to a musical scale rooted at the current **Root** setting. With Root C and Scale Major, an LFO targeting Metro: Root snaps to the seven C-major root notes (C, D, E, F, G, A, B). Direct user edits to Root and Register are never quantised; Scale only applies when an LFO targets Metro: Root. Metro: Register is not scale-snapped.
 
 When the Norns clock is running, **Division** sets the click subdivision relative to the clock; the metro stays in lockstep with any synced effect. With the clock stopped the metro free-runs at the BPM field.
 
@@ -277,27 +282,27 @@ Set **Synchronization** to a division to lock Speed to the Norns clock. The enco
 | **M: Tape Wow** | 5 % | 0–100 % |
 | **M: Vinyl Noise** | 10 % | 0–100 % |
 
-**Medium** picks the storage type the loop pretends to be. **Imprint** controls how strongly the medium colours the signal at the moment of recording: at 0 % the buffer captures your input clean, at 100 % the first repeat already has the mediums full character. **Wear** controls how much the medium degrades the loop on each subsequent pass: at 0 % the loop holds its captured state indefinitely, at higher values it erodes a little more every cycle. The two combine: a small Wear over a meaningful Imprint gives you a recording that lands aged and continues to age slowly. The six media, with their characteristic flavour:
+**Medium** picks the storage type the loop pretends to be, and it works in two layers. **Imprint** and **Wear** are destructive: they bake the medium's base character (its filtering and saturation) into the buffer. **Imprint** controls how strongly that base character colours the signal at the moment of recording: at 0 % the buffer captures your input clean, at 100 % the first repeat already has the medium's full character. **Wear** controls how much it degrades the loop on each subsequent pass: at 0 % the loop holds its captured state indefinitely, at higher values it erodes a little more every cycle. The **M:** parameters are the second layer: medium-specific effects that live on the playback side, non-destructive and reversible in real time. They colour the loop on the way out without ever touching the buffer, so you can dial them while a loop plays and they read back instantly. Because each medium is its own internal looper, **the Medium is fixed for the life of a loop**: choose it before you record. Changing Medium while a loop exists clears that loop and returns the looper to idle; the new medium then applies to your next recording. The six media, with their characteristic flavour:
 
-- **BBD.** Bandwidth-limited LPF, op-amp bias, tanh saturation. Compander noise creeps in above 30 %. **M: BBD Tone** picks between two LPF curves (Bright or Dark).
-- **Cassette.** LFO-modulated bandpass with slow wow and fast wonk, amplitude crinkle, a subtle FM artefact. **M: Cassette Wow** controls wow depth independently of Imprint and Wear.
-- **CD.** The clean medium of the roster: the recording lands pristine and only develops a gentle high-frequency rolloff over passes (the CD ageing in the sun). The character lives on the playback side, not the recording: skips that jump the read head to a new buffer position, stutters that lock the head on a 100 ms region for several repetitions, and brief dropouts that mute the loop entirely. **M: CD Errors** scales the rate of all three failure modes together; the rest of the time the loop plays clean.
-- **Chip.** Bit-depth and sample-rate reduction with the aliasing that comes for free. Low-resolution sample-playback in the spirit of ISD voice chips, vintage DAC hardware, and early samplers like the SP-1200. **M: Chip Crush** scales the strength of the bit and sample-rate reduction independently of Imprint and Wear.
-- **Tape.** Wide LPF with wow and flutter, misbias saturation, compander LPF, short print-through. **M: Tape Wow** controls wow depth.
-- **Vinyl.** Gentle high-frequency rolloff with surface noise: sparse high-frequency crackle, occasional louder mid-range pops, a continuous low-level dust haze, and a very slow read-side pitch instability. **M: Vinyl Noise** scales crackle rate, pop probability, and dust level together; sparse and well-distributed at low values, dense and prominent when turned up.
+- **BBD.** Bandwidth-limited LPF, op-amp bias, tanh saturation, baked in by Imprint and Wear. **M: BBD Tone** sets the bandwidth (Bright or Dark, the same two cutoffs as the Repeat pedal's Color). It is the one M: parameter that acts on both sides: it bakes the bandwidth as you record and also filters on playback, so you can darken a recorded loop live down to its baked limit, but not brighten past it.
+- **Cassette.** Bandpass with misbias saturation, amplitude crinkle, and a subtle FM artefact, baked in. **M: Cassette Wow** adds wow and flutter on the playback side, independent of Imprint and Wear.
+- **CD.** The clean medium of the roster: the recording lands almost pristine and only develops a gentle high-frequency rolloff over passes (the CD ageing in the sun). Its character lives entirely on the playback side: skips that jump the read head to a new buffer position, stutters that lock the head on a 100 ms region for several repetitions, and brief dropouts that mute the loop. **M: CD Errors** scales the rate of all three together; the rest of the time the loop plays clean.
+- **Chip.** Bit-depth and sample-rate reduction baked in, with the aliasing that comes for free; low-resolution sample-playback in the spirit of ISD voice chips, vintage DAC hardware, and early samplers like the SP-1200. **M: Chip Crush** is an additional live bitcrusher on the playback side, perceptually curved so it bites from roughly a third of the way up.
+- **Tape.** Wide LPF, misbias saturation, compander LPF, and short print-through, baked in. **M: Tape Wow** adds wow and flutter on the playback side.
+- **Vinyl.** Gentle high-frequency rolloff baked in, plus a pronounced slow read-side pitch wobble (a warped-record warble). **M: Vinyl Noise** adds live surface noise on the playback side: fine high-frequency crackle over a continuous low dust haze, sparse at low values, dense when turned up.
 
-Imprint and Wear apply on the destructive write side, but at different stages. Imprint colours the input as it enters the buffer (a one-shot effect at record time, scaled by the Imprint amount). Wear processes the buffer's existing content on every loop pass and folds the result back in (an accumulating effect over time, scaled by the Wear amount). Tape, Cassette, and Vinyl also apply a small amount of wow on the read side, which is non-destructive (it modulates playback only and never writes back). CD's failure modes (skip, stutter, dropout) are entirely on the read side and gated by **M: CD Errors** rather than Imprint or Wear. With Imprint at 0 and Wear at 0, the buffer captures your input clean and holds it indefinitely.
+The two layers sit on different paths. Imprint and Wear are destructive: Imprint colours the input as it enters the buffer (a one-shot at record time), Wear reprocesses the buffer's existing content on every loop pass and folds it back in (accumulating over time). Both bake only the medium's base character. The **M:** parameters never write to the buffer; they are read-path effects applied to the loop on its way out, reversible and live even on a loop recorded minutes ago. The one exception is **M: BBD Tone**, which sets a bandwidth used on both sides. With Imprint at 0 and Wear at 0, the buffer captures your input clean and holds it indefinitely, and only the selected medium's M: effects colour the playback.
 
 ```
-Destructive write paths
+Destructive write paths (base medium character, scaled by Imprint / Wear)
 
-  input  ──► Medium (scaled by Imprint) ──► BufWr ──► buffer        (one-shot at record)
-  buffer ──BufRd──► Medium (scaled by Wear) ──► BufWr ──► buffer    (accumulates per pass)
-                                                              ↺
+  input  ──► base character (scaled by Imprint) ──► BufWr ──► buffer      (one-shot at record)
+  buffer ──BufRd──► base character (scaled by Wear) ──► BufWr ──► buffer  (accumulates per pass)
+                                                                    ↺
 
-Non-destructive read path (modulates playback only, never writes back)
+Non-destructive read path (M: effects, reversible, never write back)
 
-  buffer ──BufRd──► Tape/Cas read-path wow ──► output → Tremolo → Spring reverb → ...
+  buffer ──BufRd──► M: wow / crackle / crush / CD errors / BBD tone ──► output → Tremolo → Spring reverb → ...
 ```
 
 #### Quantization
@@ -323,20 +328,14 @@ On the device, turn Amount to 0 to silence the reverb. A dedicated **Reverb Enab
 
 **Length** sets the spring tank decay independently of Amount, so you can keep the send level low and still get a long ring. **Low Shelf** at 250 Hz and **High Shelf** at 3500 Hz colour the wet path. Pull the high shelf down for a darker bloom; lift it for a brighter shimmer.
 
-### Cab & Mic Simulation, IRs
+### Cab & Mic Simulation
 
 | Parameter | Default | Options |
 |-----------|---------|---------|
-| **Cab Mode** | Cab & Mic Sim | Bypass / Cab & Mic Sim / IR |
+| **Cab Mode** | Cab & Mic Sim | Bypass / Cab & Mic Sim |
 | **Mic Position** | Middle | Center / Middle / Edge |
-| **IR Left** | (none) | file path (.wav, 48 kHz) |
-| **IR Right** | (none) | file path (.wav, 48 kHz) |
 
-**Cab Mode** picks the cabinet processing path. **Bypass** removes all cabinet colour, useful for a raw DI tone or for feeding an external powered cab. **Cab & Mic Sim** runs the built-in Jensen 10" model at the **Mic Position** you set: Center is brightest and most present, Middle is balanced, Edge is darker and rounder. **IR** convolves the signal with impulse responses loaded via **IR Left** and **IR Right**.
-
-In IR mode the left strip shows the loaded IR file names while the Mic Position parameter is selected. Mic Position is hidden from the PARAMS menu in IR mode; IR Left and IR Right are hidden in Cab & Mic Sim and Bypass modes.
-
-**IR file requirements.** 48 kHz mono or stereo WAV (left channel is used). Only the first 2048 samples (≈ 42 ms) are convolved; longer tails are silently discarded. Convert with `ffmpeg -ar 48000 input.wav output.wav` or Audacity. A 44.1 kHz file will play back about 5 % fast and sharp, without an error message.
+**Cab Mode** picks the cabinet processing path. **Bypass** removes all cabinet colour, useful for a raw DI tone or for feeding an external powered cab. **Cab & Mic Sim** runs the built-in Jensen 10" model at the **Mic Position** you set: Center is brightest and most present, Middle is balanced, Edge is darker and rounder.
 
 ### Limit
 
@@ -351,6 +350,27 @@ In IR mode the left strip shows the loaded IR file names while the Mic Position 
 
 Output compander after the cabinet. Bypassed by default. Engage it when sending into another script's input, or when looper peaks need a ceiling. Threshold sets the knee; signal above it is compressed at the chosen Ratio. Gain compensates for the level reduction. Attack and Decay shape the envelope follower.
 
+### Sense
+
+Two envelope followers (the **Sense** modules), each with the following parameters:
+
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Enable** | Off | Off / On |
+| **Depth** | 50 % | 0–100 % |
+| **Direction** | + | + / − |
+| **Slew** | 50 ms | 1–500 ms |
+| **Target Device** | Push | device group |
+| **Target Param** | Gain | parameter within device |
+
+Each Sense module tracks the amplitude of the raw input signal, before the pedals. In Mono input mode the detector reads the left jack only; in Stereo input mode it reads `(L + R) × 0.5` so both channels drive the envelope together.
+
+**Depth** scales the modulation contribution; at 100 % Sense can sweep the target across its full parameter range. **Direction** picks whether the modulation pushes the target upward from its base value (`+`) or downward (`−`). **Slew** sets the time constant of the amplitude detector itself, with the same value used for both attack and release: short Slew gives snappy, percussive tracking, long Slew gives a sluggish, smooth contour that ignores transients.
+
+**Target Device** and **Target Param** select what Sense modulates. The device list and parameter list are the same as the Mod Rack's, minus parameters already claimed by another source. The ownership pool is shared with the Mod Rack: a target can be claimed by at most one LFO or one Sense module at a time, and it is claimed the moment a source points at it, even before that source is enabled. The claimed target's PARAMS entry carries the `(M)` prefix whether or not the source is running; enabling the source is what starts the value moving. Sense 1 ships pointing at Push Gain and Sense 2 at Push Tone, so the two never start on the same parameter.
+
+In the Practice view, each Sense pane shows a live amplitude visualizer with a horizontal centerline. A bar fills upward from the centerline when Direction is `+`, downward when Direction is `−`, with its height proportional to the current detected amplitude times Depth. The bar saturates at the visual ceiling well before the math saturates, so it acts as a useful indicator that the envelope is driving its target hard. Short-press K3 on the pane to toggle Enable.
+
 ### Mod Rack
 
 Eight LFOs, each with the following parameters:
@@ -358,35 +378,61 @@ Eight LFOs, each with the following parameters:
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Enable** | Off | Off / On |
-| **Waveform** | Sine | Sine / Triangle / Saw / Square / Smooth Random / Step Random |
+| **Waveform** | Sine | Sine / Triangle / Saw / Square / Smooth Random / Stepped Random |
 | **Rate** | 1.0 Hz | 0.1–25 Hz (exp) |
 | **Depth** | 50 % | 0–100 % |
 | **Direction** | +/- | + / - / +/- |
 | **Phase** | 0° | 0° / 90° / 180° / 270° |
-| **Steps** | 8 | 1–16 (Step Random only) |
-| **Stability** | 50 % | 0–100 % (Step Random only) |
+| **Steps** | 8 | 1–16 (Stepped Random only) |
+| **Stability** | 50 % | 0–100 % (Stepped Random only) |
 | **Sync** | Off | Off / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
 | **Sync Feel** | Note | Note / Dotted / Triplet (when Sync is active) |
 | **Rate Slew** | 0 s | 0–5 s (non-Step-Random only) |
 | **Target Device** | Push | device group |
 | **Target Param** | Gain | parameter within device |
-| **Randomize** | — | trigger (Step Random only, in PARAMS / MAP) |
+| **Randomize** | — | trigger (Stepped Random only, in PARAMS / MAP) |
 
-**Enable** activates the LFO and claims ownership of the target parameter. While enabled, the target's PARAMS entry is prefixed with `(M)` to indicate modulation is active. Only one LFO can own a target at a time; the device and parameter dropdowns filter out parameters already owned by another LFO.
+**Enable** starts the LFO moving its target. Ownership is claimed earlier, the moment the LFO points at a target: the device and parameter dropdowns filter out parameters already claimed by another LFO or Sense module, so two sources can never share a target. A claimed target's PARAMS entry carries the `(M)` prefix whether or not its owner is enabled. While the owner is disabled the value sits at its base and still responds to manual edits; while the owner is enabled the modulation drives it. Each source ships on a distinct default: LFO 1 points at Push Level, and each subsequent LFO takes the next target in the list, so no two LFOs or Sense modules start on the same parameter.
 
-**Waveform** selects the LFO shape. Sine, Triangle, Saw, and Square are standard periodic waveforms. **Smooth Random** generates a band-limited random signal that interpolates smoothly between values at each cycle boundary. **Step Random** is a shift-register pattern generator: each clock step shifts the register and inserts a new bit.
+**Waveform** selects the LFO shape. Sine, Triangle, Saw, and Square are standard periodic waveforms. **Smooth Random** generates a band-limited random signal that interpolates smoothly between values at each cycle boundary. **Stepped Random** is a shift-register pattern generator: each clock step shifts the register and inserts a new bit.
 
 **Rate** sets the LFO frequency. When **Sync** is set to a division, Rate is derived from the Norns clock (same formula as Tremolo and Warp; see [Synchronization](#synchronization)). While synced, the Rate parameter is hidden from the strip and replaced with the division name. **Sync Feel** applies the Note/Dotted/Triplet multiplier and is only visible when Sync is active.
 
-**Rate Slew** smooths abrupt changes to the LFO rate (for example, when another LFO modulates this LFO's rate). The slew time is in seconds. Hidden for Step Random, which uses clock-based stepping.
+**Rate Slew** smooths abrupt changes to the LFO rate (for example, when another LFO modulates this LFO's rate). The slew time is in seconds. Hidden for Stepped Random, which uses clock-based stepping.
 
 **Direction** controls how the LFO value maps to the target range. **+** sweeps from base to base + depth. **-** sweeps from base to base − depth. **+/-** sweeps symmetrically around the base.
 
-**Steps** (Step Random) sets the shift-register length in bits. A 1-bit register produces a coin-flip pattern; longer registers produce longer sequences before repeating. **Stability** controls how often the register feeds back its own most-significant bit (high Stability = more repetition) versus its complement (low Stability = more variation). At 50 % the output is uncorrelated. **Randomize** is a trigger in PARAMS and MAP that seeds the register with a random value; short-press K2 on the LFO's pane in the Practice view triggers the same action.
+**Steps** (Stepped Random) sets the shift-register length in bits. A 1-bit register produces a coin-flip pattern; longer registers produce longer sequences before repeating. **Stability** controls how often the register feeds back its own most-significant bit (high Stability = more repetition) versus its complement (low Stability = more variation). At 50 % the output is uncorrelated. **Randomize** is a trigger in PARAMS and MAP that seeds the register with a random value; short-press K2 on the LFO's pane in the Practice view triggers the same action.
 
 **Target Device** and **Target Param** select what the LFO modulates. The device list groups targets by signal-chain stage (Push, Distort, Warp, Repeat, Amp, Tremolo, Looper, Reverb, Cab, Limit, Metro, LFO 1–8). The parameter list shows only the parameters available within the selected device. Tremolo, Warp, and Repeat each expose both their Sync Division and Sync Feel as separate targets, so an LFO can shift a synced effect between Note, Dotted, and Triplet feel in real time. Looper exposes its Quantization Division as a target alongside the level and speed controls. LFOs can modulate Rate, Depth, Phase, Steps, Stability, Rate Slew, Sync Division, and Sync Feel of other LFOs; routing LFO A into LFO B's rate while LFO B modulates a pedal parameter creates compound motion.
 
-The target list adapts to the state of the destination. For another LFO, only the parameters relevant to its current waveform appear: Phase and Rate Slew on the periodic and smooth-random shapes, Steps and Stability on Step Random. Rate is hidden once the destination is synced. Sync Division and Sync Feel are exposed as targets only when sync is already active on the destination, on Tremolo, Warp, Repeat, the looper, and other LFOs alike, so modulation reshapes a sync grid that you have already chosen rather than switching sync on or off. A Sync or Quant target can never be moved to **Off** by modulation; only a manual edit can. If a destination changes in a way that retires the current target (the waveform changes, sync turns off, the synced rate disappears), the LFO falls back to the first parameter still available.
+The target list adapts to the state of the destination. For another LFO, only the parameters relevant to its current waveform appear: Phase and Rate Slew on the periodic and smooth-random shapes, Steps and Stability on Stepped Random. Rate is hidden once the destination is synced. Sync Division and Sync Feel are exposed as targets only when sync is already active on the destination, on Tremolo, Warp, Repeat, the looper, and other LFOs alike, so modulation reshapes a sync grid that you have already chosen rather than switching sync on or off. A Sync or Quant target can never be moved to **Off** by modulation; only a manual edit can. If a destination changes in a way that retires the current target (the waveform changes, sync turns off, the synced rate disappears), the LFO falls back to the first parameter still available.
+
+### Triggers
+
+Four event triggers, each with the following parameters:
+
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Enable** | Off | Off / On |
+| **Probability** | 100 % | 0–100 % |
+| **Rate** | 1.0 Hz | 0.1–25 Hz (exp) |
+| **Sync** | Off | Off / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Sync Feel** | Note | Note / Dotted / Triplet |
+| **Device** | Push (Trigger 1) ... Repeat (Trigger 4) | device group |
+| **Target** | Toggle | action within device |
+
+Triggers fire at a chosen rate and dispatch a single action per fire. **Probability** acts as a coin gate: 100 % fires every tick, 50 % fires roughly every other, 0 % is silent. **Enable** activates the trigger; while Off, no clock runs and no action fires.
+
+**Rate** sets the firing frequency in free mode. When **Sync** is set to a division, Rate is hidden and the firing rhythm is derived from the Norns clock (same formula as Tremolo, Warp, and the LFOs; see [Synchronization](#synchronization)). Sync Feel applies the Note / Dotted / Triplet multiplier and stays visible alongside Sync Division.
+
+**Device** and **Target** select what the trigger fires. Devices are grouped by signal-chain stage in the same order as the LFO target list (Push, Distort, Warp, Repeat, Amp, Tremolo, Looper, Reverb, Limit, LFO 1–8). Each pedal and effect device exposes a single **Toggle** target that flips the device's bypass state. Each LFO device exposes a single **Randomize** target, available only when the destination LFO is in Stepped Random waveform; outside Stepped Random the target dropdown shows `-` and the trigger is a no-op. The Looper device exposes two targets: **Rec** advances the looper through its K3 transport order (idle → rec → play → dub → play …, with sample-mode retrig in play), and **Clear** resets the loop unconditionally to idle and empties the buffer.
+
+Triggers guard their targets the same way the LFOs and Sense modules do, but in a pool of their own: no two triggers can fire the same action. Point one trigger at an action and it drops out of the other triggers' Device and Target dropdowns. The trigger pool is independent of the LFO and Sense pool, so a trigger can flip a pedal's bypass while an LFO modulates a parameter inside that same pedal. Each trigger ships pointing at its matching pedal's Toggle (Trigger 1 → Push, Trigger 2 → Distort, Trigger 3 → Warp, Trigger 4 → Repeat) and is disabled by default.
+
+When a trigger targets `LFO N: Randomize` and is enabled, that LFO's internal Stepped Random clock is suspended and the trigger becomes the only source of new random steps. Disabling the trigger or pointing it elsewhere returns the LFO to its own internal stepping.
+
+LFOs can modulate trigger Rate and Probability; the trigger devices appear in the LFO target list as `Trigger 1` through `Trigger 4`.
 
 ## Synchronization
 
@@ -457,7 +503,7 @@ Every parameter, bypass toggle, and looper transport action is available in the 
 
 **Pedals, Amp, Tremolo, Looper, Reverb, Cab & Mic, Limit, Metro.** All continuous parameters respond to CC values scaled to their parameter range.
 
-**Enable toggles** (Amp, Reverb, Tremolo, Limit, Push, Distort, Warp, Repeat). CC ≥ 64 enables (Active), CC < 64 bypasses. **Cab Mode** is a 3-way option (Bypass / Cab & Mic Sim / IR); the CC value is scaled to the option range.
+**Enable toggles** (Amp, Reverb, Tremolo, Limit, Push, Distort, Warp, Repeat). CC ≥ 64 enables (Active), CC < 64 bypasses. **Cab Mode** is a 2-way option (Bypass / Cab & Mic Sim); the CC value is scaled to the option range.
 
 **Synchronization.** Each stage's `Synchronization` (Tremolo / Warp / Repeat) and `Quantization` (Looper) is an option-type param mappable to a CC. Useful for tap-style division switching from a controller knob.
 
@@ -491,6 +537,23 @@ ssh we@norns.local
 cd ~/dust/code
 git clone https://github.com/notrobintaylor/princeton
 ```
+
+## Upgrading from v1.2
+
+Two changes break PSETs or PMAPs on first launch after the update: the cabinet IR mode was removed and the Metro pitch control was split.
+
+**The IR (impulse response) cabinet mode has been removed.** The convolution latency was too long for live use, and it was the engine's heaviest single DSP block. **Cab Mode** is now a two-way option (Bypass / Cab & Mic Sim).
+
+- **PSETs that saved Cab Mode = IR load as Cab & Mic Sim.** The option no longer exists, so it clamps to the nearest valid mode. Open the PSET, pick the mode you want, save.
+- **IR file and IR Level parameters are gone.** A PSET that stored IR Left, IR Right, or IR Level L/R drops those values silently on load (the IDs are no longer recognised). Nothing else in the PSET is affected.
+- **PMAP for IR Level L/R is invalid.** Any CC mapped to an IR Level parameter drops on load; the parameter is gone, so there is nothing to re-map.
+- **LFO and Sense target indices shift.** The `Cab: IR Level L` and `Cab: IR Level R` entries are gone from the modulation target list, so everything below them (the Limit section: Threshold, Ratio, Gain, Attack, Decay) moves up two slots. Re-set the Target Param for any LFO or Sense source that pointed at the Limit section.
+
+**The Metro click's Pitch parameter has been split into Root** (12 chromatic note names, C to B) **and Register** (octave 0 to 7).
+
+- **PSET Pitch values reset.** A v1.2 PSET that saved a custom Metro Pitch loads with Root and Register at their new defaults (C and 3, audibly identical to the prior default C3). The old `metro_pitch` ID is no longer recognised. Open each PSET once, set Root and Register to the intended values, save.
+- **PMAP for Pitch is invalid.** If you mapped the old Pitch parameter to a CC, the mapping silently drops on load. Re-map Root and Register separately.
+- **LFO target `Metro: Pitch` is gone.** Any LFO that targeted Metro: Pitch lands on `Metro: Root` after the update (same position in the Metro target list). The range is now 0 to 12 (one octave plus the Off slot) instead of 0 to 96. Add a second LFO on `Metro: Register` if you want octave-range modulation back.
 
 ## Upgrading from v1.1
 
