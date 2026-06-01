@@ -1,0 +1,270 @@
+-- princeton looper
+--
+-- Loop state machine, quantize-then helper, sample-mode oneshot, and the
+-- quantize-LED clock for the looper panel.
+
+local sync = include("lib/sync")
+
+local looper = {}
+
+looper.IDLE = 0
+looper.REC  = 1
+looper.DUB  = 2
+looper.PLAY = 3
+looper.STOP = 4
+local IDLE, REC, DUB, PLAY, STOP = 0, 1, 2, 3, 4
+
+looper.state          = IDLE
+looper.frames         = 0
+looper.quant_led_lit  = false
+
+local LOOP_SR  = 48000
+local LOOP_MAX = LOOP_SR * 40
+
+local rec_start         = 0
+local quant_pending     = false
+local sample_retrig_val = 0
+local sample_done_clock = nil
+local quant_led_clock     = nil
+local quant_led_off_clock = nil
+
+local is_clock_running = function() return true end
+local get_override     = function() return {} end
+local is_pane_visible  = function() return false end
+
+function looper.init(deps)
+  is_clock_running = deps.is_clock_running
+  get_override     = deps.get_override
+  is_pane_visible  = deps.is_pane_visible
+end
+
+function looper.speed_value()
+  if params:get("looper_speed_control") == 1 then
+    local v = params:get("looper_speed")
+    if v < 0 then return 0.5 elseif v > 0 then return 2.0 else return 1.0 end
+  else
+    local pct = params:get("looper_speed")
+    return 2 ^ (pct / 100)
+  end
+end
+
+-- prc_t100: the whole looper DSP lives in a sub-synth spawned only while in use, so
+-- an idle script (no loop) pays nothing. On spawn we re-send the setting params (the
+-- fresh sub starts at defaults); transport (rec/dub/play) and loop length follow.
+-- looper_medium is intentionally NOT here (prc_t106): the medium picks which looper
+-- variant spawns (engine reads its cached medium in looper_on), so there is no
+-- loop_medium_type to re-send. Re-sending it here would also re-fire the medium
+-- action mid-activation and clear the loop we are just starting.
+local LOOP_SETTINGS = {
+  "looper_wear", "looper_bbd_tone", "looper_wow_cas",
+  "looper_cd_errors", "looper_chip_crush", "looper_wow_tape", "looper_vinyl_noise",
+  "looper_level", "looper_dub_level", "looper_fade_level",
+  "looper_direction", "looper_speed", "looper_play_from", "looper_dub_style"
+}
+local engine_active = false
+
+local function looper_ensure_active()
+  if not engine_active then
+    engine.looper_on()
+    -- Re-send every setting to the fresh sub (it spawns at SynthDef defaults).
+    -- Must :bang() not params:set(id, params:get(id)): Norns only fires a
+    -- param action when the value CHANGES, so re-setting the current value is
+    -- a no-op and would leave the sub on defaults (e.g. medium stuck on Chip,
+    -- which silently broke Imprint/Wear/M: character).
+    for _, id in ipairs(LOOP_SETTINGS) do params:lookup_param(id):bang() end
+    engine_active = true
+  end
+end
+
+local function looper_deactivate()
+  if engine_active then
+    engine.looper_off()
+    engine_active = false
+  end
+end
+
+-- Clear the loop back to IDLE and free BOTH on-demand subs (prc_t100/t106). Shared
+-- by every clear route (trigger force_clear, medium switch, the stop_clear IDLE
+-- branches) so each one frees the looper AND the imprint, with no idle-CPU leak.
+-- engine.imprint_off / looper_off are idempotent (no-op when already freed).
+local function clear_to_idle()
+  if sample_done_clock then clock.cancel(sample_done_clock); sample_done_clock = nil end
+  quant_pending = false
+  looper.state  = IDLE
+  looper.frames = 0
+  engine.imprint_off()
+  engine.loop_clear()
+  looper_deactivate()
+  redraw()
+end
+
+local function set_engine(st)
+  looper_ensure_active()
+  engine.loop_rec (st == REC  and 1 or 0)
+  engine.loop_dub (st == DUB  and 1 or 0)
+  engine.loop_play((st == PLAY or st == DUB) and 1 or 0)
+  -- Imprint colouring only runs while recording/dubbing (prc_t100); engine guards
+  -- the spawn/free so repeated calls are idempotent.
+  if st == REC or st == DUB then engine.imprint_on() else engine.imprint_off() end
+end
+
+local function transition_to(st)
+  looper.state = st
+  set_engine(st)
+  redraw()
+end
+
+local function sample_oneshot_start()
+  if sample_done_clock then clock.cancel(sample_done_clock) end
+  local speed_mult = looper.speed_value()
+  local passes     = params:get("looper_direction") == 3 and 2 or 1
+  local duration   = looper.frames / LOOP_SR / speed_mult * passes
+  sample_done_clock = clock.run(function()
+    clock.sleep(duration)
+    if looper.state == PLAY and params:get("looper_dub_style") == 3 then
+      transition_to(STOP)
+    end
+    sample_done_clock = nil
+  end)
+end
+
+local function quantize_then(fn)
+  local override = get_override()
+  local div_opt = override["looper_quant_div"] or params:get("looper_quant_div")
+  if not is_clock_running() or div_opt <= 1 then fn(); return end
+  local feel_opt = override["looper_quant_feel"] or params:get("looper_quant_feel")
+  local beats = sync.DIV_BEATS[div_opt] * sync.FEEL_MULT[feel_opt]
+  clock.run(function()
+    clock.sync(beats)
+    fn()
+  end)
+end
+
+local function quant_led_pulse_now()
+  looper.quant_led_lit = true
+  if quant_led_off_clock then clock.cancel(quant_led_off_clock); quant_led_off_clock = nil end
+  if is_pane_visible() then redraw() end
+  quant_led_off_clock = clock.run(function()
+    clock.sleep(0.08)
+    looper.quant_led_lit = false
+    quant_led_off_clock = nil
+    if is_pane_visible() then redraw() end
+  end)
+end
+
+function looper.quant_led_restart()
+  if quant_led_clock     then clock.cancel(quant_led_clock);     quant_led_clock     = nil end
+  if quant_led_off_clock then clock.cancel(quant_led_off_clock); quant_led_off_clock = nil end
+  looper.quant_led_lit = false
+  if not is_clock_running() then return end
+  local override = get_override()
+  local div_opt = override["looper_quant_div"] or params:get("looper_quant_div")
+  if div_opt <= 1 then return end
+  local feel_opt = override["looper_quant_feel"] or params:get("looper_quant_feel")
+  local beats = sync.DIV_BEATS[div_opt] * sync.FEEL_MULT[feel_opt]
+  quant_led_clock = clock.run(function()
+    while true do
+      clock.sync(beats)
+      quant_led_pulse_now()
+    end
+  end)
+end
+
+function looper.step()
+  if looper.state == IDLE then
+    if quant_pending then return end
+    quant_pending = true
+    quantize_then(function()
+      if not quant_pending then return end
+      quant_pending = false
+      engine.loop_frames(LOOP_MAX)
+      rec_start = util.time()
+      transition_to(REC)
+    end)
+    redraw()
+  elseif looper.state == REC then
+    if quant_pending then return end
+    quant_pending = true
+    quantize_then(function()
+      quant_pending = false
+      local elapsed    = util.time() - rec_start
+      local speed_mult = looper.speed_value()
+      looper.frames = math.max(math.min(math.floor(elapsed * LOOP_SR * speed_mult), LOOP_MAX), 2)
+      engine.loop_frames(looper.frames)
+      if params:get("looper_dub_style") == 3 then
+        transition_to(STOP)
+      else
+        local nxt = params:get("looper_transport") == 2 and DUB or PLAY
+        transition_to(nxt)
+      end
+    end)
+  elseif looper.state == PLAY then
+    if params:get("looper_dub_style") == 3 then
+      sample_retrig_val = 1 - sample_retrig_val
+      engine.loop_sample_retrig(sample_retrig_val)
+      sample_oneshot_start()
+      redraw()
+    else
+      transition_to(DUB)
+    end
+  elseif looper.state == DUB then
+    quantize_then(function()
+      transition_to(PLAY)
+    end)
+  elseif looper.state == STOP then
+    if params:get("looper_dub_style") == 3 then
+      looper.state = PLAY
+      set_engine(PLAY)
+      if params:get("looper_play_from") == 2 then
+        sample_retrig_val = 1 - sample_retrig_val
+        engine.loop_sample_retrig(sample_retrig_val)
+      end
+      sample_oneshot_start()
+      redraw()
+    else
+      if quant_pending then return end
+      quant_pending = true
+      quantize_then(function()
+        quant_pending = false
+        transition_to(PLAY)
+      end)
+      redraw()
+    end
+  end
+end
+
+function looper.stop_clear()
+  if looper.state == IDLE then
+    quant_pending = false
+    return
+  elseif looper.state == REC then
+    clear_to_idle()
+  elseif looper.state == DUB then
+    quantize_then(function()
+      transition_to(STOP)
+    end)
+  elseif looper.state == STOP then
+    clear_to_idle()
+  elseif looper.state ~= IDLE then
+    if sample_done_clock then clock.cancel(sample_done_clock); sample_done_clock = nil end
+    quantize_then(function()
+      transition_to(STOP)
+    end)
+  end
+end
+
+function looper.force_clear()
+  if looper.state == IDLE then return end
+  clear_to_idle()
+end
+
+-- prc_t106: each medium is its own looper variant, so the medium cannot change
+-- under a live loop. Changing it while a loop exists clears the loop and returns
+-- to IDLE; the new medium takes effect at the next REC (which spawns its variant).
+-- No-op when already IDLE, so picking a medium before recording just works.
+function looper.medium_changed()
+  if looper.state == IDLE then return end
+  clear_to_idle()
+end
+
+return looper
