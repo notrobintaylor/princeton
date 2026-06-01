@@ -120,11 +120,6 @@ end
 
 local function cur_pedal() return PEDALS[cur_pedal_sel()] end
 
--- Declared above TARGET_PARAMS so the trigger/sync send-closures in that table
--- capture them as upvalues. In Lua a name binds to the GLOBAL when the matching
--- local is not yet in scope; clock_running/db_to_lin used to be declared further
--- down, so those closures silently saw nil (db-level trigger targets crashed,
--- sync targets mis-read the clock). Keep these two above the table.
 local clock_running = true
 local db_to_lin = function(db) return 10 ^ (db / 20) end
 
@@ -1177,7 +1172,6 @@ function init()
     params:set_action("signal_input", function(v) engine.signal_input(v); re() end)
   end
 
-  -- Shared by LFO, Sense and Trigger filtered target dropdowns.
   local function find_filtered_idx(map, target)
     if map then
       for fi, gi in ipairs(map) do
@@ -1707,9 +1701,6 @@ function init()
   for i = 1, trigs.N do register_trigger(i) end
   tuner.init()
 
-  -- A target is "actively modulated" only when its owning modulator is enabled.
-  -- A merely reserved (owned but Off) target must still pass manual edits to the
-  -- engine, so we skip the original action only for live modulation.
   local function target_active(id)
     local owner = lfo.target_owner[id]
     if owner == nil then return false end
@@ -1734,13 +1725,6 @@ function init()
   params:bang()
   initing = false
 
-  -- Distinct default targets, each reserved on selection: Sense 1, Sense 2, then
-  -- LFO 1..8 get consecutive targets (global 2,3,4,...): Sense 1 Push Gain,
-  -- Sense 2 Push Tone, LFO 1 Push Level, ... Sense and LFO share one owner table,
-  -- so consecutive distinct defaults guarantee no two modulators reserve the same
-  -- param. set_target claims + marks "(M)" regardless of enable state; enabled
-  -- modulators additionally begin modulating (env via start_polls below, LFO via
-  -- start_clock inside set_target).
   do
     local mods = {}
     for i = 1, env.NUM do mods[#mods + 1] = { idx = i, set = env.set_target } end
