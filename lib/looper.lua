@@ -1,3 +1,15 @@
+-- looper: host-agnostic loop state machine, shared by princeton and media.
+--
+-- Host contract:
+--   looper.init(deps) with
+--     deps.is_clock_running() -> bool   -- is the Norns clock running?
+--     deps.get_override()     -> table  -- mod-source overrides for looper_quant_div/feel ({} if none)
+--     deps.is_pane_visible()  -> bool   -- is the looper pane on screen? (gates quant-LED redraws)
+--   Globals the host must provide:
+--     params   -- every looper_* param registered, ids identical across hosts (see LOOP_SETTINGS)
+--     engine   -- looper command set: looper_on/off, loop_rec/dub/play/clear/frames/sample_retrig, imprint_on/off
+--     redraw() -- the script's redraw entry point
+--     clock, util (Norns built-ins), lib/sync (shared module)
 local sync = include("lib/sync")
 
 local looper = {}

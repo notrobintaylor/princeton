@@ -67,13 +67,15 @@ lfo.STRIP = {
   {name="Device",    suf="_target_device", typ="opt",  nmax_fn=function(i) return #(lfo.target_device_filter[i] or {}) end,
    fmt=function(v,i)
      local dmap = lfo.target_device_filter[i]
-     return (dmap and DEVICE_NAMES[dmap[v]]) or "?"
+     local di   = dmap and dmap[v]
+     if di == 0 then return "-" end
+     return (di and DEVICE_NAMES[di]) or "?"
    end},
   {name="Parameter", suf="_target_param",  typ="opt",  nmax_fn=function(i) return #(lfo.target_param_filter[i] or {}) end,
    fmt=function(v,i)
      local pmap = lfo.target_param_filter[i]
      local gi   = pmap and pmap[v]
-     if gi and TARGET_PARAMS[gi] then return TARGET_PARAMS[gi].label:match(": (.+)$") or TARGET_PARAMS[gi].label end
+     if gi and gi > 1 and TARGET_PARAMS[gi] then return TARGET_PARAMS[gi].label:match(": (.+)$") or TARGET_PARAMS[gi].label end
      return "-"
    end},
 }
@@ -253,6 +255,10 @@ function lfo.clear_override(target_id)
   if target_id == "metro_root"     then lfo.metro.root     = nil; return end
   if target_id == "metro_register" then lfo.metro.register = nil; return end
   if target_id == "metro_div"      then lfo.metro.div      = nil; return end
+  if target_id == "metro_scale"      then lfo.metro.scale  = nil; return end
+  if target_id == "metro_chords"     then lfo.metro.chords = nil; return end
+  if target_id == "metro_scale_play" then lfo.metro.play   = nil; return end
+  if target_id == "metro_degree"     then lfo.metro.degree = nil; return end
   if lfo.sync_override[target_id] ~= nil then
     lfo.sync_override[target_id] = nil
     on_sync_override_change(target_id)
@@ -448,6 +454,7 @@ function lfo.init(deps)
 
   binding = {
     num              = NUM_LFOS,
+    none_option      = true,
     prefix           = function(i) return "lfo" .. i end,
     owner            = lfo.target_owner,
     tag              = function(i) return i end,

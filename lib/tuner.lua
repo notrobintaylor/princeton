@@ -130,6 +130,23 @@ function tuner.set_active(b)
   end
 end
 
+-- tuning indicator: centered dot when in tune, otherwise a pixel-symmetric
+-- triangle that points inward toward the centre (built from columns so the
+-- left/right arrows are exact mirrors and each is vertically symmetric)
+function tuner.draw_arrow(cx, y, arrow)
+  y = y - 1   -- sit one pixel higher
+  if arrow == 0 then
+    screen.circle(cx, y, 2); screen.fill()
+    return
+  end
+  local s = arrow < 0 and -1 or 1
+  for i = 0, 5 do
+    local hh = math.floor(3 * (5 - i) / 5 + 0.5)
+    local x  = cx + s * (9 - i)
+    screen.move(x, y - hh); screen.line(x, y + hh); screen.stroke()
+  end
+end
+
 function tuner.draw_half(ox, oy, focused)
   local cx  = ox + 16
   local lv  = focused and FULL or MED
@@ -141,15 +158,7 @@ function tuner.draw_half(ox, oy, focused)
   if tuner.note ~= "--" then
     screen.level(lv)
     screen.move(cx + 11, oy + 16); screen.text(tostring(tuner.octave))
-    if tuner.arrow == 0 then
-      screen.circle(cx, oy + 42, 2); screen.fill()
-    elseif tuner.arrow < 0 then
-      screen.move(cx - 4, oy + 42)
-      screen.line(cx - 9, oy + 39); screen.line(cx - 9, oy + 45); screen.fill()
-    else
-      screen.move(cx + 4, oy + 42)
-      screen.line(cx + 9, oy + 39); screen.line(cx + 9, oy + 45); screen.fill()
-    end
+    tuner.draw_arrow(cx, oy + 42, tuner.arrow)
   end
   screen.level(lv)
   screen.move(cx, oy + 56); screen.text_center("Tuner")

@@ -20,7 +20,7 @@ trigs.target_owner         = {}
 trigs.target_device_filter = {}
 trigs.target_param_filter  = {}
 
-for i = 1, trigs.N do trigs.last_global[i] = i + 1 end
+for i = 1, trigs.N do trigs.last_global[i] = 1 end
 
 local NUM_LFOS = 8
 
@@ -99,7 +99,7 @@ for i = 1, NUM_LFOS do
 end
 
 trigs.DEVICES, trigs.DEVICE_PARAMS = (function()
-  local devices = { "Off" }
+  local devices = { "-" }
   local dparams = { [1] = { { label = "-", global_idx = 1 } } }
   for i = 2, #trigs.TARGETS do
     local t = trigs.TARGETS[i]

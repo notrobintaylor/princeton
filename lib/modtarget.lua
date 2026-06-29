@@ -41,6 +41,7 @@ function modtarget.rebuild_device(b, idx)
   local p = params:lookup_param(b.prefix(idx) .. "_target_device")
   if not p then return end
   local opts, map = {}, {}
+  if b.none_option then opts[1] = "-"; map[1] = 0 end
   for di = 1, #b.devices do
     if not (b.device_excluded and b.device_excluded(idx, di)) then
       local has_available = false
@@ -60,7 +61,7 @@ function modtarget.rebuild_device(b, idx)
   b.device_filter[idx] = map
   p.options = opts
   p.count   = #opts
-  local cur_dev, nf = b.target_device_of[b.last_global[idx] or 1] or 1, 1
+  local cur_dev, nf = b.target_device_of[b.last_global[idx] or 1] or (b.none_option and 0 or 1), 1
   for fi, di in ipairs(map) do if di == cur_dev then nf = fi; break end end
   p.selected = nf
 end
@@ -70,7 +71,7 @@ function modtarget.rebuild(b, idx)
   local cur_dev = b.target_device_of[b.last_global[idx] or 1]
   if not cur_dev then
     local df = params:get(b.prefix(idx) .. "_target_device")
-    cur_dev  = (b.device_filter[idx] and b.device_filter[idx][df]) or 1
+    cur_dev  = (b.device_filter[idx] and b.device_filter[idx][df]) or (b.none_option and 0 or 1)
   end
   modtarget.rebuild_param(b, idx, cur_dev)
 end

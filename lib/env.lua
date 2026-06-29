@@ -28,13 +28,15 @@ env.STRIP = {
   {name="Device",    suf="_target_device", typ="opt",  nmax_fn=function(i) return #(env.target_device_filter[i] or {}) end,
     fmt=function(v,i)
       local dmap = env.target_device_filter[i]
-      return (dmap and DEVICE_NAMES[dmap[v]]) or "?"
+      local di   = dmap and dmap[v]
+      if di == 0 then return "-" end
+      return (di and DEVICE_NAMES[di]) or "?"
     end},
   {name="Parameter", suf="_target_param",  typ="opt",  nmax_fn=function(i) return #(env.target_param_filter[i] or {}) end,
     fmt=function(v,i)
       local pmap = env.target_param_filter[i]
       local gi   = pmap and pmap[v]
-      if gi and TARGET_PARAMS[gi] then return TARGET_PARAMS[gi].label:match(": (.+)$") or TARGET_PARAMS[gi].label end
+      if gi and gi > 1 and TARGET_PARAMS[gi] then return TARGET_PARAMS[gi].label:match(": (.+)$") or TARGET_PARAMS[gi].label end
       return "-"
     end},
 }
@@ -100,8 +102,6 @@ local function apply_to_target(idx)
   val = math.floor(val / t.st + 0.5) * t.st
   t.send(val)
 end
-
-env.apply_to_target = apply_to_target
 
 function env.set_target(idx, new_global_idx)
   modtarget.set_target(binding, idx, new_global_idx)
@@ -185,6 +185,7 @@ function env.init(deps)
 
   binding = {
     num              = env.NUM,
+    none_option      = true,
     prefix           = function(i) return "env" .. i end,
     owner            = lfo.target_owner,
     tag              = owner_tag,
