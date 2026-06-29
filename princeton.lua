@@ -311,6 +311,27 @@ for i = 2, #TARGET_PARAMS do
   end
 end
 
+local TRIG_TARGETS = (function()
+  local t = {
+    { label = "Off" },
+    { label = "Push: Toggle",    id = "trig_push_toggle",    action = function() params:set("push_enable",    3 - params:get("push_enable"))    end },
+    { label = "Distort: Toggle", id = "trig_distort_toggle", action = function() params:set("distort_enable", 3 - params:get("distort_enable")) end },
+    { label = "Warp: Toggle",    id = "trig_warp_toggle",    action = function() params:set("warp_enable",    3 - params:get("warp_enable"))    end },
+    { label = "Repeat: Toggle",  id = "trig_repeat_toggle",  action = function() params:set("repeat_enable",  3 - params:get("repeat_enable"))  end },
+    { label = "Amp: Toggle",     id = "trig_amp_toggle",     action = function() params:set("amp_enable",     3 - params:get("amp_enable"))     end },
+    { label = "Tremolo: Toggle", id = "trig_tremolo_toggle", action = function() params:set("tremolo_enable", 3 - params:get("tremolo_enable")) end },
+    { label = "Looper: Rec",     id = "trig_looper_rec",     action = function() looper.step() end },
+    { label = "Looper: Clear",   id = "trig_looper_clear",   action = function() looper.force_clear() end },
+    { label = "Reverb: Toggle",  id = "trig_reverb_toggle",  action = function() params:set("reverb_enable",  3 - params:get("reverb_enable"))  end },
+    { label = "Limit: Toggle",   id = "trig_limit_toggle",   action = function() params:set("limit_enable",   3 - params:get("limit_enable"))   end },
+  }
+  for i = 1, lfo.NUM do
+    t[#t + 1] = { label = "LFO " .. i .. ": Randomize", id = "trig_lfo" .. i .. "_randomize", lfo_idx = i,
+                  action = function() params:set("lfo" .. i .. "_randomize", 1) end }
+  end
+  return t
+end)()
+
 local metro_active = false
 local metro_clock  = nil
 local metro_step   = 0
@@ -1160,6 +1181,7 @@ function init()
   trigs.init({
     looper           = looper,
     lfo              = lfo,
+    targets          = TRIG_TARGETS,
     is_initing      = function() return initing end,
     is_clock_running = function() return clock_running end,
   })
