@@ -13,6 +13,8 @@ local sync    = include("lib/sync")
 local scales  = include("lib/scales")
 local tuner   = include("lib/tuner")
 local looper  = include("lib/looper")
+local looper_params = include("lib/looper_params")
+local looper_ui = include("lib/looper_ui")
 local lfo     = include("lib/lfo")
 local env     = include("lib/env")
 local trigs   = include("lib/trigger")
@@ -37,14 +39,13 @@ local LOOPER_DEF = {
   { id="looper_level",      name="Play Level", default=-2.5, min=-40, max=0, step=0.5, db=true, cat="Looper"  },
   { id="looper_fade_level", name="Fade Level", default=-2.5, min=-40, max=0, step=0.5, db=true, cat="Looper"  },
   { id="looper_speed",      name="Speed",      default=0,   min=-100, max=100, step=1, db=false, cat="Looper"  },
-  { id="looper_quant_div",  name="Quant Div",  default=1,   min=1, max=8, step=1, db=false, cat="Looper", options={"Off","1/1","1/2","1/4","1/8","1/16","1/32","1/64"} },
-  { id="looper_quant_feel", name="Quant Feel", default=1,   min=1, max=3, step=1, db=false, cat="Looper", options={"Note","Dotted","Triplet"} },
+  { id="looper_quant_div",  name="Quantize",      default=1,   min=1, max=8, step=1, db=false, cat="Looper", options={"Off","1/1","1/2","1/4","1/8","1/16","1/32","1/64"} },
+  { id="looper_quant_feel", name="Quantize Feel", default=1,   min=1, max=3, step=1, db=false, cat="Looper", options={"Note","Dotted","Triplet"} },
 }
 local MIC_NAMES  = { "Center", "Middle", "Edge" }
-local DIR_NAMES  = { "Forward", "Reverse", "Pendulum", "Random" }
+local DIR_NAMES  = looper_params.DIR_NAMES
 
 local sel = 1
-local looper_sel = 1
 
 local function amp_is_bypassed()
   return params:get("amp_enable") == 1
@@ -53,6 +54,10 @@ end
 
 local view_group = 0
 local view_pane  = {[0]=1, [1]=1, [3]=1}
+local gui_mode   = 1   -- 1=Studio, 2=Stage, 3=Off
+local perf_sel   = 1   -- selected device in performance view
+local perf_param = {}  -- per-device selected param index
+local refresh_tuner    -- forward decl; syncs tuner.active to the current view/device
 local lfo_strip_sel = {1, 1, 1, 1, 1, 1, 1, 1}
 local metro_strip_sel = 1
 
@@ -129,6 +134,12 @@ local db_to_lin = function(db) return 10 ^ (db / 20) end
 
 local TARGET_PARAMS = {
   {label="Off"},
+  {label="Gate: Threshold",    id="gate_thresh",       mn=-80,  mx=0,     st=0.5,  send=function(v) engine.gate_thresh(v) end},
+  {label="Gate: Attack",       id="gate_attack",       mn=0.1,  mx=2500,  st=0.1,  send=function(v) engine.gate_attack(v) end},
+  {label="Gate: Hold",         id="gate_hold",         mn=1,    mx=2500,  st=1,    send=function(v) engine.gate_hold(math.floor(v)) end},
+  {label="Gate: Release",      id="gate_release",      mn=1,    mx=2500,  st=1,    send=function(v) engine.gate_release(v) end},
+  {label="Gate: Range",        id="gate_range",        mn=-75,  mx=0,     st=0.5,  send=function(v) engine.gate_range(v) end},
+  {label="Gate: Margin",       id="gate_hyst",         mn=0,    mx=25,    st=0.5,  send=function(v) engine.gate_hyst(v) end},
   {label="Push: Gain",         id="push_gain",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_gain(v) end},
   {label="Push: Tone",         id="push_tone",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_tone(v) end},
   {label="Push: Level",        id="push_level",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_level(v) end},
@@ -152,9 +163,16 @@ local TARGET_PARAMS = {
   {label="Looper: Rec Level",  id="looper_dub_level",  mn=-40,  mx=0,     st=0.5,  send=function(v) engine.looper_dub_level(db_to_lin(v)) end},
   {label="Looper: Play Level", id="looper_level",      mn=-40,  mx=0,     st=0.5,  send=function(v) engine.looper_level(db_to_lin(v)) end},
   {label="Looper: Fade Level", id="looper_fade_level", mn=-40,  mx=0,     st=0.5,  send=function(v) engine.looper_fade_level(db_to_lin(v)) end},
+  {label="Looper: Speed",      id="looper_speed",      mn=-100, mx=100,   st=1,    send=function(v)
+    local ratio
+    if params:get("looper_speed_control") == 1 then
+      if v < 0 then ratio = 0.5 elseif v > 0 then ratio = 2.0 else ratio = 1.0 end
+    else ratio = 2^(v/100) end
+    engine.looper_speed(ratio)
+  end},
   {label="Looper: Imprint",    id="looper_imprint",    mn=0,    mx=100,   st=1,    send=function(v) engine.looper_imprint(math.floor(v)) end},
   {label="Looper: Wear",       id="looper_wear",       mn=0,    mx=100,   st=1,    send=function(v) engine.looper_wear(math.floor(v)) end},
-  {label="Looper: Cas Wow",    id="looper_wow_cas",    mn=0,    mx=100,   st=1,    send=function(v) engine.looper_wow_cas(math.floor(v)) end},
+  {label="Looper: Cassette Wow", id="looper_wow_cas",    mn=0,    mx=100,   st=1,    send=function(v) engine.looper_wow_cas(math.floor(v)) end},
   {label="Looper: CD Errors",  id="looper_cd_errors",  mn=0,    mx=100,   st=1,    send=function(v) engine.looper_cd_errors(math.floor(v)) end},
   {label="Looper: Chip Crush", id="looper_chip_crush", mn=0,    mx=100,   st=1,    send=function(v) engine.looper_chip_crush(math.floor(v)) end},
   {label="Looper: Tape Wow",   id="looper_wow_tape",   mn=0,    mx=100,   st=1,    send=function(v) engine.looper_wow_tape(math.floor(v)) end},
@@ -165,9 +183,9 @@ local TARGET_PARAMS = {
   {label="Cab: Cab Level",     id="cab_level",         mn=-10,  mx=10,    st=0.5,  send=function(v) engine.cab_level(db_to_lin(v)) end},
   {label="Limit: Threshold",   id="limit_threshold",   mn=-40,  mx=0,     st=0.5,  send=function(v) engine.limit_threshold(db_to_lin(v)) end},
   {label="Limit: Ratio",       id="limit_ratio",       mn=2.0,  mx=20.0,  st=0.5,  send=function(v) engine.limit_ratio(v) end},
-  {label="Limit: Gain",        id="limit_gain",        mn=-20,  mx=20,    st=0.5,  send=function(v) engine.limit_gain(db_to_lin(v)) end},
   {label="Limit: Attack",      id="limit_attack",      mn=1,    mx=100,   st=1,    send=function(v) engine.limit_attack(math.floor(v)) end},
   {label="Limit: Decay",       id="limit_decay",       mn=50,   mx=2000,  st=50,   send=function(v) engine.limit_decay(math.floor(v)) end},
+  {label="Limit: Gain",        id="limit_gain",        mn=-20,  mx=20,    st=0.5,  send=function(v) engine.limit_gain(db_to_lin(v)) end},
   {label="Metro: Division",    id="metro_div",         mn=1,    mx=5,     st=1,    send=function(v) lfo.metro.div = math.floor(v+0.5) end},
   {label="Metro: Level",       id="metro_level",       mn=0,    mx=10,    st=0.1,  send=function(v) lfo.metro.level = v end},
   {label="Metro: Length",      id="metro_length",      mn=1,    mx=500,   st=1,    send=function(v) lfo.metro.length = math.floor(v + 0.5) end},
@@ -178,6 +196,10 @@ local TARGET_PARAMS = {
     lfo.metro.root = scales.quantize_root(p, tonic, params:get("metro_scale"))
   end},
   {label="Metro: Register",    id="metro_register",    mn=1,    mx=8,     st=1,    send=function(v) lfo.metro.register = math.floor(v + 0.5) end},
+  {label="Metro: Scale",       id="metro_scale",       mn=1,    mx=8,     st=1,    send=function(v) lfo.metro.scale  = math.floor(v + 0.5) end},
+  {label="Metro: Chords",      id="metro_chords",      mn=1,    mx=4,     st=1,    send=function(v) lfo.metro.chords = math.floor(v + 0.5) end},
+  {label="Metro: Scale Play",  id="metro_scale_play",  mn=1,    mx=8,     st=1,    send=function(v) lfo.metro.play   = math.floor(v + 0.5) end},
+  {label="Metro: Scale Degree",id="metro_degree",      mn=1,    mx=15,    st=1,    send=function(v) lfo.metro.degree = math.floor(v + 0.5) end},
   {label="LFO 1: Rate",        id="lfo1_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[1]  = v end},
   {label="LFO 2: Rate",        id="lfo2_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[2]  = v end},
   {label="LFO 3: Rate",        id="lfo3_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[3]  = v end},
@@ -236,26 +258,19 @@ local TARGET_PARAMS = {
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Looper: Quant Div",  id="looper_quant_div",  mn=2,    mx=8,     st=1,    send=function(v)
+  {label="Looper: Quantize",   id="looper_quant_div",  mn=2,    mx=8,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["looper_quant_div"] ~= new_v then
       lfo.sync_override["looper_quant_div"] = new_v
       looper.quant_led_restart()
     end
   end},
-  {label="Looper: Quant Feel", id="looper_quant_feel", mn=1,    mx=3,     st=1,    send=function(v)
+  {label="Looper: Quantize Feel", id="looper_quant_feel", mn=1,    mx=3,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["looper_quant_feel"] ~= new_v then
       lfo.sync_override["looper_quant_feel"] = new_v
       looper.quant_led_restart()
     end
-  end},
-  {label="Looper: Speed",      id="looper_speed",      mn=-100, mx=100,   st=1,    send=function(v)
-    local ratio
-    if params:get("looper_speed_control") == 1 then
-      if v < 0 then ratio = 0.5 elseif v > 0 then ratio = 2.0 else ratio = 1.0 end
-    else ratio = 2^(v/100) end
-    engine.looper_speed(ratio)
   end},
 }
 
@@ -296,10 +311,9 @@ for i = 2, #TARGET_PARAMS do
   end
 end
 
-local speed_steps_prev = 0
-
 local metro_active = false
 local metro_clock  = nil
+local metro_step   = 0
 
 local k_clock = {}
 
@@ -310,13 +324,23 @@ local GROUP_MAX = {[0]=2, [1]=16, [3]=4}
 
 local METRO_STRIP = {
   {name="Division", id="metro_div",     typ="opt",  nmax=5,  fmt=function(v) return sync.METRO_DIV_OPTS[v] end},
-  {name="Level",    id="metro_level",   typ="ctrl", step=0.1, fmt=function(v) return string.format("%.1f",v) end},
   {name="Root",     id="metro_root",     typ="opt", nmax=12, fmt=function(v) return scales.NOTE_NAMES[v] end},
   {name="Register", id="metro_register", typ="opt", nmax=8,  fmt=function(v) return tostring(v - 1) end},
+  {name="Scale",    id="metro_scale",    typ="opt",  nmax=8,  fmt=function(v) return scales.SCALE_NAMES[v] end},
+  {name="Degree",   id="metro_degree",     typ="opt", nmax=15, fmt=function(v) return tostring(v) end},
+  {name="Play",     id="metro_scale_play", typ="opt", nmax=8, fmt=function(v) return ({"Off","Fwd","Rev","3rds","4ths","5ths","7ths","Rnd"})[v] end},
+  {name="Chords",   id="metro_chords",     typ="opt", nmax=4, fmt=function(v) return ({"Off","Octaves","Power","Triads"})[v] end},
+  {name="Level",    id="metro_level",   typ="ctrl", step=0.1, fmt=function(v) return string.format("%.1f",v) end},
   {name="Length",   id="metro_length",  typ="ctrl", step=1,  fmt=function(v) return string.format("%dms",math.floor(v)) end},
-  {name="Scale",    id="metro_scale",    typ="opt",  nmax=7,  fmt=function(v) return scales.SCALE_NAMES[v] end},
   {name="Position", id="metro_position", typ="opt",  nmax=2,  fmt=function(v) return ({"Parallel","Inline"})[v] end},
 }
+
+local function fmt_unit(v, p)
+  if p.unit then
+    return p.step < 1 and string.format("%.1f%s", v, p.unit) or string.format("%d%s", math.floor(v), p.unit)
+  end
+  return string.format("%.1f", v)
+end
 
 local function fmt_def_val(def, idx)
   local p  = def[idx]
@@ -335,17 +359,64 @@ local function fmt_def_val(def, idx)
   local s = sync.fmt(id, clock_running)
   if s then return s end
   if p.db   then return string.format("%.1fdB", v) end
-  if p.unit then
-    local stp = p.step
-    return stp < 1 and string.format("%.1f%s", v, p.unit) or string.format("%d%s", math.floor(v), p.unit)
-  end
-  return string.format("%.1f", v)
+  return fmt_unit(v, p)
 end
 local function fmt_val(idx) return fmt_def_val(PARAMS_DEF, idx) end
+
+-- reverse lookup so any param id renders exactly as in its studio view
+local PARAM_DEF_OF = {}
+for i, e in ipairs(PARAMS_DEF) do PARAM_DEF_OF[e.id] = { def = PARAMS_DEF, idx = i } end
+for i, e in ipairs(LOOPER_DEF) do PARAM_DEF_OF[e.id] = { def = LOOPER_DEF, idx = i } end
+local PARAM_PED_OF = {}
+for _, pd in ipairs(PEDALS) do
+  for _, e in ipairs(pd.params) do PARAM_PED_OF[e.id] = e end
+end
+
+local function fmt_param(id)
+  if id == "tuner_ref" then return string.format("%.1f Hz", params:get(id)) end
+  local d = PARAM_DEF_OF[id]
+  if d then return fmt_def_val(d.def, d.idx) end
+  local pe = PARAM_PED_OF[id]
+  if pe then
+    local s = sync.fmt(id, clock_running)
+    if s then return s end
+    local v = params:get(id)
+    if pe.options then return pe.options[v] end
+    return fmt_unit(v, pe)
+  end
+  return params:string(id)
+end
 
 local function snap_val(v, step)
   if step == 1 then return math.floor(v + 0.5)
   else return math.floor(v * 10 + 0.5) / 10 end
+end
+
+-- one editing path for every view: device params carry a tuned step in the DEF
+-- tables; edit_param applies it (plus the sync-division redirect) so the main
+-- view, pedalboard, looper pane and stage view all edit a param identically.
+-- params without a DEF step (gate/limit/cab/tuner) fall back to params:delta,
+-- which is exactly how they behave in the PARAMS menu.
+local PARAM_STEP = {}
+for _, e in ipairs(PARAMS_DEF) do PARAM_STEP[e.id] = e.step end
+for _, e in ipairs(LOOPER_DEF) do PARAM_STEP[e.id] = e.step end
+for _, pd in ipairs(PEDALS) do
+  for _, e in ipairs(pd.params) do PARAM_STEP[e.id] = e.step end
+end
+PARAM_STEP["tuner_ref"] = 0.1   -- tuner has a custom strip edit, no DEF entry
+
+local function edit_param(id, d)
+  local m = sync.PARAM_MAP[id]
+  if m and params:get(m.div) > 1 then
+    params:set(m.div, util.clamp(params:get(m.div) + (d > 0 and 1 or -1), 2, #sync.DIV_OPTS))
+    return
+  end
+  local step = PARAM_STEP[id]
+  if step then
+    params:set(id, snap_val(params:get(id) + d * step, step))
+  else
+    params:delta(id, d)
+  end
 end
 
 local function draw_icon_filled_circle(cx, y)
@@ -387,12 +458,32 @@ local function draw_strip(cat, name, val_str, val_lv, val_str2)
   screen.level(B.DIM); screen.rect(0, 0, cabinet.LEFT_W, 64); screen.fill()
   screen.font_size(8); screen.font_face(0)
   screen.level(B.MED);  screen.move(cabinet.LEFT_CX,  8); screen.text_center(cat)
-  screen.level(B.MED);  screen.move(cabinet.LEFT_CX, 17); screen.text_center(name)
+  -- name: multi-part names always split onto two lines (for consistency)
+  local name2
+  local sp = name:find(" ")
+  if sp then name, name2 = name:sub(1, sp - 1), name:sub(sp + 1) end
+  local vy = 26
+  screen.level(B.MED); screen.move(cabinet.LEFT_CX, 17); screen.text_center(name)
+  if name2 then
+    screen.level(B.MED); screen.move(cabinet.LEFT_CX, 26); screen.text_center(name2)
+    vy = 35
+  end
+  -- unify value/unit: drop decimals on percent values, then no space before the unit
+  if val_str then
+    val_str = val_str:gsub("(%-?%d+)%.%d+(%s*%%)", "%1%2")  -- percent steps in whole %, so no decimals
+    val_str = val_str:gsub("(%d)%s+([%a%%])", "%1%2")       -- "440.0 Hz"->"440.0Hz", "50 %"->"50%"
+  end
+  screen.level(val_lv); screen.move(cabinet.LEFT_CX, vy); screen.text_center(val_str)
   if val_str2 then
-    screen.level(val_lv); screen.move(cabinet.LEFT_CX, 26); screen.text_center(val_str)
-    screen.level(val_lv); screen.move(cabinet.LEFT_CX, 35); screen.text_center(val_str2)
-  else
-    screen.level(val_lv); screen.move(cabinet.LEFT_CX, 26); screen.text_center(val_str)
+    screen.level(val_lv); screen.move(cabinet.LEFT_CX, vy + 9); screen.text_center(val_str2)
+  end
+end
+
+local function draw_looper_state_icon()
+  if     looper.state == looper.REC  then draw_icon_record(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
+  elseif looper.state == looper.DUB  then draw_icon_dub(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
+  elseif looper.state == looper.PLAY then draw_icon_play(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
+  elseif looper.state == looper.STOP then draw_icon_stop(cabinet.LEFT_CX, cabinet.ICON_Y, B.MED)
   end
 end
 
@@ -409,15 +500,7 @@ local function draw_left_strip()
     draw_strip(PARAMS_DEF[sel].cat, PARAMS_DEF[sel].name, fmt_val(sel), sync.val_level(PARAMS_DEF[sel].id, clock_running))
   end
 
-  if looper.state == looper.REC then
-    draw_icon_record(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
-  elseif looper.state == looper.DUB then
-    draw_icon_dub(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
-  elseif looper.state == looper.PLAY then
-    draw_icon_play(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
-  elseif looper.state == looper.STOP then
-    draw_icon_stop(cabinet.LEFT_CX, cabinet.ICON_Y, B.MED)
-  end
+  draw_looper_state_icon()
 end
 
 local function draw_metro_half(ox, oy, focused)
@@ -455,7 +538,7 @@ local function draw_group1_pane()
     tuner.draw_half(OX1, py, is_left)
     draw_metro_half(OX2, py, not is_left)
     if is_left then
-      draw_strip("Tuner", "Ref Hz", string.format("%.1f Hz", params:get("tuner_ref")), B.FULL)
+      draw_strip("Tuner", "Reference", fmt_param("tuner_ref"), B.FULL)
     else
       local ms = METRO_STRIP[metro_strip_sel]
       draw_strip("Metro", ms.name, ms.fmt(params:get(ms.id)), B.FULL)
@@ -468,7 +551,12 @@ local function draw_group1_pane()
     local es        = env.STRIP[strip_idx]
     local id  = "env" .. idx .. es.suf
     local v1  = es.fmt(params:get(id), idx)
-    draw_strip("Sense " .. idx, es.name, v1, B.FULL)
+    local v2  = nil
+    if es.suf == "_target_param" then
+      local sp = v1:find(" ")
+      if sp then v1, v2 = v1:sub(1, sp - 1), v1:sub(sp + 1) end
+    end
+    draw_strip("Sense " .. idx, es.name, v1, B.FULL, v2)
   elseif pair >= 7 then
     local trig_l = (pair - 7) * 2 + 1
     local trig_r = trig_l + 1
@@ -491,7 +579,7 @@ local function draw_group1_pane()
     local id  = "lfo" .. idx .. ls.suf
     local v1  = ls.fmt(params:get(id), idx)
     local v2  = nil
-    if ls.suf == "_waveform" then
+    if ls.suf == "_waveform" or ls.suf == "_target_param" then
       local sp = v1:find(" ")
       if sp then v1, v2 = v1:sub(1, sp - 1), v1:sub(sp + 1) end
     end
@@ -526,9 +614,7 @@ local function draw_pedalboard()
   local vstr = sync.fmt(p.id, clock_running)
   if not vstr then
     if p.options then vstr = p.options[v]
-    elseif p.unit then
-      vstr = p.step < 1 and string.format("%.1f%s", v, p.unit) or string.format("%d%s", math.floor(v), p.unit)
-    else vstr = string.format("%.1f", v) end
+    else vstr = fmt_unit(v, p) end
   end
   draw_strip(pd.name, p.name, vstr, sync.val_level(p.id, clock_running))
 
@@ -555,43 +641,148 @@ local function draw_pedalboard()
 end
 
 local function draw_looper_pane()
+  looper_ui.draw_pane()
+end
+
+local PERF_DEVICES = {
+  { abbr="TNR", name="Tuner",     active=function() return not tuner.muted end,
+    params={"tuner_ref"} },
+  { abbr="GTE", name="Gate",      enable="gate_enable",
+    params={"gate_thresh","gate_attack","gate_hold","gate_release","gate_range","gate_hyst","gate_detect"} },
+  { abbr="PSH", name="Push",      enable="push_enable",
+    params={"push_gain","push_tone","push_level","push_mix"} },
+  { abbr="DST", name="Distort",   enable="distort_enable",
+    params={"distort_gain","distort_tone","distort_level","distort_lowcut"} },
+  { abbr="WRP", name="Warp",      enable="warp_enable",
+    params={"warp_rate","warp_depth","warp_rise","warp_mix","warp_sync_div","warp_sync_feel"} },
+  { abbr="RPT", name="Repeat",    enable="repeat_enable",
+    params={"repeat_time","repeat_feedback","repeat_level","repeat_characteristic","repeat_sync_div","repeat_sync_feel"} },
+  { abbr="AMP", name="Amp",       enable="amp_enable",
+    params={"amp_volume","amp_bass","amp_treble","amp_master"} },
+  { abbr="TRM", name="Tremolo",   enable="tremolo_enable",
+    params={"tremolo_speed","tremolo_intensity","tremolo_sync_div","tremolo_sync_feel"} },
+  { abbr="LPR", name="Looper",    active=function() return looper.state ~= looper.IDLE end,
+    params={"looper_medium","looper_wear","looper_direction","looper_dub_level","looper_level","looper_fade_level","looper_speed","looper_quant_div","looper_quant_feel"} },
+  { abbr="RVB", name="Reverb",    enable="reverb_enable",
+    params={"reverb_amount","reverb_length","reverb_low_shelf","reverb_high_shelf"} },
+  { abbr="CAB", name="Cab & Mic", enable="cab_mode",
+    params={"mic_position","cab_level"} },
+  { abbr="LMT", name="Limit",     enable="limit_enable",
+    params={"limit_threshold","limit_ratio","limit_attack","limit_decay","limit_gain"} },
+}
+
+local function perf_active(dev)
+  if dev.active then return dev.active() end
+  return params:get(dev.enable) == 2
+end
+local PERF_COLS, PERF_ROWS = 4, 3   -- 3x4; set to 6, 2 for 2x6
+local PERF_ROW_SPREAD = 3            -- top row up, bottom row down, toward the screen edges
+
+local function perf_pid()
+  local dev = PERF_DEVICES[perf_sel]
+  return dev.params[perf_param[perf_sel] or 1]
+end
+
+-- serpentine placement: odd rows run right-to-left, so the signal path snakes
+-- and the row transitions (DST->WRP, TRM->LPR) drop straight down
+local function perf_pos(d)
+  local i   = d - 1
+  local row = math.floor(i / PERF_COLS)
+  local col = i % PERF_COLS
+  if row % 2 == 1 then col = PERF_COLS - 1 - col end
+  return col, row
+end
+
+local function perf_row_y(gy, ch, row) return gy + row * ch + (row - 1) * PERF_ROW_SPREAD end
+
+local function draw_perf_flow(gx, gy, cw, ch)
+  screen.level(B.MED)
+  local function cx(c)   return gx + c * cw + math.floor(cw / 2) end
+  local function rowy(r) return perf_row_y(gy, ch, r) end
+  local function cy(r)   return rowy(r) + math.floor(ch / 2) end
+  -- input: from the top edge down into the first block (TNR)
+  local ic = perf_pos(1)
+  screen.move(cx(ic), 0); screen.line(cx(ic), rowy(0) + 2); screen.stroke()
+  -- connectors following the serpentine signal path 1 -> 12
+  for d = 1, #PERF_DEVICES - 1 do
+    local c1, r1 = perf_pos(d)
+    local c2, r2 = perf_pos(d + 1)
+    if r1 == r2 then
+      local lc, rc = math.min(c1, c2), math.max(c1, c2)
+      screen.move(gx + lc * cw + cw - 1, cy(r1)); screen.line(gx + rc * cw + 1, cy(r1)); screen.stroke()
+    else
+      screen.move(cx(c1), rowy(r1) + ch - 2); screen.line(cx(c1), rowy(r2) + 2); screen.stroke()
+    end
+  end
+  -- output: from the last block (LMT) straight down to the bottom edge
+  local oc, orow = perf_pos(#PERF_DEVICES)
+  screen.move(cx(oc), rowy(orow) + ch - 2); screen.line(cx(oc), 63); screen.stroke()
+end
+
+local function draw_performance()
   screen.clear()
-
-  local p = LOOPER_DEF[looper_sel]
-  draw_strip(p.cat, p.name, fmt_def_val(LOOPER_DEF, looper_sel), sync.val_level(p.id, clock_running))
-
-  if looper.state == looper.REC then
-    draw_icon_record(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
-  elseif looper.state == looper.DUB then
-    draw_icon_dub(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
-  elseif looper.state == looper.PLAY then
-    draw_icon_play(cabinet.LEFT_CX, cabinet.ICON_Y, B.FULL)
-  elseif looper.state == looper.STOP then
-    draw_icon_stop(cabinet.LEFT_CX, cabinet.ICON_Y, B.MED)
+  -- left: studio-style readout for the selected device
+  local dev = PERF_DEVICES[perf_sel]
+  if dev.abbr == "LPR" then
+    local li = perf_param[perf_sel] or 1
+    local lp = LOOPER_DEF[li]
+    draw_strip(lp.cat, lp.name, fmt_def_val(LOOPER_DEF, li), sync.val_level(lp.id, clock_running))
+    draw_looper_state_icon()
+  elseif dev.abbr == "TNR" then
+    local cx  = cabinet.LEFT_CX
+    local tlv = tuner.muted and B.MED or B.FULL
+    local pid = perf_pid()
+    draw_strip(dev.name, params:lookup_param(pid).name, fmt_param(pid), B.FULL)
+    screen.font_size(16); screen.font_face(0); screen.level(tlv)
+    screen.move(cx, 46); screen.text_center(tuner.note)
+    screen.font_size(8)
+    if tuner.note ~= "--" then
+      screen.level(tlv)
+      screen.move(cx + 12, 36); screen.text(tostring(tuner.octave))
+      tuner.draw_arrow(cx, 58, tuner.arrow)
+    end
+  else
+    local pid = perf_pid()
+    draw_strip(dev.name, params:lookup_param(pid).name, fmt_param(pid), B.FULL)
   end
-
-  local OX, OY      = 44, 3
-  local rec_active  = (looper.state == looper.REC or looper.state == looper.PLAY or looper.state == looper.DUB)
-  local left_active = (looper.state == looper.STOP)
-
-  local function blit(lst, lv)
-    if #lst == 0 then return end
-    screen.level(lv)
-    for _, q in ipairs(lst) do screen.rect(OX + q[1], OY + q[2], 1, 1) end
-    screen.fill()
+  -- right: 12 device blocks in the cabinet footprint
+  screen.font_size(8); screen.font_face(0)
+  local cw = math.floor(cabinet.CAB.w / PERF_COLS)
+  local ch = math.floor(cabinet.CAB.h / PERF_ROWS)
+  local gx = cabinet.CAB.x + math.floor((cabinet.CAB.w - cw * PERF_COLS) / 2)
+  local gy = cabinet.CAB.y + math.floor((cabinet.CAB.h - ch * PERF_ROWS) / 2)
+  draw_perf_flow(gx, gy, cw, ch)
+  for d = 1, #PERF_DEVICES do
+    local col, row = perf_pos(d)
+    local x   = gx + col * cw
+    local y   = perf_row_y(gy, ch, row)
+    local dv  = PERF_DEVICES[d]
+    screen.level(d == perf_sel and B.FULL or B.MED)
+    screen.rect(x + 1, y + 2, cw - 2, ch - 4); screen.stroke()  -- 1px shorter top+bottom for the flow gap
+    screen.level(perf_active(dv) and B.FULL or B.MED)
+    local tw = screen.text_extents(dv.abbr)
+    screen.move(math.floor(x + (cw - tw) / 2), y + ch / 2 + 2); screen.text(dv.abbr)
   end
-
-  blit(sprites.LOOPER_PTS.bg, B.MED)
-  for i = 1, 9 do blit(sprites.LOOPER_PTS.knob[i], (looper_sel == i) and B.FULL or B.MED) end
-  blit(sprites.LOOPER_PTS.ldisp, left_active   and B.FULL or B.MED)
-  blit(sprites.LOOPER_PTS.rdisp, rec_active    and B.FULL or B.MED)
-  blit(sprites.LOOPER_PTS.led,   looper.quant_led_lit and B.FULL or B.MED)
-
   screen.update()
+end
+
+local function perf_enc(n, d)
+  if n == 1 then
+    perf_sel = util.clamp(perf_sel + d, 1, #PERF_DEVICES)
+  elseif n == 2 then
+    local dev = PERF_DEVICES[perf_sel]
+    perf_param[perf_sel] = util.clamp((perf_param[perf_sel] or 1) + d, 1, #dev.params)
+  elseif n == 3 then
+    edit_param(perf_pid(), d)
+  end
+  if refresh_tuner then refresh_tuner() end
+  redraw()
 end
 
 function redraw()
   if initing then return end
+  if gui_mode == 3 then screen.clear(); screen.update(); return end
+  if gui_mode == 2 then draw_performance(); return end
   if view_group == 1 then draw_group1_pane(); return end
   if view_group == 3 then draw_pedalboard(); return end
   if view_pane[0] == 2 then draw_looper_pane(); return end
@@ -604,8 +795,11 @@ function redraw()
 end
 
 local function is_tuner_active()
+  if gui_mode ~= 1 then return gui_mode == 2 and PERF_DEVICES[perf_sel].abbr == "TNR" end
   return view_group == 1 and view_pane[1] == 1
 end
+
+refresh_tuner = function() tuner.set_active(is_tuner_active()) end
 
 
 local function set_view(g)
@@ -627,13 +821,31 @@ local function metro_tick_now()
   local root     = lfo.metro.root     ~= nil and lfo.metro.root          or params:get("metro_root")
   local register = lfo.metro.register ~= nil and lfo.metro.register      or params:get("metro_register")
   if root <= 0 then return end
-  local pitch    = (register - 1) * 12 + root
-  local position = params:get("metro_position") - 1
-  engine.metro_tick(level, pitch - 1 - 57, length, position)
+  local scale_idx = lfo.metro.scale  ~= nil and lfo.metro.scale  or params:get("metro_scale")
+  local play      = lfo.metro.play   ~= nil and lfo.metro.play   or params:get("metro_scale_play")
+  local kind      = lfo.metro.chords ~= nil and lfo.metro.chords or params:get("metro_chords")
+  local position  = params:get("metro_position") - 1
+  local base      = (register - 1) * 12 + root
+
+  local stepping  = (scale_idx >= 2 and play >= 2)
+  local degree    = 1
+  if scale_idx >= 2 then
+    local base_deg   = stepping and scales.play_degree(scale_idx, play, metro_step) or 1
+    local degree_off = (lfo.metro.degree ~= nil and lfo.metro.degree or params:get("metro_degree")) - 1
+    degree = base_deg + degree_off
+  end
+
+  for _, off in ipairs(scales.chord_tones(scale_idx, degree, kind)) do
+    local p = util.clamp(base + off, 1, 108)
+    engine.metro_tick(level, p - 1 - 57, length, position)
+  end
+
+  if stepping then metro_step = metro_step + 1 end
 end
 
 local function metro_clock_start()
   if metro_clock then clock.cancel(metro_clock) end
+  metro_step = 0
   metro_clock = clock.run(function()
     if clock_running then
       clock.sync(sync.METRO_DIV_BEATS[lfo.metro.div or params:get("metro_div")])
@@ -657,6 +869,8 @@ local function metro_clock_stop()
 end
 
 function enc(n, d)
+  if gui_mode == 3 then return end
+  if gui_mode == 2 then perf_enc(n, d); return end
   if view_group == 1 then
     if n == 1 then
       set_pane(view_pane[1] + d)
@@ -664,10 +878,7 @@ function enc(n, d)
     end
     local p = view_pane[1]
     if p == 1 then
-      if n == 3 then
-        local v = params:get("tuner_ref") + d * 0.1
-        params:set("tuner_ref", math.floor(v * 10 + 0.5) / 10)
-      end
+      if n == 3 then edit_param("tuner_ref", d) end
     elseif p == 2 then
       if n == 2 then
         metro_strip_sel = util.clamp(metro_strip_sel + d, 1, #METRO_STRIP)
@@ -755,13 +966,7 @@ function enc(n, d)
       redraw()
     elseif n == 3 then
       local pd = cur_pedal()
-      local p  = pd.params[pd.psel]
-      local m  = sync.PARAM_MAP[p.id]
-      if m and params:get(m.div) > 1 then
-        params:set(m.div, util.clamp(params:get(m.div) + (d > 0 and 1 or -1), 2, #sync.DIV_OPTS))
-      else
-        params:set(p.id, snap_val(params:get(p.id) + d * p.step, p.step))
-      end
+      edit_param(pd.params[pd.psel].id, d)
       redraw()
     end
     return
@@ -773,14 +978,7 @@ function enc(n, d)
   end
 
   if view_pane[0] == 2 then
-    if n == 2 then
-      looper_sel = util.clamp(looper_sel + d, 1, #LOOPER_DEF)
-      redraw()
-    elseif n == 3 then
-      local p = LOOPER_DEF[looper_sel]
-      params:set(p.id, snap_val(params:get(p.id) + d * p.step, p.step))
-      redraw()
-    end
+    looper_ui.enc(n, d)
     return
   end
 
@@ -788,13 +986,7 @@ function enc(n, d)
     sel = util.clamp(sel + d, 1, #PARAMS_DEF)
     redraw()
   elseif n == 3 then
-    local p = PARAMS_DEF[sel]
-    local m = sync.PARAM_MAP[p.id]
-    if m and params:get(m.div) > 1 then
-      params:set(m.div, util.clamp(params:get(m.div) + (d > 0 and 1 or -1), 2, #sync.DIV_OPTS))
-    else
-      params:set(p.id, snap_val(params:get(p.id) + d * p.step, p.step))
-    end
+    edit_param(PARAMS_DEF[sel].id, d)
     redraw()
   end
 end
@@ -815,7 +1007,30 @@ local function long_press(key, z, fn_long, fn_short)
   end
 end
 
+local function perf_key(n, z)
+  local dev = PERF_DEVICES[perf_sel]
+  if n == 2 then
+    long_press("k2", z, function() end, function()
+      if dev.abbr == "LPR" then looper.stop_clear() end
+    end)
+  elseif n == 3 then
+    long_press("k3", z, function() end, function()
+      if dev.abbr == "LPR" then
+        looper.step()
+      elseif dev.abbr == "TNR" then
+        tuner.muted = not tuner.muted
+        engine.mute(tuner.muted and 1 or 0)
+        redraw()
+      elseif dev.enable then
+        params:set(dev.enable, 3 - params:get(dev.enable))
+      end
+    end)
+  end
+end
+
 function key(n, z)
+  if gui_mode == 3 then return end
+  if gui_mode == 2 then perf_key(n, z); return end
   if n == 1 then
     long_press("k1", z, function()
       if view_group == 1 then set_view(0) else set_view(1) end
@@ -825,7 +1040,7 @@ function key(n, z)
 
   if n == 2 then
     long_press("k2", z, function()
-      if view_group == 3 and view_pane[3] == 1 then set_view(0)
+      if view_group == 3 and view_pane[3] <= 2 then set_view(0)
       else view_pane[3] = 1; set_view(3) end
     end, function()
       if view_group == 0 then
@@ -845,7 +1060,7 @@ function key(n, z)
 
   if n == 3 then
     long_press("k3", z, function()
-      if view_group == 3 and view_pane[3] == 3 then set_view(0)
+      if view_group == 3 and view_pane[3] >= 3 then set_view(0)
       else view_pane[3] = 3; set_view(3) end
     end, function()
       if view_group == 0 then
@@ -903,6 +1118,17 @@ function init()
     is_clock_running = function() return clock_running end,
     get_override     = function() return lfo.sync_override end,
     is_pane_visible  = function() return view_group == 0 and view_pane[0] == 2 end,
+  })
+  looper_ui.init({
+    draw_strip      = draw_strip,
+    fmt_val         = function(i) return fmt_def_val(LOOPER_DEF, i) end,
+    LOOPER_DEF      = LOOPER_DEF,
+    val_level       = function(id) return sync.val_level(id, clock_running) end,
+    draw_state_icon = draw_looper_state_icon,
+    B               = B,
+    looper          = looper,
+    LOOPER_PTS      = sprites.LOOPER_PTS,
+    edit_param      = edit_param,
   })
   lfo.init({
     TARGET_PARAMS    = TARGET_PARAMS,
@@ -973,9 +1199,9 @@ function init()
 
   local function add_sync_params(prefix)
     params:add_separator(prefix .. "_sep_sync", "─── Synchronization ───")
-    params:add_option(prefix .. "_sync_div", "Synchronization", sync.DIV_OPTS, 4)
+    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, 4)
     params:set_action(prefix .. "_sync_div", sync_df_action(prefix))
-    params:add_option(prefix .. "_sync_feel", "Synchronization Feel", sync.FEEL_OPTS, 1)
+    params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
     params:set_action(prefix .. "_sync_feel", sync_df_action(prefix))
   end
 
@@ -1021,72 +1247,15 @@ function init()
   end
 
   local function setup_looper()
-    params:add_group("LOOPER", 26)
-    params:add_separator("looper_sep_control", "─── Control ───")
-    params:add_option("looper_transport", "Step Order", {"Rec·Play·Dub", "Rec·Dub·Play"}, 1)
-    params:add_option("looper_play_from", "Play From", {"Start", "Cue"}, 1)
-    params:set_action("looper_play_from", function(v) engine.looper_play_from(v - 1); re() end)
-    params:add_option("looper_dub_style", "Mode", {"Overdub", "Overwrite", "Sample", "Resample"}, 1)
-    params:set_action("looper_dub_style", function(v) engine.looper_dub_style(v - 1); re() end)
-    params:add_option("looper_direction", "Direction", DIR_NAMES, 1)
-    params:set_action("looper_direction", function(v) engine.looper_direction(v - 1); re() end)
-    params:add_control("looper_dub_level", "Rec Level", controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-    params:set_action("looper_dub_level", db_action("looper_dub_level"))
-    params:add_control("looper_level", "Play Level", controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-    params:set_action("looper_level", db_action("looper_level"))
-    params:add_control("looper_fade_level", "Fade Level", controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-    params:set_action("looper_fade_level", db_action("looper_fade_level"))
-    params:add{type="number", id="looper_speed", name="Speed", min=-100, max=100, default=0, formatter=function(p) return p:get() .. "%" end, action=function(v)
-      if params:get("looper_speed_control") == 1 then
-        local snapped
-        if     v > speed_steps_prev then snapped = v > 0 and 100 or 0
-        elseif v < speed_steps_prev then snapped = v < 0 and -100 or 0
-        else                             snapped = speed_steps_prev end
-        speed_steps_prev = snapped
-        if v ~= snapped then params:set("looper_speed", snapped); return end
-      else
-        speed_steps_prev = v
-      end
-      if lfo.target_owner["looper_speed"] == nil then engine.looper_speed(looper.speed_value()) end
-      re()
-    end}
-    params:add_option("looper_speed_control", "Speed Control", {"Steps","Smooth"}, 1)
-
-    params:add_separator("looper_sep_medium", "─── Medium ───")
-    params:add_option("looper_medium", "Medium", {"BBD","Cassette","CD","Chip","Tape","Vinyl"}, 4)
-    params:set_action("looper_medium", function(v) engine.looper_medium(v - 1); looper.medium_changed(); re() end)
-    params:add_control("looper_imprint", "Imprint", controlspec.new(0, 100, "lin", 1, 50, "%"))
-    params:set_action("looper_imprint", function(v) engine.looper_imprint(v); re() end)
-    params:add_control("looper_wear", "Wear", controlspec.new(0, 100, "lin", 1, 5, "%"))
-    params:set_action("looper_wear", function(v) engine.looper_wear(v); re() end)
-    params:add_option("looper_bbd_tone", "M: BBD Tone", {"Bright", "Dark"}, 1)
-    params:set_action("looper_bbd_tone", function(v) engine.looper_bbd_tone(v - 1) end)
-    params:add_control("looper_wow_cas", "M: Cassette Wow", controlspec.new(0, 100, "lin", 1, 5, "%"))
-    params:set_action("looper_wow_cas", function(v) engine.looper_wow_cas(v) end)
-    params:add_control("looper_cd_errors", "M: CD Errors", controlspec.new(0, 100, "lin", 1, 0, "%"))
-    params:set_action("looper_cd_errors", function(v) engine.looper_cd_errors(v) end)
-    params:add_control("looper_chip_crush", "M: Chip Crush", controlspec.new(0, 100, "lin", 1, 0, "%"))
-    params:set_action("looper_chip_crush", function(v) engine.looper_chip_crush(v) end)
-    params:add_control("looper_wow_tape", "M: Tape Wow", controlspec.new(0, 100, "lin", 1, 5, "%"))
-    params:set_action("looper_wow_tape", function(v) engine.looper_wow_tape(v) end)
-    params:add_control("looper_vinyl_noise", "M: Vinyl Noise", controlspec.new(0, 100, "lin", 1, 10, "%"))
-    params:set_action("looper_vinyl_noise", function(v) engine.looper_vinyl_noise(v) end)
-
-    params:add_separator("looper_sep_sync", "─── Quantization ───")
-    params:add_option("looper_quant_div", "Quantization", sync.DIV_OPTS, 1)
-    params:set_action("looper_quant_div", function(_)
-      looper.quant_led_restart()
-      if not initing then lfo.refresh_dropdowns_for_device("Looper") end
-      re()
-    end)
-    params:add_option("looper_quant_feel", "Quantization Feel", sync.FEEL_OPTS, 1)
-    params:set_action("looper_quant_feel", function(_) looper.quant_led_restart(); re() end)
-
-    params:add_separator("looper_sep_trigger", "─── Trigger ───")
-    params:add_binary("looper_rec_play", "Rec/Play", "trigger", 0)
-    params:set_action("looper_rec_play", function(v) if v == 1 then looper.step() end end)
-    params:add_binary("looper_stop_clear", "Stop/Clear", "trigger", 0)
-    params:set_action("looper_stop_clear", function(v) if v == 1 then looper.stop_clear() end end)
+    looper_params.setup({
+      re                   = re,
+      db_to_lin            = db_to_lin,
+      is_initing           = function() return initing end,
+      on_quant_div_changed = function() lfo.refresh_dropdowns_for_device("Looper") end,
+      speed_is_owned       = function() return lfo.target_owner["looper_speed"] ~= nil end,
+      looper               = looper,
+      embedded             = true,
+    })
   end
 
   local function setup_reverb()
@@ -1131,31 +1300,66 @@ function init()
     params:set_action("limit_enable", function(v) engine.limit_bypass(2 - v); re() end)
     params:add_control("limit_threshold", "Threshold", controlspec.new(-40, 0, "lin", 0.5, -10, "dB"))
     params:set_action("limit_threshold", db_action("limit_threshold"))
-    add_engine_ctrl("limit_ratio",  "Ratio",  2.0, 20.0, "lin", 0.5, 4.0, ":1")
-    params:add_control("limit_gain", "Gain", controlspec.new(-20, 20, "lin", 0.5, 0, "dB"))
-    params:set_action("limit_gain", db_action("limit_gain"))
+    add_engine_ctrl("limit_ratio",  "Ratio",  2.0, 20.0, "lin", 0.5, 4.0, ": 1")
     add_engine_ctrl("limit_attack", "Attack", 1,   100,  "lin", 1,   10,  "ms")
     add_engine_ctrl("limit_decay",  "Decay",  50,  2000, "lin", 50,  50,  "ms")
+    params:add_control("limit_gain", "Gain", controlspec.new(-20, 20, "lin", 0.5, 0, "dB"))
+    params:set_action("limit_gain", db_action("limit_gain"))
+  end
+
+  local function setup_gate()
+    params:add_group("NOISE GATE", 9)
+    params:add_separator("gate_sep_control", "─── Control ───")
+    params:add_option("gate_enable", "Enable", {"Bypass", "Active"}, 1)
+    params:set_action("gate_enable", function(v) if v == 2 then engine.gate_on() else engine.gate_off() end; re() end)
+    params:add_control("gate_thresh", "Threshold", controlspec.new(-80, 0, "lin", 0.5, -50, "dB"))
+    params:set_action("gate_thresh", function(v) engine.gate_thresh(v); re() end)
+    add_engine_ctrl("gate_attack",  "Attack",  0.1, 2500, "exp", 0, 1,   "ms")
+    add_engine_ctrl("gate_hold",    "Hold",    1,   2500, "exp", 0, 20,  "ms")
+    add_engine_ctrl("gate_release", "Release", 1,   2500, "exp", 0, 100, "ms")
+    params:add_control("gate_range", "Range", controlspec.new(-75, 0, "lin", 0.5, -75, "dB"))
+    params:set_action("gate_range", function(v) engine.gate_range(v); re() end)
+    add_engine_ctrl("gate_hyst", "Margin", 0, 25, "lin", 0.5, 0, "dB")
+    params:add_option("gate_detect", "Detection", {"Peak", "RMS"}, 1)
+    params:set_action("gate_detect", function(v) engine.gate_detect(v - 1); re() end)
   end
 
   local function setup_metro()
-    params:add_group("METRO", 10)
+    params:add_group("METRO", 15)
     params:add_separator("metro_sep_control", "─── Control ───")
     params:add_option("metro_enable", "Enable", {"Off", "On"}, 1)
     params:set_action("metro_enable", function(v) metro_active = (v == 2); if metro_active then metro_clock_start() else metro_clock_stop() end; re() end)
     params:add_text("metro_bpm", "BPM", "120")
     params:add_option("metro_div", "Division", sync.METRO_DIV_OPTS, 3)
     params:set_action("metro_div", function(_) if metro_active then metro_clock_start() end end)
-    params:add_control("metro_level", "Level", controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-    params:set_action("metro_level", function(_) lfo.metro.level = nil; re() end)
+
+    params:add_separator("metro_sep_voice", "─── Voice ───")
     params:add_option("metro_root", "Root", scales.NOTE_NAMES, 1)
     params:set_action("metro_root", function(_) lfo.metro.root = nil; re() end)
     params:add_option("metro_register", "Register", {"0","1","2","3","4","5","6","7"}, 4)
     params:set_action("metro_register", function(_) lfo.metro.register = nil; re() end)
+    params:add_option("metro_scale", "Scale", scales.SCALE_NAMES, 1)
+    params:set_action("metro_scale", function(v)
+      lfo.metro.scale = nil
+      if v == 1 then params:hide("metro_scale_play"); params:hide("metro_degree")
+      else            params:show("metro_scale_play"); params:show("metro_degree") end
+      if _menu and _menu.rebuild_params then _menu.rebuild_params() end
+      re()
+    end)
+    params:add_number("metro_degree", "Scale Degree", 1, 15, 1)
+    params:set_action("metro_degree", function(_) lfo.metro.degree = nil end)
+    params:add_option("metro_scale_play", "Scale Play",
+      {"Off", "Forward", "Reverse", "Interval (Thirds)", "Interval (Fourths)", "Interval (Fifths)", "Interval (Sevenths)", "Random"}, 1)
+    params:set_action("metro_scale_play", function(_) lfo.metro.play = nil; metro_step = 0 end)
+    params:add_option("metro_chords", "Chords", {"Off", "Octaves", "Power Chords", "Triads"}, 1)
+    params:set_action("metro_chords", function(_) lfo.metro.chords = nil end)
+
+    params:add_separator("metro_sep_sound", "─── Sound ───")
+    params:add_control("metro_level", "Level", controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
+    params:set_action("metro_level", function(_) lfo.metro.level = nil; re() end)
     params:add_control("metro_length", "Length", controlspec.new(1, 500, "lin", 1, 50, "ms"))
     params:set_action("metro_length", function(_) lfo.metro.length = nil end)
     params:add_option("metro_position", "Position", {"Parallel", "Inline"}, 1)
-    params:add_option("metro_scale", "Scale", scales.SCALE_NAMES, 1)
   end
 
   local function setup_tuner()
@@ -1319,15 +1523,11 @@ function init()
 
     params:add_separator(prefix .. "_sep_target", "─── Target ───")
 
-    params:add_option(prefix .. "_target_device", "Target Device", DEVICE_NAMES, 1)
+    params:add_option(prefix .. "_target_device", "Target Device", {"-"}, 1)
     params:set_action(prefix .. "_target_device", function(filtered_v)
       if not initing then
         local cur_global = lfo.last_global[idx] or 1
-        local cur_dev = TARGET_DEVICE_OF[cur_global]
-        if not cur_dev then
-          local dev_filtered = params:get(prefix .. "_target_device")
-          cur_dev = (lfo.target_device_filter[idx] and lfo.target_device_filter[idx][dev_filtered]) or 1
-        end
+        local cur_dev = TARGET_DEVICE_OF[cur_global] or 0
         local dmap = lfo.target_device_filter[idx]
         local cur_filtered = find_filtered_idx(dmap, cur_dev)
         if not params.pset_loading then
@@ -1352,12 +1552,7 @@ function init()
       re()
     end)
 
-    local first_dev_shorts = {}
-    if DEVICE_PARAMS[1] then
-      for _, e in ipairs(DEVICE_PARAMS[1]) do first_dev_shorts[#first_dev_shorts + 1] = e.short end
-    end
-    if #first_dev_shorts == 0 then first_dev_shorts = {"-"} end
-    params:add_option(prefix .. "_target_param", "Target Param", first_dev_shorts, math.min(idx, #first_dev_shorts))
+    params:add_option(prefix .. "_target_param", "Target Param", {"-"}, 1)
     params:set_action(prefix .. "_target_param", function(filtered_v)
       if not initing then
         local cur_global = lfo.last_global[idx] or 1
@@ -1435,15 +1630,11 @@ function init()
 
     params:add_separator(prefix .. "_sep_target", "─── Target ───")
 
-    params:add_option(prefix .. "_target_device", "Target Device", DEVICE_NAMES, 1)
+    params:add_option(prefix .. "_target_device", "Target Device", {"-"}, 1)
     params:set_action(prefix .. "_target_device", function(filtered_v)
       if not initing then
         local cur_global = env.last_global[idx] or 1
-        local cur_dev = TARGET_DEVICE_OF[cur_global]
-        if not cur_dev then
-          local dev_filtered = params:get(prefix .. "_target_device")
-          cur_dev = (env.target_device_filter[idx] and env.target_device_filter[idx][dev_filtered]) or 1
-        end
+        local cur_dev = TARGET_DEVICE_OF[cur_global] or 0
         local dmap = env.target_device_filter[idx]
         local cur_filtered = 1
         if dmap then
@@ -1475,12 +1666,7 @@ function init()
       re()
     end)
 
-    local first_dev_shorts = {}
-    if DEVICE_PARAMS[1] then
-      for _, e in ipairs(DEVICE_PARAMS[1]) do first_dev_shorts[#first_dev_shorts + 1] = e.short end
-    end
-    if #first_dev_shorts == 0 then first_dev_shorts = {"-"} end
-    params:add_option(prefix .. "_target_param", "Target Param", first_dev_shorts, math.min(idx, #first_dev_shorts))
+    params:add_option(prefix .. "_target_param", "Target Param", {"-"}, 1)
     params:set_action(prefix .. "_target_param", function(filtered_v)
       if not initing then
         local cur_global = env.last_global[idx] or 1
@@ -1518,7 +1704,7 @@ function init()
       if _menu and _menu.rebuild_params then _menu.rebuild_params() end
     end
 
-    local default_dev = idx + 1
+    local default_dev = 1
     local dev_shorts = {}
     if trigs.DEVICE_PARAMS[default_dev] then
       for _, e in ipairs(trigs.DEVICE_PARAMS[default_dev]) do
@@ -1684,9 +1870,17 @@ function init()
     end)
   end
 
+  local function setup_gui()
+    params:add_group("GUI", 1)
+    params:add_option("gui", "GUI", {"Studio", "Stage", "Off"}, 1)
+    params:set_action("gui", function(v) gui_mode = v; if refresh_tuner then refresh_tuner() end; redraw() end)
+  end
+
   -- ── Param registration ───────────────────────────────────────
   params:add_separator("princeton_header", "─── PRINCETON ───")
+  setup_gui()
   setup_signal_flow()
+  setup_gate()
   for i = 1, #PEDALS do setup_pedal(i) end
   setup_amp()
   setup_tremolo()
@@ -1729,8 +1923,8 @@ function init()
     local mods = {}
     for i = 1, env.NUM do mods[#mods + 1] = { idx = i, set = env.set_target } end
     for i = 1, lfo.NUM do mods[#mods + 1] = { idx = i, set = lfo.set_target } end
-    for n, m in ipairs(mods) do
-      m.set(m.idx, math.min(n + 1, #TARGET_PARAMS))
+    for _, m in ipairs(mods) do
+      m.set(m.idx, 1)
     end
   end
 
