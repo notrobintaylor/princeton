@@ -71,9 +71,13 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
                                                   ▼
                                                 Limit
                                                   │
-                                   ┌──────────────┼──────────────┐
-                                   ▼              ▼              ▼
-                                OUT L/R        SEND A         SEND B
+                                                  ▼
+                                                OUT L/R
+
+  Send A and Send B each tap one of three points, scaled by its own level:
+    Input   the post-pedal signal feeding the amp (after Gate, Push, Distort)
+    Looper  the looper output on its own
+    Output  the full stereo mix at OUT L/R
 ```
 
 ## GUI modes
@@ -131,10 +135,16 @@ Parameters are listed in PARAMS menu order.
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Input** | Mono | Mono / Stereo |
+| **Send A Source** | Output | Input / Looper / Output |
+| **Send A Level** | 0 dB | -60 to +10 dB |
+| **Send B Source** | Output | Input / Looper / Output |
+| **Send B Level** | 0 dB | -60 to +10 dB |
 
 **Mono** uses the left input only at instrument level. This is the default, designed for a guitar plugged into the L jack. **Stereo** opens both inputs at line level (about 10 dB lower) and routes a symmetric stereo path through Push, Distort, Warp, Repeat, and the amp. The tremolo's left/right pingpong, the looper's stereo buffer, and the reverb stay unchanged in either mode.
 
 The two pixels on the amp panel reflect the active inputs. The left pixel always lights; the right pixel lights only in Stereo.
+
+**Send A** and **Send B** route to the two Norns send buses, which a compatible fx mod can read in its send a or send b slot. Each send picks its source independently: **Input** is the post-pedal signal feeding the amp, **Looper** is the looper output on its own, and **Output** is the full mix at OUT L/R. **Level** scales the send from -60 dB (effectively off) up to +10 dB. With both sends at their defaults (Output, 0 dB) each carries the full output at unity, the same as before the sources became selectable.
 
 Available from PARAMS or MAP. Not surfaced in the encoder strip.
 
@@ -423,7 +433,7 @@ Eight LFOs, each with the following parameters:
 | **Rate Slew** | 0 s | 0–5 s (non-Step-Random only) |
 | **Target Device** | - | device group |
 | **Target Param** | - | parameter within device |
-| **Randomize** | — | trigger (Stepped Random only, in PARAMS / MAP) |
+| **Randomize** | - | trigger (Stepped Random only, in PARAMS / MAP) |
 
 **Enable** starts the LFO moving its target. Ownership is claimed earlier, the moment the LFO points at a target: the device and parameter dropdowns filter out parameters already claimed by another LFO or Sense module, so two sources can never share a target. A claimed target's PARAMS entry carries the `(M)` prefix whether or not its owner is enabled. While the owner is disabled the value sits at its base and still responds to manual edits; while the owner is enabled the modulation drives it. Every source ships with no target (`-`); pick a Device and the first free parameter is selected automatically, and setting the Device back to `-` releases the target.
 

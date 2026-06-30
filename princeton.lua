@@ -1392,10 +1392,18 @@ function init()
   end
 
   local function setup_signal_flow()
-    params:add_group("SIGNAL FLOW", 2)
+    params:add_group("SIGNAL FLOW", 6)
     params:add_separator("signal_flow_sep_control", "─── Control ───")
     params:add_option("signal_input", "Input", {"Mono", "Stereo"}, 1)
     params:set_action("signal_input", function(v) engine.signal_input(v); re() end)
+    params:add_option("fx_send_a_source", "Send A Source", {"Input", "Looper", "Output"}, 3)
+    params:set_action("fx_send_a_source", function(v) engine.fx_send_a_source(v - 1); re() end)
+    params:add_control("fx_send_a_level", "Send A Level", controlspec.new(-60, 10, "lin", 0.5, 0, "dB"))
+    params:set_action("fx_send_a_level", db_action("fx_send_a_level"))
+    params:add_option("fx_send_b_source", "Send B Source", {"Input", "Looper", "Output"}, 3)
+    params:set_action("fx_send_b_source", function(v) engine.fx_send_b_source(v - 1); re() end)
+    params:add_control("fx_send_b_level", "Send B Level", controlspec.new(-60, 10, "lin", 0.5, 0, "dB"))
+    params:set_action("fx_send_b_level", db_action("fx_send_b_level"))
   end
 
   local function find_filtered_idx(map, target)
@@ -1893,7 +1901,8 @@ function init()
   end
 
   local function setup_gui()
-    params:add_group("GUI", 1)
+    params:add_group("GUI", 2)
+    params:add_separator("gui_sep_control", "─── Control ───")
     params:add_option("gui", "GUI", {"Studio", "Stage", "Off"}, 1)
     params:set_action("gui", function(v) gui_mode = v; if refresh_tuner then refresh_tuner() end; redraw() end)
   end
