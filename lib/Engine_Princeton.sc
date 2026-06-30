@@ -173,7 +173,8 @@ Engine_Princeton : CroneEngine {
                 mute = 0, amp_bypass = 0,
                 reverb_mute = 0, cab_mode = 1,
                 cab_level = 1.0,
-                limit_bypass = 1, limit_threshold = 0.31623, limit_ratio = 4.0, limit_gain = 1.0, limit_attack = 10, limit_decay = 50;
+                limit_bypass = 1, limit_threshold = 0.31623, limit_ratio = 4.0, limit_gain = 1.0, limit_attack = 10, limit_decay = 50,
+                send_a_source = 2, send_a_level = 1.0, send_b_source = 2, send_b_level = 1.0;
 
             var sig;
             var repeat_delay, repeat_fb, pre1, toned, pre2, power;
@@ -193,6 +194,7 @@ Engine_Princeton : CroneEngine {
             var repeat_gate;
             var cab_dsp;
             var limit_ctrl, limit_out;
+            var send_input_tap, looper_ret, send_a, send_b;
 
             volume         = Lag.kr(volume,         0.05);
             bass           = Lag.kr(bass,           0.05);
@@ -220,9 +222,12 @@ Engine_Princeton : CroneEngine {
             characteristic       = Lag.kr(characteristic,       0.05);
             mic                  = Lag.kr(mic,                  0.05);
             cab_mode             = Lag.kr(cab_mode,             0.05);
+            send_a_level         = Lag.kr(send_a_level,         0.05);
+            send_b_level         = Lag.kr(send_b_level,         0.05);
 
             // ── Input (from pedal bus, post Push + Distort inserts) ──────────
             sig = In.ar(pedal_bus_num, 2);
+            send_input_tap = sig;
 
             // ── Warp ─────────────────────────────────────────────────────────
             warp_depth_env = Lag.kr(warp_depth.linlin(0, 100, 0.0, 0.012) * (1 - warp_bypass.round(1)),
@@ -281,7 +286,8 @@ Engine_Princeton : CroneEngine {
 
             // ── Looper ───────────────────────────────────────────────
             ReplaceOut.ar(looper_in_bus_num, trem_out);
-            loop_mix = trem_out + InFeedback.ar(looper_out_bus_num, 2);
+            looper_ret = InFeedback.ar(looper_out_bus_num, 2);
+            loop_mix = trem_out + looper_ret;
 
             // ── Spring reverb ─────────────────────────────────────────────────
             rev_decay = reverb_length;
@@ -346,8 +352,16 @@ Engine_Princeton : CroneEngine {
             Out.ar(out_bus, final_sig);
 
             // ── fx send buses ────────────────────────────────────────────────
-            if(~sendA.notNil) { Out.ar(~sendA, final_sig) };
-            if(~sendB.notNil) { Out.ar(~sendB, final_sig) };
+            send_a = [
+                Select.ar(send_a_source.round(1), [send_input_tap[0], looper_ret[0], final_sig[0]]),
+                Select.ar(send_a_source.round(1), [send_input_tap[1], looper_ret[1], final_sig[1]])
+            ] * send_a_level;
+            send_b = [
+                Select.ar(send_b_source.round(1), [send_input_tap[0], looper_ret[0], final_sig[0]]),
+                Select.ar(send_b_source.round(1), [send_input_tap[1], looper_ret[1], final_sig[1]])
+            ] * send_b_level;
+            if(~sendA.notNil) { ReplaceOut.ar(~sendA, send_a) };
+            if(~sendB.notNil) { ReplaceOut.ar(~sendB, send_b) };
 
         }).add;
 
@@ -424,7 +438,11 @@ Engine_Princeton : CroneEngine {
             ["limit_gain",           \limit_gain],
             ["limit_attack",         \limit_attack],
             ["limit_decay",          \limit_decay],
-            ["mute",                 \mute]
+            ["mute",                 \mute],
+            ["fx_send_a_source",     \send_a_source],
+            ["fx_send_a_level",      \send_a_level],
+            ["fx_send_b_source",     \send_b_source],
+            ["fx_send_b_level",      \send_b_level]
         ].do { |pair|
             this.addCommand(pair[0], "f", { |msg| synth.set(pair[1], msg[1]) });
         };
