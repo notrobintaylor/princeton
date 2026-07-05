@@ -135,6 +135,7 @@ Parameters are listed in PARAMS menu order.
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Input** | Mono | Mono / Stereo |
+| **Input Trim** | 0 dB | -75 to +10 dB |
 | **Send A Source** | Output | Input / Looper / Output |
 | **Send A Level** | 0 dB | -60 to +10 dB |
 | **Send B Source** | Output | Input / Looper / Output |
@@ -142,9 +143,22 @@ Parameters are listed in PARAMS menu order.
 
 **Mono** uses the left input only at instrument level. This is the default, designed for a guitar plugged into the L jack. **Stereo** opens both inputs at line level (about 10 dB lower) and routes a symmetric stereo path through Push, Distort, Warp, Repeat, and the amp. The tremolo's left/right pingpong, the looper's stereo buffer, and the reverb stay unchanged in either mode.
 
+**Input Trim** scales the signal as it enters the chain, before every pedal and the amp. It sits at instrument level by default (0 dB) and runs from -75 dB (near silence) to +10 dB. Being a plain control, it maps to a MIDI CC in the usual PARAMS way, so a MIDI expression pedal on Input Trim becomes a volume pedal in front of the whole chain. The tuner reads the raw input ahead of the trim, so tuning still works with the trim pulled all the way down; the Sense envelope followers and the metronome click are unaffected for the same reason.
+
 The two pixels on the amp panel reflect the active inputs. The left pixel always lights; the right pixel lights only in Stereo.
 
 **Send A** and **Send B** route to the two Norns send buses, which a compatible fx mod can read in its send a or send b slot. Each send picks its source independently: **Input** is the post-pedal signal feeding the amp, **Looper** is the looper output on its own, and **Output** is the full mix at OUT L/R. **Level** scales the send from -60 dB (effectively off) up to +10 dB. With both sends at their defaults (Output, 0 dB) each carries the full output at unity, the same as before the sources became selectable.
+
+**fx mod bus patch.** The sends reach an fx mod through the Norns send buses `~sendA` and `~sendB`. In stock form the mod allocates these from the bottom of the audio-bus range, which puts `~sendA` on the Norns input bus (`in_b`). princeton still functions (it reads the input through its own decoupled input synth), but the send then shares the live-input bus, and the identical allocation makes Send A unusable under the media script. Since the mod is third-party code, patch it once: in `~/dust/code/<fx-mod>/lib/setup.sc`, inside the `StartUp.add` block, replace the three `Bus.audio(Server.default, numChannels: 2)` allocations for `sendA`, `sendB` and `wet` with top-of-range indices:
+
+```supercollider
+var nb = Server.default.options.numAudioBusChannels;
+sendA = Bus.new(\audio, nb - 6, 2, Server.default);
+sendB = Bus.new(\audio, nb - 4, 2, Server.default);
+wet   = Bus.new(\audio, nb - 2, 2, Server.default);
+```
+
+Crone and every engine allocate from the bottom, so top-of-range indices never collide with `in_b` or `out_b`.
 
 Available from PARAMS or MAP. Not surfaced in the encoder strip.
 
@@ -316,7 +330,7 @@ Set **Sync** to a division to lock Speed to the Norns clock. The encoder strip t
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Medium** | Chip | BBD / Cassette / CD / Chip / Tape / Vinyl |
-| **Imprint** | 50 % | 0–100 % |
+| **Imprint** | 10 % | 0–100 % |
 | **Wear** | 5 % | 0–100 % |
 | **M: BBD Tone** | Bright | Bright / Dark |
 | **M: Cassette Wow** | 5 % | 0–100 % |
@@ -506,7 +520,9 @@ The conversion is `beats = base_beats × feel_multiplier`, where:
 
 Resulting `Hz = BPM / (beats × 60)`. At 120 BPM: `1/4 Note` = 2 Hz, `1/4 Dotted` = 1.33 Hz, `1/4 Triplet` = 3 Hz.
 
-Each effect's range still applies (Tremolo 0.1–25 Hz, Warp 0.1–25 Hz, Repeat 1–1000 ms). When a synced division falls outside the effect's range, the encoder strip dims the value to indicate the clamp.
+Each effect's range still applies (Tremolo 0.1–25 Hz, Warp 0.1–25 Hz, Repeat 1–1000 ms). The encoder only lands on divisions the current BPM can actually reach: unreachable ones are skipped as you scroll, and if a tempo change pushes the active division out of range it snaps to the nearest reachable one. So at any BPM the strip only shows a division the effect can produce. A division forced out of range by other means (for example from the PARAMS menu) still dims on the encoder strip to flag the clamp.
+
+When an LFO modulates the Time, Speed, or Rate of a synced effect, the modulation centres on the clock-derived value rather than the standalone parameter, so the wiggle tracks the synced time instead of collapsing toward the low manual base.
 
 When the Norns clock source switches to **MIDI** (PARAMS > CLOCK > SOURCE), all four sync defaults activate automatically (`1/4` for Tremolo, Warp, Repeat, and Looper Quantization). Switching back to internal clock deactivates them. Stopping the clock holds the last derived values.
 

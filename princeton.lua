@@ -429,7 +429,7 @@ PARAM_STEP["tuner_ref"] = 0.1   -- tuner has a custom strip edit, no DEF entry
 local function edit_param(id, d)
   local m = sync.PARAM_MAP[id]
   if m and params:get(m.div) > 1 then
-    params:set(m.div, util.clamp(params:get(m.div) + (d > 0 and 1 or -1), 2, #sync.DIV_OPTS))
+    params:set(m.div, sync.step_div(id, params:get(m.div), d, params:get(m.feel), clock.get_tempo()))
     return
   end
   local step = PARAM_STEP[id]
@@ -1392,10 +1392,12 @@ function init()
   end
 
   local function setup_signal_flow()
-    params:add_group("SIGNAL FLOW", 6)
+    params:add_group("SIGNAL FLOW", 7)
     params:add_separator("signal_flow_sep_control", "─── Control ───")
     params:add_option("signal_input", "Input", {"Mono", "Stereo"}, 1)
     params:set_action("signal_input", function(v) engine.signal_input(v); re() end)
+    params:add_control("input_trim", "Input Trim", controlspec.new(-75, 10, "lin", 0.5, 0, "dB"))
+    params:set_action("input_trim", db_action("input_trim"))
     params:add_option("fx_send_a_source", "Send A Source", {"Input", "Looper", "Output"}, 3)
     params:set_action("fx_send_a_source", function(v) engine.fx_send_a_source(v - 1); re() end)
     params:add_control("fx_send_a_level", "Send A Level", controlspec.new(-60, 10, "lin", 0.5, 0, "dB"))
@@ -1890,6 +1892,7 @@ function init()
             looper.quant_led_restart()
           end
           last_bpm = bpm
+          if clock_running then sync.reconcile(clock.get_tempo()) end
           sync.push_all(initing, clock_running, lfo.sync_override)
           redraw()
         end
