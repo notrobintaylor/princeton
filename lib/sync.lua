@@ -34,6 +34,52 @@ function sync.hz_df(bpm, div_opt, feel_opt)
   return bpm / (beats * 60.0)
 end
 
+-- Is this division reachable for the device at this tempo/feel? Off (<=1) always
+-- is; a synced div is ok only if its resulting value lands inside the device's
+-- range (e.g. Repeat's delay must stay <= 1000 ms).
+function sync.div_ok(id, div_opt, feel_opt, bpm)
+  if div_opt <= 1 then return true end
+  local m = sync.PARAM_MAP[id]
+  if not m then return true end
+  local hz = sync.hz_df(bpm, div_opt, feel_opt)
+  return hz ~= nil and m.in_range(hz)
+end
+
+-- Next reachable division in scroll direction d, kept within the synced range
+-- (never Off). Skips divisions the tempo makes impossible; stays put at an edge.
+function sync.step_div(id, cur, d, feel_opt, bpm)
+  local step = d > 0 and 1 or -1
+  local nd = cur + step
+  while nd >= 2 and nd <= #sync.DIV_OPTS do
+    if sync.div_ok(id, nd, feel_opt, bpm) then return nd end
+    nd = nd + step
+  end
+  return cur
+end
+
+-- Nearest reachable division, for when a tempo change invalidates the current
+-- one. Never falls back to Off, so an active sync stays active.
+function sync.clamp_div(id, div_opt, feel_opt, bpm)
+  if div_opt <= 1 or sync.div_ok(id, div_opt, feel_opt, bpm) then return div_opt end
+  for off = 1, #sync.DIV_OPTS do
+    local dn, up = div_opt - off, div_opt + off
+    if dn >= 2 and sync.div_ok(id, dn, feel_opt, bpm) then return dn end
+    if up <= #sync.DIV_OPTS and sync.div_ok(id, up, feel_opt, bpm) then return up end
+  end
+  return div_opt
+end
+
+-- After a tempo change, pull every active synced div back into reach.
+function sync.reconcile(bpm)
+  for id, m in pairs(sync.PARAM_MAP) do
+    local div = params:get(m.div)
+    if div > 1 then
+      local nd = sync.clamp_div(id, div, params:get(m.feel), bpm)
+      if nd ~= div then params:set(m.div, nd) end
+    end
+  end
+end
+
 local function in_range(id, hz)
   local m = sync.PARAM_MAP[id]
   return not m or m.in_range(hz)

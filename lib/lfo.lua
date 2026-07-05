@@ -206,6 +206,24 @@ function lfo.rebuild_target_dropdown(idx)
   modtarget.rebuild(binding, idx)
 end
 
+-- When a synced param (repeat_time, tremolo_speed, warp_rate) is a mod target,
+-- the audible value is the sync-derived one, not the raw param. Center the
+-- modulation on that so the LFO wiggles around the synced time, not the low
+-- manual base. Mirrors sync.push_all's override-aware div/feel resolution.
+local function synced_base(id)
+  local m = sync.PARAM_MAP[id]
+  if not (m and is_clock_running()) then return nil end
+  local div = lfo.sync_override[m.div] or params:get(m.div)
+  if div <= 1 then return nil end
+  local feel = lfo.sync_override[m.feel] or params:get(m.feel)
+  local hz = sync.hz_df(clock.get_tempo(), div, feel)
+  return hz and m.value_fn(hz) or nil
+end
+
+local function effective_base(id)
+  return synced_base(id) or lfo.target_base[id] or params:get(id)
+end
+
 local function apply_to_target(idx)
   if is_initing() then return end
   if params:get("lfo"..idx.."_enable") ~= 2 then return end
@@ -215,8 +233,7 @@ local function apply_to_target(idx)
   if not t or not t.id or not t.send then return end
   if lfo.target_owner[t.id] ~= idx then return end
 
-  local base = lfo.target_base[t.id]
-  if base == nil then base = params:get(t.id) end
+  local base = effective_base(t.id)
 
   local v_un = compute_v_unsigned(idx)
   local depth = lfo.mod.depth[idx] ~= nil and lfo.mod.depth[idx] or params:get("lfo"..idx.."_depth")
@@ -477,9 +494,7 @@ function lfo.init(deps)
     on_release       = function(g)
       local t = TARGET_PARAMS[g]
       unmark_modulated(t.id)
-      local base = lfo.target_base[t.id]
-      if base == nil then base = params:get(t.id) end
-      if t.send then t.send(base) end
+      if t.send then t.send(effective_base(t.id)) end
       lfo.clear_override(t.id)
     end,
     on_rebuilt       = function()

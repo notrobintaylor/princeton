@@ -36,7 +36,7 @@ Engine_Princeton : CroneEngine {
         mediumRead  = mediumDsp[\mediumRead];
 
         SynthDef(\princeton_in, {
-            arg in_bus = 0, in_bus_r = 0, signal_input = 1, metro_bus_num = 0,
+            arg in_bus = 0, in_bus_r = 0, signal_input = 1, input_trim = 1, metro_bus_num = 0,
                 env1_attack = 0.05, env1_release = 0.05, env1_bus_num = 0,
                 env2_attack = 0.05, env2_release = 0.05, env2_bus_num = 0,
                 pedal_bus_num = 0;
@@ -44,6 +44,7 @@ Engine_Princeton : CroneEngine {
             var env_src, env1_amp, env2_amp;
 
             signal_input = Lag.kr(signal_input, 0.05);
+            input_trim   = Lag.kr(input_trim,   0.05);
             env1_attack  = Lag.kr(env1_attack,  0.05);
             env1_release = Lag.kr(env1_release, 0.05);
             env2_attack  = Lag.kr(env2_attack,  0.05);
@@ -57,9 +58,10 @@ Engine_Princeton : CroneEngine {
             input_level_gain = ((1 - sig_input_norm) * 1.0) + (sig_input_norm * 0.31623);
 
             sig = [
-                (sig_l_in                                                          * input_level_gain) + metro_in,
-                ((sig_l_in * (1 - sig_input_norm)) + (sig_r_in * sig_input_norm))  * input_level_gain  + metro_in
+                (sig_l_in                                                          * input_level_gain),
+                ((sig_l_in * (1 - sig_input_norm)) + (sig_r_in * sig_input_norm))  * input_level_gain
             ];
+            sig = (sig * input_trim) + metro_in;
             sig = LeakDC.ar(sig);
             sig = HPF.ar(sig, 40);
             sig = LPF.ar(sig, 7500);
@@ -449,6 +451,7 @@ Engine_Princeton : CroneEngine {
 
         
         this.addCommand("signal_input", "f", { |msg| in_synth.set(\signal_input, msg[1]) });
+        this.addCommand("input_trim",   "f", { |msg| in_synth.set(\input_trim,   msg[1]) });
         this.addCommand("env1_attack",  "f", { |msg| in_synth.set(\env1_attack,  msg[1]) });
         this.addCommand("env1_release", "f", { |msg| in_synth.set(\env1_release, msg[1]) });
         this.addCommand("env2_attack",  "f", { |msg| in_synth.set(\env2_attack,  msg[1]) });
