@@ -18,6 +18,7 @@ local looper_ui = include("lib/looper_ui")
 local lfo     = include("lib/lfo")
 local env     = include("lib/env")
 local trigs   = include("lib/trigger")
+local seq     = include("lib/seq")
 local lifecycle = include("lib/lifecycle")
 
 local PARAMS_DEF = {
@@ -59,6 +60,7 @@ local perf_sel   = 1   -- selected device in performance view
 local perf_param = {}  -- per-device selected param index
 local refresh_tuner    -- forward decl; syncs tuner.active to the current view/device
 local lfo_strip_sel = {1, 1, 1, 1, 1, 1, 1, 1}
+local seq_strip_sel = {1, 1}
 local metro_strip_sel = 1
 
 local PEDALS = {
@@ -283,6 +285,14 @@ for i = 1, lfo.NUM do
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Sync Feel", id="lfo"..i.."_sync_feel", mn=1, mx=3,   st=1,   send=function(v) lfo.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
 
+for i = 1, seq.NUM do
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate",      id="seq"..i.."_rate",      mn=0.1, mx=25,  st=0.1, send=function(v) seq.mod.rate[i]      = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Steps",     id="seq"..i.."_steps",     mn=2,   mx=16,  st=1,   send=function(v) seq.mod.steps[i]     = math.floor(v + 0.5) end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate Slew", id="seq"..i.."_rate_slew", mn=0,   mx=5,   st=0.1, send=function(v) seq.mod.rate_slew[i] = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Sync Div",  id="seq"..i.."_sync_div",  mn=2,   mx=8,   st=1,   send=function(v) seq.mod.sync_div[i]  = math.floor(v + 0.5) end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Sync Feel", id="seq"..i.."_sync_feel", mn=1,   mx=3,   st=1,   send=function(v) seq.mod.sync_feel[i] = math.floor(v + 0.5) end}
+end
+
 for i = 1, trigs.N do
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Rate",        id="trig"..i.."_rate",        mn=0.1, mx=25,  st=0.1, send=function(v) trigs.mod.rate[i]        = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Probability", id="trig"..i.."_probability", mn=0,   mx=100, st=1,   send=function(v) trigs.mod.probability[i] = v end}
@@ -329,6 +339,10 @@ local TRIG_TARGETS = (function()
     t[#t + 1] = { label = "LFO " .. i .. ": Randomize", id = "trig_lfo" .. i .. "_randomize", lfo_idx = i,
                   action = function() params:set("lfo" .. i .. "_randomize", 1) end }
   end
+  for i = 1, seq.NUM do
+    t[#t + 1] = { label = "Walk " .. i .. ": Randomize", id = "trig_seq" .. i .. "_randomize",
+                  action = function() params:set("seq" .. i .. "_randomize", 1) end }
+  end
   return t
 end)()
 
@@ -341,7 +355,7 @@ local k_clock = {}
 
 local B = { DIM=0, MED=5, FULL=15 }
 
-local GROUP_MAX = {[0]=2, [1]=16, [3]=4}
+local GROUP_MAX = {[0]=2, [1]=18, [3]=4}
 
 local METRO_STRIP = {
   {name="Division", id="metro_div",     typ="opt",  nmax=5,  fmt=function(v) return sync.METRO_DIV_OPTS[v] end},
@@ -578,8 +592,24 @@ local function draw_group1_pane()
       if sp then v1, v2 = v1:sub(1, sp - 1), v1:sub(sp + 1) end
     end
     draw_strip("Sense " .. idx, es.name, v1, B.FULL, v2)
-  elseif pair >= 7 then
-    local trig_l = (pair - 7) * 2 + 1
+  elseif pair == 7 then
+    local idx       = is_left and 1 or 2
+    local strip_idx = seq.strip_resolve(idx, seq_strip_sel[idx])
+    local ss        = seq.STRIP[strip_idx]
+    local sel_step  = ss.suf:match("^_step_(%d+)$")
+    sel_step = sel_step and tonumber(sel_step) or nil
+    seq.draw_half(OX1, py, 1, is_left,     is_left and sel_step or nil)
+    seq.draw_half(OX2, py, 2, not is_left, (not is_left) and sel_step or nil)
+    local id  = "seq" .. idx .. ss.suf
+    local v1  = ss.fmt(params:get(id), idx)
+    local v2  = nil
+    if ss.suf == "_target_param" then
+      local sp = v1:find(" ")
+      if sp then v1, v2 = v1:sub(1, sp - 1), v1:sub(sp + 1) end
+    end
+    draw_strip("Walk " .. idx, ss.name, v1, B.FULL, v2)
+  elseif pair >= 8 then
+    local trig_l = (pair - 8) * 2 + 1
     local trig_r = trig_l + 1
     trigs.draw_half(OX1, py, trig_l, is_left)
     trigs.draw_half(OX2, py, trig_r, not is_left)
@@ -613,8 +643,10 @@ local function draw_group1_pane()
     cur_label = is_left and "Tuner" or "Metro"
   elseif pair == 2 then
     cur_label = "Sense " .. (is_left and 1 or 2)
-  elseif pair >= 7 then
-    local trig_l = (pair - 7) * 2 + 1
+  elseif pair == 7 then
+    cur_label = "Walk " .. (is_left and 1 or 2)
+  elseif pair >= 8 then
+    local trig_l = (pair - 8) * 2 + 1
     cur_label = "Trig " .. (is_left and trig_l or (trig_l + 1))
   else
     local lfo_l = (pair - 3) * 2 + 1
@@ -931,10 +963,29 @@ function enc(n, d)
         end
         redraw()
       end
-    elseif p >= 13 then
+    elseif p == 13 or p == 14 then
+      local idx = (p == 13) and 1 or 2
+      if n == 2 then
+        seq_strip_sel[idx] = seq.strip_advance(idx, seq_strip_sel[idx], d)
+        redraw()
+      elseif n == 3 then
+        local ss  = seq.STRIP[seq.strip_resolve(idx, seq_strip_sel[idx])]
+        local id  = "seq" .. idx .. ss.suf
+        if ss.typ == "opt" then
+          local nmax = ss.nmax_fn and ss.nmax_fn(idx) or ss.nmax
+          if nmax > 0 then
+            params:set(id, util.clamp(params:get(id) + d, 1, nmax))
+          end
+        else
+          params:set(id, snap_val(params:get(id) + d * ss.step, ss.step))
+        end
+        if ss.suf == "_sync_div" then seq.start_clock(idx) end
+        redraw()
+      end
+    elseif p >= 15 then
       local is_left = (p % 2) == 1
       local pair    = math.ceil(p / 2)
-      local idx     = (pair - 7) * 2 + (is_left and 1 or 2)
+      local idx     = (pair - 8) * 2 + (is_left and 1 or 2)
       if n == 2 then
         trigs.strip_sel[idx] = trigs.strip_fn.advance(idx, trigs.strip_sel[idx], d)
         redraw()
@@ -1073,6 +1124,8 @@ function key(n, z)
           local pair    = math.ceil(p / 2)
           local idx     = (pair - 3) * 2 + (is_left and 1 or 2)
           params:set("lfo" .. idx .. "_randomize", 1)
+        elseif p == 13 or p == 14 then
+          params:set("seq" .. ((p == 13) and 1 or 2) .. "_randomize", 1)
         end
       end
     end)
@@ -1105,10 +1158,14 @@ function key(n, z)
           local idx     = (pair - 3) * 2 + (is_left and 1 or 2)
           local cur = params:get("lfo" .. idx .. "_enable")
           params:set("lfo" .. idx .. "_enable", 3 - cur)
-        elseif p >= 13 then
+        elseif p == 13 or p == 14 then
+          local idx = (p == 13) and 1 or 2
+          local cur = params:get("seq" .. idx .. "_enable")
+          params:set("seq" .. idx .. "_enable", 3 - cur)
+        elseif p >= 15 then
           local is_left = (p % 2) == 1
           local pair    = math.ceil(p / 2)
-          local idx     = (pair - 7) * 2 + (is_left and 1 or 2)
+          local idx     = (pair - 8) * 2 + (is_left and 1 or 2)
           local cur = params:get("trig" .. idx .. "_enable")
           params:set("trig" .. idx .. "_enable", 3 - cur)
         end
@@ -1165,7 +1222,7 @@ function init()
       end
     end,
     get_trigs_mod    = function() return trigs.mod end,
-    on_target_change = function() env.rebuild_all_target_dropdowns() end,
+    on_target_change = function() env.rebuild_all_target_dropdowns(); seq.rebuild_all_target_dropdowns() end,
   })
   env.init({
     TARGET_PARAMS    = TARGET_PARAMS,
@@ -1177,6 +1234,7 @@ function init()
     is_pane_visible_l = function() return view_group == 1 and view_pane[1] == 3 end,
     is_pane_visible_r = function() return view_group == 1 and view_pane[1] == 4 end,
     redraw_pane      = function() if not initing then redraw() end end,
+    on_target_change = function() seq.rebuild_all_target_dropdowns() end,
   })
   trigs.init({
     looper           = looper,
@@ -1184,6 +1242,21 @@ function init()
     targets          = TRIG_TARGETS,
     is_initing      = function() return initing end,
     is_clock_running = function() return clock_running end,
+  })
+  seq.init({
+    TARGET_PARAMS    = TARGET_PARAMS,
+    DEVICE_NAMES     = DEVICE_NAMES,
+    DEVICE_PARAMS    = DEVICE_PARAMS,
+    TARGET_DEVICE_OF = TARGET_DEVICE_OF,
+    lfo              = lfo,
+    is_clock_running = function() return clock_running end,
+    is_initing      = function() return initing end,
+    on_target_change = function()
+      for i = 1, lfo.NUM do lfo.rebuild_target_dropdown(i) end
+      env.rebuild_all_target_dropdowns()
+    end,
+    is_pane_visible  = function() return view_group == 1 and (view_pane[1] == 13 or view_pane[1] == 14) end,
+    redraw_pane      = function() if not initing then redraw() end end,
   })
   local function re() if not initing then redraw() end end
 
@@ -1904,10 +1977,29 @@ function init()
   end
 
   local function setup_gui()
-    params:add_group("GUI", 2)
+    params:add_group("GUI", 3)
     params:add_separator("gui_sep_control", "─── Control ───")
     params:add_option("gui", "GUI", {"Studio", "Stage", "Off"}, 1)
     params:set_action("gui", function(v) gui_mode = v; if refresh_tuner then refresh_tuner() end; redraw() end)
+    params:add_binary("gui_init", "Initialize", "trigger", 0)
+    params:set_action("gui_init", function(v)
+      if v ~= 1 or initing then return end
+      -- mirror PSET-load: bypass the L35 +/-1 clamp so target dropdowns
+      -- (LFO/Sense/Trigger/Walk) actually jump back to their default, not by one step.
+      local was_loading = params.pset_loading
+      params.pset_loading = true
+      for i = 1, params.count do
+        local p = params.params[i]
+        local t = p.t
+        if t == params.tNUMBER or t == params.tOPTION then
+          params:set(i, p.default)
+        elseif t == params.tCONTROL or t == params.tTAPER then
+          params:set(i, (p.controlspec and p.controlspec.default) or p.default)
+        end
+      end
+      params.pset_loading = was_loading
+      re()
+    end)
   end
 
   -- ── Param registration ───────────────────────────────────────
@@ -1924,8 +2016,159 @@ function init()
   setup_limit()
   setup_tuner()
   setup_metro()
+  local function register_seq(idx)
+    local prefix = "seq" .. idx
+
+    local function refresh_visibility()
+      local div = params:get(prefix .. "_sync_div")
+      local n   = params:get(prefix .. "_steps")
+      if div > 1 then params:hide(prefix .. "_rate") else params:show(prefix .. "_rate") end
+      for k = 1, seq.MAX_STEPS do
+        if k <= n then params:show(prefix .. "_step_" .. k) else params:hide(prefix .. "_step_" .. k) end
+      end
+      if _menu and _menu.rebuild_params then _menu.rebuild_params() end
+    end
+
+    local function compute_intended_global()
+      local dev_filtered = params:get(prefix .. "_target_device")
+      local dev_idx = (seq.target_device_filter[idx] and seq.target_device_filter[idx][dev_filtered]) or 1
+      local param_filtered = params:get(prefix .. "_target_param")
+      local g = (seq.target_param_filter[idx] and seq.target_param_filter[idx][param_filtered]) or 1
+      if g <= 1 and DEVICE_PARAMS[dev_idx] and DEVICE_PARAMS[dev_idx][1] then
+        g = DEVICE_PARAMS[dev_idx][1].global_idx
+      end
+      return g
+    end
+
+    params:add_group("MOD WALK " .. idx, 29)
+    params:add_separator(prefix .. "_sep_control", "─── Control ───")
+
+    params:add_option(prefix .. "_enable", "Enable", {"Off", "On"}, 1)
+    params:set_action(prefix .. "_enable", function(v)
+      if not initing then
+        if v == 2 then
+          local g = compute_intended_global()
+          local own = g > 1 and lfo.target_owner[TARGET_PARAMS[g].id]
+          if own and own ~= "seq_" .. idx then
+            for i = 2, #TARGET_PARAMS do
+              if not lfo.target_owner[TARGET_PARAMS[i].id] then g = i; break end
+            end
+          end
+          seq.set_target(idx, g)
+        else
+          seq.set_target(idx, seq.last_global[idx] or 1)
+        end
+      end
+      re()
+    end)
+
+    params:add_number(prefix .. "_steps", "Steps", 2, 16, 16)
+    params:set_action(prefix .. "_steps", function(v)
+      seq.mod.steps[idx] = nil
+      lfo.target_base[prefix .. "_steps"] = nil
+      local s = seq.state[idx]
+      if s and s.step_pos > v then s.step_pos = ((s.step_pos - 1) % v) + 1 end
+      refresh_visibility()
+      re()
+    end)
+
+    for k = 1, seq.MAX_STEPS do
+      params:add_control(prefix .. "_step_" .. k, "Step " .. k, controlspec.new(-100, 100, "lin", 1, 0, "%"))
+    end
+
+    params:add_control(prefix .. "_rate", "Rate", controlspec.new(0.1, 25, "exp", 0.1, 1.0, "Hz"))
+    params:set_action(prefix .. "_rate", function(_)
+      seq.mod.rate[idx] = nil
+      lfo.target_base[prefix .. "_rate"] = nil
+    end)
+
+    params:add_control(prefix .. "_rate_slew", "Rate Slew", controlspec.new(0, 5, "lin", 0.1, 0, "s"))
+    params:set_action(prefix .. "_rate_slew", function(_)
+      seq.mod.rate_slew[idx] = nil
+      lfo.target_base[prefix .. "_rate_slew"] = nil
+    end)
+
+    params:add_separator(prefix .. "_sep_sync", "─── Synchronization ───")
+
+    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, 1)
+    params:set_action(prefix .. "_sync_div", function(_)
+      seq.mod.sync_div[idx] = nil
+      lfo.target_base[prefix .. "_sync_div"] = nil
+      refresh_visibility()
+      if not initing then
+        seq.refresh_dropdowns_for_device("Walk " .. idx)
+        seq.start_clock(idx)
+      end
+    end)
+
+    params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
+    params:set_action(prefix .. "_sync_feel", function(_)
+      seq.mod.sync_feel[idx] = nil
+      lfo.target_base[prefix .. "_sync_feel"] = nil
+    end)
+
+    params:add_separator(prefix .. "_sep_target", "─── Target ───")
+
+    params:add_option(prefix .. "_target_device", "Target Device", {"-"}, 1)
+    params:set_action(prefix .. "_target_device", function(filtered_v)
+      if not initing then
+        local cur_global = seq.last_global[idx] or 1
+        local cur_dev = TARGET_DEVICE_OF[cur_global] or 0
+        local dmap = seq.target_device_filter[idx]
+        local cur_filtered = find_filtered_idx(dmap, cur_dev)
+        if not params.pset_loading then
+          if filtered_v > cur_filtered + 1 then filtered_v = cur_filtered + 1
+          elseif filtered_v < cur_filtered - 1 then filtered_v = cur_filtered - 1 end
+        end
+        local new_dev = (dmap and dmap[filtered_v]) or 1
+        if new_dev ~= cur_dev or params.pset_loading then
+          seq.rebuild_target_param_dropdown(idx, new_dev)
+          local new_global = 1
+          if DEVICE_PARAMS[new_dev] then
+            for _, entry in ipairs(DEVICE_PARAMS[new_dev]) do
+              local owner = lfo.target_owner[TARGET_PARAMS[entry.global_idx].id]
+              if owner == nil or owner == "seq_" .. idx then new_global = entry.global_idx; break end
+            end
+          end
+          seq.set_target(idx, new_global)
+        else
+          ui_revert(prefix .. "_target_device", cur_filtered)
+        end
+      end
+      re()
+    end)
+
+    params:add_option(prefix .. "_target_param", "Target Param", {"-"}, 1)
+    params:set_action(prefix .. "_target_param", function(filtered_v)
+      if not initing then
+        local cur_global = seq.last_global[idx] or 1
+        local pmap = seq.target_param_filter[idx]
+        local cur_filtered = find_filtered_idx(pmap, cur_global)
+        if not params.pset_loading then
+          if filtered_v > cur_filtered + 1 then filtered_v = cur_filtered + 1
+          elseif filtered_v < cur_filtered - 1 then filtered_v = cur_filtered - 1 end
+        end
+        local new_global = (pmap and pmap[filtered_v]) or 1
+        if new_global ~= cur_global then
+          seq.set_target(idx, new_global)
+        else
+          ui_revert(prefix .. "_target_param", cur_filtered)
+        end
+      end
+      re()
+    end)
+
+    params:add_separator(prefix .. "_sep_trigger", "─── Trigger ───")
+
+    params:add_binary(prefix .. "_randomize", "Randomize", "trigger", 0)
+    params:set_action(prefix .. "_randomize", function(v)
+      if v == 1 and not initing then seq.randomize(idx) end
+    end)
+  end
+
   for i = 1, env.NUM do register_env(i) end
   for i = 1, lfo.NUM do register_lfo(i) end
+  for i = 1, seq.NUM do register_seq(i) end
   for i = 1, trigs.N do register_trigger(i) end
   tuner.init()
 
@@ -1934,7 +2177,9 @@ function init()
     if owner == nil then return false end
     if type(owner) == "number" then return lfo.is_enabled(owner) end
     local n = type(owner) == "string" and owner:match("^env_(%d+)$")
-    return n ~= nil and env.is_enabled(tonumber(n))
+    if n then return env.is_enabled(tonumber(n)) end
+    local ns = type(owner) == "string" and owner:match("^seq_(%d+)$")
+    return ns ~= nil and seq.is_enabled(tonumber(ns))
   end
 
   for _, t in ipairs(TARGET_PARAMS) do

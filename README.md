@@ -34,7 +34,9 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
 
 **Metronome.** A click track running independently of the signal path. Tempo, level, click length and chromatic pitch (Root plus Register) are set from PARAMS, and a Scale, Chords and Scale Play turn it into a small playable voice that climbs, harmonises and sequences off the same clock. Division locks the click to the Norns clock when one is running, or free-runs at the BPM field when the clock is stopped.
 
-**Mod Rack.** Eight LFOs with six waveforms (Sine, Triangle, Saw, Square, Smooth Random, Stepped Random) that modulate any continuous parameter in the signal chain. Rate runs from 0.1 to 25 Hz with optional sync to the Norns clock. Each LFO has its own Depth, Direction (positive, negative, or bipolar), Rate Slew, Sync division and Sync Feel. Stepped Random is a shift-register pattern generator: Steps sets the register length (1–16 bits) and Stability controls the probability of feeding back the MSB versus its complement, producing anything from a regular clock to dense noise. LFOs can target other LFO rates and depths, creating compound motion. Modulation targets span the noise gate, all pedal parameters, amp, tremolo speed and sync, reverb, looper levels, looper speed, looper quantization division, the metronome voice (division, root, register, scale, chords and scale-play mode), and other LFO rates and depths. Each target can be owned by at most one modulation source at a time; the ownership model prevents interference between sources on the same target, and is shared with Sense. The Mod Rack lives in the Practice view (K1 hold): the first pair shows Tuner and Metro, one pair shows the two Sense modules, the next four pairs show the LFOs, and the last two pairs show four Triggers.
+**Mod Rack.** Eight LFOs with six waveforms (Sine, Triangle, Saw, Square, Smooth Random, Stepped Random) that modulate any continuous parameter in the signal chain. Rate runs from 0.1 to 25 Hz with optional sync to the Norns clock. Each LFO has its own Depth, Direction (positive, negative, or bipolar), Rate Slew, Sync division and Sync Feel. Stepped Random is a shift-register pattern generator: Steps sets the register length (1–16 bits) and Stability controls the probability of feeding back the MSB versus its complement, producing anything from a regular clock to dense noise. LFOs can target other LFO rates and depths, creating compound motion. Modulation targets span the noise gate, all pedal parameters, amp, tremolo speed and sync, reverb, looper levels, looper speed, looper quantization division, the metronome voice (division, root, register, scale, chords and scale-play mode), and other LFO rates and depths. Each target can be owned by at most one modulation source at a time; the ownership model prevents interference between sources on the same target, and is shared with Sense. The Mod Rack lives in the Practice view (K1 hold): the first pair shows Tuner and Metro, one pair shows the two Sense modules, the next four pairs show the LFOs, one pair shows the two Walk step sequencers, and the last two pairs show four Triggers.
+
+**Walk.** Two sixteen-step sequencers alongside the LFOs. Each steps through up to sixteen values (2–16 selectable) at its own Rate or locked to the Norns clock, driving any continuous parameter. Every step is a bipolar amount from −100 % to +100 % relative to the target's base value: 0 % is no change, +100 % reaches the parameter's maximum, −100 % its minimum. Rate Slew glides between steps, Randomize rolls fresh values, and the pane shows a running light on the playing step. Walks share the same ownership pool as the LFOs and Sense modules and can modulate each other.
 
 **Sense.** Two envelope followers that track the amplitude of the raw input signal (pre-pedals) and modulate a chosen continuous parameter in proportion. Depth scales the contribution, Direction picks upward or downward modulation, Slew sets the attack and release time of the detector. The ownership pool is shared with the Mod Rack: a parameter can be claimed by an LFO or by a Sense module, never both at once. Each Sense pane shows a live amplitude visualizer with a horizontal centerline; a bar fills upward or downward depending on Direction. Useful for input-driven dynamics: a soft attack opens up Distort Tone, a louder pick attack pulls down Reverb Amount, and so on.
 
@@ -105,7 +107,7 @@ The main view has two sub-panes: **Amp** (the cabinet sprite with the tone-stack
 
 When the pedalboard is open, **E1** selects between the two visible effects, **E2** selects a parameter, and **E3** changes its value. Looper transport (K2, K3) is disabled while the pedalboard or tuner is open. The loop keeps running in the background.
 
-In the Practice view (K1 hold), **E1** moves between panes: the first pair shows Tuner (left) and Metro (right); the next pair shows Sense 1 and Sense 2; the next four pairs show LFO 1/2, 3/4, 5/6, and 7/8; the final two pairs show Trigger 1/2 and Trigger 3/4. **E2** scrolls the parameter strip for the focused half; **E3** changes the value. Short-press **K2** on an LFO pane randomises the focused LFO's Stepped Random register. Short-press **K3** on an LFO pane toggles the LFO on or off; on a Sense pane it toggles the Sense module on or off; on the Metro pane it toggles the metronome; on a Trigger pane it toggles the trigger on or off.
+In the Practice view (K1 hold), **E1** moves between panes: the first pair shows Tuner (left) and Metro (right); the next pair shows Sense 1 and Sense 2; the next four pairs show LFO 1/2, 3/4, 5/6, and 7/8; one pair shows Walk 1 and Walk 2; the final two pairs show Trigger 1/2 and Trigger 3/4. **E2** scrolls the parameter strip for the focused half; **E3** changes the value. Short-press **K2** on an LFO pane randomises the focused LFO's Stepped Random register, and on a Walk pane rolls fresh values into its steps. Short-press **K3** on an LFO pane toggles the LFO on or off; on a Sense pane it toggles the Sense module on or off; on the Metro pane it toggles the metronome; on a Walk pane it toggles the Walk on or off; on a Trigger pane it toggles the trigger on or off.
 
 ## Navigation
 
@@ -464,6 +466,33 @@ Eight LFOs, each with the following parameters:
 **Target Device** and **Target Param** select what the LFO modulates. The device list groups targets by signal-chain stage (Gate, Push, Distort, Warp, Repeat, Amp, Tremolo, Looper, Reverb, Cab, Limit, Metro, LFO 1–8). The parameter list shows only the parameters available within the selected device. Tremolo, Warp, and Repeat each expose both their Sync Division and Sync Feel as separate targets, so an LFO can shift a synced effect between Note, Dotted, and Triplet feel in real time. Looper exposes its Quantize division as a target alongside the level and speed controls. Metro exposes its whole voice (Root, Register, Level, Length, Division, Scale, Chords, and Scale Play), so an LFO can transpose the metronome line, shift its octave, harmonise it, or resequence its scale-play mode. LFOs can modulate Rate, Depth, Phase, Steps, Stability, Rate Slew, Sync Division, and Sync Feel of other LFOs; routing LFO A into LFO B's rate while LFO B modulates a pedal parameter creates compound motion.
 
 The target list adapts to the state of the destination. For another LFO, only the parameters relevant to its current waveform appear: Phase and Rate Slew on the periodic and smooth-random shapes, Steps and Stability on Stepped Random. Rate is hidden once the destination is synced. Sync Division and Sync Feel are exposed as targets only when sync is already active on the destination, on Tremolo, Warp, Repeat, the looper, and other LFOs alike, so modulation reshapes a sync grid that you have already chosen rather than switching sync on or off. A Sync or Quant target can never be moved to **Off** by modulation; only a manual edit can. If a destination changes in a way that retires the current target (the waveform changes, sync turns off, the synced rate disappears), the LFO falls back to the first parameter still available.
+
+### Walk
+
+Two step sequencers (the **Walk** modules), each stepping through up to sixteen values and driving a chosen continuous parameter. Each has the following parameters:
+
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Enable** | Off | Off / On |
+| **Steps** | 16 | 2–16 |
+| **Step 1 … Step 16** | 0 % | −100 – +100 % |
+| **Rate** | 1.0 Hz | 0.1–25 Hz (exp) |
+| **Sync** | Off | Off / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Sync Feel** | Note | Note / Dotted / Triplet (when Sync is active) |
+| **Rate Slew** | 0 s | 0–5 s |
+| **Target Device** | - | device group |
+| **Target Param** | - | parameter within device |
+| **Randomize** | - | trigger |
+
+A Walk steps through its values in order at **Rate**, or locked to the Norns clock when **Sync** is set to a division, looping back to the first step after the last active one. **Steps** sets how many of the sixteen are used; the rest are skipped, and in the Practice view their knobs simply disappear while the used ones stay in place.
+
+Each step is a bipolar amount from **−100 %** to **+100 %**, applied relative to the target parameter's current base value: **0 %** leaves the target untouched, **+100 %** drives it to its maximum, **−100 %** to its minimum. With a target of Amp Volume sitting at 2.5, a step at +100 % reaches 10, a step at −100 % reaches 0, and 0 % holds 2.5. The scaling is asymmetric by design, so ±100 % always lands exactly on the rail wherever the base sits.
+
+**Rate Slew** smooths the jump between consecutive step values, gliding instead of hard-stepping. **Randomize** rolls fresh random values into all active steps; it is a trigger in PARAMS and MAP, and short-press **K2** on the Walk's Practice-view pane does the same.
+
+**Target Device** and **Target Param** pick what the Walk drives, from the same pool the LFOs and Sense modules use, minus parameters already claimed by another source. The ownership pool is shared: a target belongs to at most one LFO, Sense or Walk at a time. A Walk can also target another Walk's Rate, Steps, Rate Slew, Sync Division and Sync Feel; the two Walk modules appear in every source's device list as `Walk 1` and `Walk 2`, and triggers can fire `Walk N: Randomize`. As with every device, Sync Division and Sync Feel are modulation targets only once the Walk's own Sync is on.
+
+In the Practice view, the Walk pane shows its steps as a grid of knobs. The playing step lights up as a running light; a small dot marks the step selected for editing (E2 scrolls to a step, E3 sets its value). Short-press **K3** toggles the Walk on or off.
 
 ### Triggers
 
