@@ -195,6 +195,12 @@ local function target_visible(target_id)
     if suf == "steps" or suf == "stability"  then return target_wf == 6 end
     if suf == "sync_div" or suf == "sync_feel" then return target_synced end
   end
+  local ns, sufs = target_id:match("^seq(%d+)_(.+)$")
+  if ns then
+    local target_synced = params:get("seq"..tonumber(ns).."_sync_div") > 1
+    if sufs == "rate"     then return not target_synced end
+    if sufs == "sync_div" or sufs == "sync_feel" then return target_synced end
+  end
   return true
 end
 

@@ -15,7 +15,7 @@ env.polls                = {}
 env.strip_sel            = {1, 1}
 
 local TARGET_PARAMS, DEVICE_NAMES, DEVICE_PARAMS, TARGET_DEVICE_OF
-local lfo, is_initing, is_pane_visible_l, is_pane_visible_r, redraw_pane
+local lfo, is_initing, is_pane_visible_l, is_pane_visible_r, redraw_pane, on_target_change
 local binding
 
 local OWN_PREFIX = "env_"
@@ -62,6 +62,12 @@ local function target_visible(target_id)
     if suf == "phase" or suf == "rate_slew"  then return target_wf ~= 6 end
     if suf == "steps" or suf == "stability"  then return target_wf == 6 end
     if suf == "sync_div" or suf == "sync_feel" then return target_synced end
+  end
+  local ns, sufs = target_id:match("^seq(%d+)_(.+)$")
+  if ns then
+    local target_synced = params:get("seq"..tonumber(ns).."_sync_div") > 1
+    if sufs == "rate"     then return not target_synced end
+    if sufs == "sync_div" or sufs == "sync_feel" then return target_synced end
   end
   return true
 end
@@ -171,6 +177,7 @@ function env.init(deps)
   is_pane_visible_l = deps.is_pane_visible_l
   is_pane_visible_r = deps.is_pane_visible_r
   redraw_pane       = deps.redraw_pane
+  on_target_change  = deps.on_target_change
 
   for i = 1, env.NUM do
     env.last_global[i] = 1
@@ -213,6 +220,7 @@ function env.init(deps)
     end,
     on_rebuilt       = function()
       for i = 1, lfo.NUM do lfo.rebuild_target_dropdown(i) end
+      if on_target_change then on_target_change() end
       if _menu and _menu.rebuild_params then _menu.rebuild_params() end
     end,
   }
