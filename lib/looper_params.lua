@@ -7,7 +7,8 @@
 --   deps.on_quant_div_changed() -- refresh mod-rack dropdowns for the Looper device
 --   deps.speed_is_owned()       -- is looper_speed claimed by a mod source?
 --   deps.looper                 -- the loop state-machine module
---   deps.embedded               -- true: wrap params in a "LOOPER" group (princeton);
+--   deps.group_label            -- display name of that group (default "LOOPER")
+--   deps.embedded               -- true: wrap params in a group (princeton);
 --                               --   false: register at top level (media standalone)
 local sync = include("lib/sync")
 
@@ -29,7 +30,7 @@ function looper_params.setup(deps)
     return function(v) engine[name](db_to_lin(v)); re() end
   end
 
-  if deps.embedded then params:add_group("LOOPER", 26) end
+  if deps.embedded then params:add_group(deps.group_label or "LOOPER", 26) end
   params:add_separator("looper_sep_control", "─── Control ───")
   params:add_option("looper_transport", "Step Order", {"Rec·Play·Dub", "Rec·Dub·Play"}, 1)
   params:add_option("looper_play_from", "Play From", {"Start", "Cue"}, 1)

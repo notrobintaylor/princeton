@@ -6,6 +6,7 @@
 --   ctx.LOOPER_DEF          -- looper param display table (.cat/.name/.id per entry)
 --   ctx.val_level(id)       -- value brightness (sync/mod aware)
 --   ctx.draw_state_icon()   -- looper transport icon
+--   ctx.draw_overlay()      -- optional: host overlay into the frame (princeton: H1 // H2)
 --   ctx.B                   -- brightness levels {DIM,MED,FULL}
 --   ctx.looper              -- loop state machine (state, quant_led_lit)
 --   ctx.LOOPER_PTS          -- partitioned looper sprite (from sprites_looper)
@@ -46,6 +47,9 @@ function looper_ui.draw_pane()
   blit(pts.ldisp, left_active          and B.FULL or B.MED)
   blit(pts.rdisp, rec_active           and B.FULL or B.MED)
   blit(pts.led,   looper.quant_led_lit and B.FULL or B.MED)
+
+  -- optional host overlay drawn into the same frame (princeton: H1 // H2 status)
+  if ctx.draw_overlay then ctx.draw_overlay() end
 
   screen.update()
 end

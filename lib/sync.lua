@@ -7,8 +7,8 @@ sync.DIV_OPTS  = {"Off","1/1","1/2","1/4","1/8","1/16","1/32","1/64"}
 sync.DIV_BEATS = {0, 4, 2, 1, 0.5, 0.25, 0.125, 0.0625}
 sync.FEEL_OPTS = {"Note","Dotted","Triplet"}
 sync.FEEL_MULT = {1.0, 1.5, 2.0/3.0}
-sync.METRO_DIV_OPTS  = {"1/1","1/2","1/4","1/8","1/16"}
-sync.METRO_DIV_BEATS = {4, 2, 1, 0.5, 0.25}
+sync.COUNT_DIV_OPTS  = {"1/1","1/2","1/4","1/8","1/16"}
+sync.COUNT_DIV_BEATS = {4, 2, 1, 0.5, 0.25}
 
 sync.PARAM_MAP = {
   tremolo_speed = {

@@ -26,7 +26,7 @@ looper.frames         = 0
 looper.quant_led_lit  = false
 
 local LOOP_SR  = 48000
-local LOOP_MAX = LOOP_SR * 40
+local LOOP_MAX = LOOP_SR * 60
 
 local rec_start         = 0
 local quant_pending     = false
@@ -34,6 +34,8 @@ local sample_retrig_val = 0
 local sample_done_clock = nil
 local quant_led_clock     = nil
 local quant_led_off_clock = nil
+local rec_auto_clock      = nil
+local rec_auto_start                    -- forward decl; defined just after transition_to
 
 local is_clock_running = function() return true end
 local get_override     = function() return {} end
@@ -91,16 +93,48 @@ end
 
 local function set_engine(st)
   looper_ensure_active()
+  -- The imprint synth is the recorder's source, read over a private bus, and SuperCollider
+  -- does not clear private buses. So it has to exist BEFORE recording starts, or the first
+  -- blocks of every take carry the last block of the previous one, written at buffer
+  -- position 0 - precisely at the seam. Switching it off has to wait until after recording
+  -- has stopped, for the same reason at the other edge.
+  local imprinting = (st == REC or st == DUB)
+  if imprinting then engine.imprint_on() end
   engine.loop_rec (st == REC  and 1 or 0)
   engine.loop_dub (st == DUB  and 1 or 0)
   engine.loop_play((st == PLAY or st == DUB) and 1 or 0)
-  if st == REC or st == DUB then engine.imprint_on() else engine.imprint_off() end
+  if not imprinting then engine.imprint_off() end
 end
 
 local function transition_to(st)
+  if rec_auto_clock then clock.cancel(rec_auto_clock); rec_auto_clock = nil end
   looper.state = st
   set_engine(st)
+  if st == REC then rec_auto_start() end
   redraw()
+end
+
+-- Auto-commit the initial recording when it reaches the maximum loop length: stop
+-- recording and advance to Play/Dub (or Stop in Sample mode), exactly like a manual
+-- K2/K3 at that instant. Without this the record buffer wraps and silently overwrites
+-- a long take with itself. Cancelled by transition_to whenever REC is left first.
+rec_auto_start = function()
+  local speed_mult = looper.speed_value()
+  local duration   = LOOP_MAX / LOOP_SR / speed_mult
+  rec_auto_clock = clock.run(function()
+    clock.sleep(duration)
+    rec_auto_clock = nil
+    if looper.state == REC then
+      looper.frames = LOOP_MAX
+      engine.loop_frames(looper.frames)
+      if params:get("looper_dub_style") == 3 then
+        transition_to(STOP)
+      else
+        local nxt = params:get("looper_transport") == 2 and DUB or PLAY
+        transition_to(nxt)
+      end
+    end
+  end)
 end
 
 local function sample_oneshot_start()

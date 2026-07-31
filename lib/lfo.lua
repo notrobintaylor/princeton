@@ -26,7 +26,7 @@ lfo.mod = {
   sync_div    = {},
   sync_feel   = {},
 }
-lfo.metro         = { level = nil, length = nil, root = nil, register = nil, div = nil }
+lfo.count         = { level = nil, length = nil, root = nil, register = nil, div = nil }
 lfo.sync_override = {}
 lfo.random        = { suspend_count = {}, suspended = {} }
 
@@ -273,15 +273,15 @@ function lfo.clear_override(target_id)
     lfo.mod[field][tonumber(nn)] = nil
     return
   end
-  if target_id == "metro_level"    then lfo.metro.level    = nil; return end
-  if target_id == "metro_length"   then lfo.metro.length   = nil; return end
-  if target_id == "metro_root"     then lfo.metro.root     = nil; return end
-  if target_id == "metro_register" then lfo.metro.register = nil; return end
-  if target_id == "metro_div"      then lfo.metro.div      = nil; return end
-  if target_id == "metro_scale"      then lfo.metro.scale  = nil; return end
-  if target_id == "metro_chords"     then lfo.metro.chords = nil; return end
-  if target_id == "metro_scale_play" then lfo.metro.play   = nil; return end
-  if target_id == "metro_degree"     then lfo.metro.degree = nil; return end
+  if target_id == "count_level"    then lfo.count.level    = nil; return end
+  if target_id == "count_length"   then lfo.count.length   = nil; return end
+  if target_id == "count_root"     then lfo.count.root     = nil; return end
+  if target_id == "count_register" then lfo.count.register = nil; return end
+  if target_id == "count_div"      then lfo.count.div      = nil; return end
+  if target_id == "count_scale"      then lfo.count.scale  = nil; return end
+  if target_id == "count_chords"     then lfo.count.chords = nil; return end
+  if target_id == "count_scale_play" then lfo.count.play   = nil; return end
+  if target_id == "count_degree"     then lfo.count.degree = nil; return end
   if lfo.sync_override[target_id] ~= nil then
     lfo.sync_override[target_id] = nil
     on_sync_override_change(target_id)

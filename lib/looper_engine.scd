@@ -36,16 +36,16 @@
             arg looper_in_bus = 0, looper_out_bus = 0,
                 imprint_in_bus_num = 0, imprint_out_bus_num = 0, loop_buf_num = 0,
                 loop_rec = 0, loop_dub = 0, loop_play = 0,
-                loop_frames = 1920000, loop_level = 0.75, loop_dub_level = 0.75, loop_fade = 0.75,
+                loop_frames = 2880000, loop_level = 0.75, loop_dub_level = 0.75, loop_fade = 0.75,
                 loop_direction = 0, loop_speed = 1, loop_dub_style = 0,
                 loop_wear_amt = 5,
                 loop_play_from = 0, loop_sample_retrig = 0,
                 loop_wow_tape = 5, loop_wow_cas = 5,
                 loop_bbd_tone = 0, loop_chip_crush = 0, loop_cd_errors = 0, loop_vinyl_noise = 10;
             var input, trem_imprinted, loop_preserve_out;
-            var frames, fade_samps, speed_rate, dub_style_r, is_resample;
-            var loop_reset, retrig_kr, start_trig, loop_phase, play_phase;
-            var direction_r, pend_phase, pend_read, wrap_trig, pend_wrap_trig, oneshot_trig, in_sample_mode, oneshot_done, sample_gate, rand_dir, rand_read;
+            var frames, rec_span, rec_phase, rec_end, fade_samps, speed_rate, dub_style_r, is_resample;
+            var loop_reset, retrig_kr, start_trig, write_rate, fill_gate, loop_phase, play_phase;
+            var direction_r, pend_phase, pend_read, wrap_trig, pend_wrap_trig, oneshot_trig, in_sample_mode, oneshot_done, sample_gate, out_gate, rand_dir, rand_read;
             var read_pos, fade_norm, fade_gain, loop_rd, loop_preserve;
             var bbd_tone_fc;
             var cd_skip_out, cd_skip_env, cd_stutter_out, cd_stutter_env, cd_scratch_env;
@@ -65,18 +65,47 @@
 
             input = In.ar(looper_in_bus, 2);
 
-            frames     = loop_frames.max(2);
-            fade_samps = 512;
+            rec_span   = loop_frames.max(2);
             speed_rate = loop_speed.clip(0.5, 2.0);
 
             dub_style_r = loop_dub_style.round(1);
             is_resample = dub_style_r > 2.5;
 
             loop_reset = Changed.kr(loop_rec)  * loop_rec;
+            write_rate = Select.kr(loop_rec.round(1), [Select.kr(is_resample * loop_dub.round(1), [speed_rate, 1]), speed_rate]);
+
+            // Loop length comes from the recorder's own write head, not from a wall-clock
+            // estimate in Lua. Lua cannot know when the engine actually began writing (OSC
+            // plus block latency), so its figure ran a few milliseconds long: the loop point
+            // then sat PAST the end of the recorded material, and every pass crossed a raw
+            // splice into stale buffer content shortly before the seam - outside the fade,
+            // which is centred on the seam itself. Hence a click once per pass, on any
+            // medium and worst on short loops, where it recurs most often.
+            // A dedicated phasor does the measuring: it runs from the start of recording at
+            // the write rate and wraps at the capacity Lua asked for, so latching it when
+            // recording ends yields exactly the span that was written, speed included.
+            // Bounded by the buffer, NOT by rec_span. rec_span is Lua's estimate and Lua
+            // sends loop_frames BEFORE loop_rec(0) when committing: if that estimate landed
+            // even one sample below the real write position, this phasor would wrap on the
+            // spot and the latch a block later would freeze a loop of a few hundred samples,
+            // i.e. an almost silent loop. Whether that happened came down to the difference
+            // between two OSC latencies, so it was a coin toss. A fixed bound removes the
+            // dependency entirely.
+            rec_phase  = Phasor.ar(loop_reset, write_rate, 0, BufFrames.kr(loop_buf_num), 0);
+            rec_end    = Latch.kr(A2K.kr(rec_phase), Changed.kr(loop_rec) * (1 - loop_rec));
+            // While recording, and before anything has been recorded, fall back to Lua's value.
+            frames     = Select.kr((loop_rec.round(1) + (rec_end < 2)).min(1),
+                                   [rec_end, rec_span]).max(2);
+            // The seam crossfade has to fit inside the loop. At a fixed 512 samples any loop
+            // shorter than 1024 never reaches full gain anywhere, because the fade-in from one
+            // end still overlaps the fade-out into the other, and a really short one is held
+            // down near silence over its whole length. A quarter of the loop keeps the fade
+            // proportional, so a short loop plays at level and only its seam is smoothed.
+            fade_samps = (frames * 0.25).min(512).max(1);
             retrig_kr  = Changed.kr(loop_sample_retrig);
             start_trig = Changed.kr(loop_play) * loop_play * (1 - loop_play_from.round(1))
                        + retrig_kr             *             (1 - loop_play_from.round(1));
-            loop_phase = Phasor.ar(loop_reset + start_trig, Select.kr(loop_rec.round(1), [Select.kr(is_resample * loop_dub.round(1), [speed_rate, 1]), speed_rate]), 0, frames, 0);
+            loop_phase = Phasor.ar(loop_reset + start_trig, write_rate, 0, frames, 0);
             play_phase = Phasor.ar(loop_reset + start_trig, speed_rate, 0, frames, 0);
 
             direction_r = loop_direction.round(1);
@@ -93,6 +122,12 @@
                 K2A.ar(loop_reset + retrig_kr + start_trig)
             );
             sample_gate    = 1 - (oneshot_done * in_sample_mode);
+            // Output gate, smoothed. loop_play, loop_dub and sample_gate are hard 0/1 steps:
+            // ungated they cut the output mid-waveform on start, stop and at the end of a
+            // one-shot, which is a splice with no fade and clicks accordingly. loop_level is
+            // already lagged, these were not. Kept separate from wrap_trig above, which must
+            // stay hard because it is a trigger.
+            out_gate = Lag.ar(K2A.ar((loop_play + loop_dub).min(1)) * sample_gate, 0.004);
             rand_dir  = TRand.ar(0.0, 1.0, wrap_trig).round(1);
             rand_read = Select.ar(rand_dir, [play_phase, frames - 1 - play_phase]);
 
@@ -104,10 +139,16 @@
             ]);
 
             fade_norm  = (play_phase.min(frames - play_phase) / fade_samps).clip(0, 1);
+            // Pendulum gets no fade. The other directions cross a real splice at the seam -
+            // the read position jumps from one end of the buffer to the other - and the fade
+            // is what hides it. Pendulum folds instead of jumping: it turns around at the
+            // ends, so the read position stays continuous and there is nothing to hide.
+            // Fading anyway just punched a hole in the level at both turning points, twice
+            // per cycle, right where the pendulum lingers longest.
             fade_norm  = Select.ar(direction_r, [
                 fade_norm,
                 fade_norm,
-                (pend_read.min(frames - 1 - pend_read) / fade_samps).clip(0, 1),
+                DC.ar(1),
                 fade_norm
             ]);
             fade_gain  = (fade_norm * 0.5 * pi).sin;
@@ -163,13 +204,30 @@
                 );
 
             BufWr.ar(write_sig, loop_buf_num, loop_phase);
+            // At write rates above 1 (live record / dub at Speed > 100%) the write head skips
+            // buffer positions, leaving unwritten holes that playback interpolates as silence.
+            // Fill the position behind the head so reads never land in a gap.
+            // Gated on rec/dub as well as on the rate: while merely playing back, the same
+            // path only copies the buffer through the medium onto itself, and doubling those
+            // writes would overwrite every second sample with its neighbour, smearing the
+            // recording a little more on every pass. Resample writes at rate 1 regardless.
+            fill_gate = (write_rate > 1) * (loop_rec + loop_dub).min(1);
+            BufWr.ar(write_sig, loop_buf_num,
+                Select.ar(K2A.ar(fill_gate), [loop_phase, (loop_phase - 1).wrap(0, frames)]));
 
-            loop_rd_wow = mediumRead.(med, loop_rd, bbd_tone_fc, loop_wow_tape, loop_wow_cas, loop_chip_crush, speed_rate);
+            // The seam fade is applied BEFORE mediumRead, not after. Cassette, Tape and Vinyl
+            // run the read through a wow-modulated DelayC of up to 25-30 ms; applying the fade
+            // afterwards closed it while the seam was still inside that delay line, so the
+            // splice came out later at full gain - an unfaded cut through the material, once
+            // per loop pass and therefore most obvious on short loops. Feeding the faded
+            // signal into the delay makes fade and seam travel together, per channel, since
+            // left and right are delayed by different amounts.
+            loop_rd_wow = mediumRead.(med, loop_rd * fade_gain, bbd_tone_fc, loop_wow_tape, loop_wow_cas, loop_chip_crush, speed_rate);
 
-            loop_out  = (loop_rd_wow * fade_gain * (1 - cd_skip_env) * (1 - cd_stutter_env)
+            loop_out  = (loop_rd_wow * (1 - cd_skip_env) * (1 - cd_stutter_env)
                          + cd_skip_out + cd_stutter_out)
                         * (1 - cd_scratch_env)
-                        * loop_level * (loop_play + loop_dub).min(1) * sample_gate;
+                        * loop_level * out_gate;
 
             if(med == \vinyl, {
                 var vinyl_noise_amt, vinyl_noise_sig;
@@ -180,12 +238,23 @@
                     HPF.ar(Dust2.ar(vinyl_noise_amt.pow(1.5) * 20.0, vinyl_noise_amt * 0.5), 2000)
                       + LPF.ar(PinkNoise.ar(vinyl_noise_amt.pow(1.3) * 0.010), 8000)
                 ];
-                loop_out = loop_out + (vinyl_noise_sig * loop_level * (loop_play + loop_dub).min(1));
+                loop_out = loop_out + (vinyl_noise_sig * loop_level * out_gate);
             });
 
             ReplaceOut.ar(looper_out_bus, loop_out);
         }).add;
         };
+
+        // The looper synth is freed outright, with no release envelope, so the last block it
+        // wrote stays on the output bus - and the main synth reads that bus every block
+        // whether a looper exists or not. Left alone the final block repeats forever as a
+        // steady buzz at loop level. This wipes the bus once after the free; it self-frees,
+        // and must, since a permanent writer here would erase the looper's own output.
+        SynthDef(\princeton_looper_silence, {
+            arg out_bus = 0;
+            ReplaceOut.ar(out_bus, DC.ar(0) ! 2);
+            Line.kr(0, 0, 0.02, doneAction: 2);
+        }).add;
 
 // ── Looper param commands ────────────────────────────────────
         [
@@ -227,6 +296,8 @@
             if(looper_synth.notNil) {
                 looper_synth.free;
                 looper_synth = nil;
+                Synth.after(mainSynth.value, \princeton_looper_silence,
+                    [\out_bus, looperOutBus.index]);
             };
         });
 
