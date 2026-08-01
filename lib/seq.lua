@@ -284,7 +284,9 @@ function seq.draw_half(ox, oy, idx, focused, sel_step)
   local grid_w = 3 * H_PITCH + 5
   local grid_h = 3 * V_PITCH + 5
   local x0     = ox + math.floor((33 - grid_w) / 2)
-  local y0     = oy + math.floor((50 - grid_h) / 2) + 2
+  -- Top edge, not centred: every other device graphic in either view starts one pixel above
+  -- its slot, and a centred grid made the Walk pane sit visibly lower than its neighbours.
+  local y0     = oy - 1
 
   for k = 1, n do
     local kx = x0 + ((k - 1) % cols) * H_PITCH
