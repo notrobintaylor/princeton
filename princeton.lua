@@ -597,7 +597,9 @@ local function draw_hold_status()
   screen.level(params:get("hold1_enable") == 2 and B.FULL or B.MED)
   screen.move(left, y); screen.text("H1")
   screen.level(B.MED)
-  screen.rect(left + w1 + g, y - 6, 1, 6); screen.fill()
+  -- 5 px, not 6: the caps of this font reach from baseline-5 to baseline-1, so a 6 px
+  -- stroke poked one row above the letters instead of matching their height.
+  screen.rect(left + w1 + g, y - 5, 1, 5); screen.fill()
   screen.level(params:get("hold2_enable") == 2 and B.FULL or B.MED)
   screen.move(left + w1 + g + 1 + g, y); screen.text("H2")
 end
@@ -741,6 +743,14 @@ local function draw_group1_pane()
   end
   draw_label_cursor(cur_cx, py + 56, cur_label)
 
+  -- Tune and Count are signal-chain devices and show the chain status like the rest. The
+  -- mod rack panes above do not: there the left strip belongs to the modulation source,
+  -- and Hold and the looper are not what you are looking at.
+  if p <= 2 then
+    draw_looper_state_icon()
+    draw_hold_status()
+  end
+
   screen.update()
 end
 
@@ -776,6 +786,10 @@ local function draw_pedalboard()
   end
   local cur_cx = ((psel % 2 == 1) and OX1 or OX2) + 16
   draw_label_cursor(cur_cx, py + 56, PEDALS[psel].display)
+
+  -- chain status, same place as on every other device pane
+  draw_looper_state_icon()
+  draw_hold_status()
 
   screen.update()
 end
@@ -1183,7 +1197,7 @@ end
 local function draw_device_body(x, y, w, h, dev, focused, focus_knob, idx, rack)
   if dev.sprite then
     -- pedals sit one pixel higher than their slot, matching draw_pedal, and carry their
-    -- name below; the rack units fill their slot exactly and carry no caption, there being
+    -- name below; the rack units are placed by the caller and carry no caption, there being
     -- no room for one between two stacked 26px faceplates.
     sprites_device.draw(dev.sprite, x, rack and y or (y - 1), perf_active(dev), focus_knob)
     if not rack then
@@ -1230,7 +1244,11 @@ local function draw_device_pane()
       local hix = (o.abbr == "HD1" and 1) or (o.abbr == "HD2" and 2) or nil
       if o.rack then                              -- stacked 19" units, full width
         local h = math.floor((c.h - 4) / 2)
-        draw_device_body(c.x, c.y + (o.slot - 1) * (h + 4), c.w, h, o.dev, focused, fk, nil, true)
+        -- Only the upper unit was nudged, by two rows, so its top edge sits where the eye
+        -- expects a device to start. Limit keeps the position it had, which widens the gap
+        -- between the two faceplates from 4 to 6 px.
+        local nudge = (o.slot == 1) and 2 or 0
+        draw_device_body(c.x, c.y + (o.slot - 1) * (h + 4) - nudge, c.w, h, o.dev, focused, fk, nil, true)
       else                                        -- two pedals, snapped to the edges
         local x = (o.slot == 1) and c.x or (c.x + c.w - 33)
         draw_device_body(x, 4, 33, 47, o.dev, focused, fk, hix, false)
