@@ -3,8 +3,29 @@ local sync = {}
 local MED  = 5
 local FULL = 15
 
-sync.DIV_OPTS  = {"Off","1/1","1/2","1/4","1/8","1/16","1/32","1/64"}
-sync.DIV_BEATS = {0, 4, 2, 1, 0.5, 0.25, 0.125, 0.0625}
+sync.DIV_OPTS  = {"Off","8/1","4/1","2/1","1/1","1/2","1/4","1/8","1/16","1/32","1/64"}
+sync.DIV_BEATS = {0, 32, 16, 8, 4, 2, 1, 0.5, 0.25, 0.125, 0.0625}
+
+local DIV_SHIFT = 3
+sync.DIV_DEFAULT = 7
+
+function sync.migrate_div(v)
+  if type(v) ~= "number" or v <= 1 then return v end
+  return math.min(v + DIV_SHIFT, #sync.DIV_OPTS)
+end
+
+sync.SCHEME = 2
+
+function sync.migrate_psets()
+  for _, p in ipairs(params.params) do
+    local id = p and p.id
+    if id and (id:match("_sync_div$") or id:match("_quant_div$")) then
+      local v  = params:get(id)
+      local nv = sync.migrate_div(v)
+      if nv ~= v then params:set(id, nv) end
+    end
+  end
+end
 sync.FEEL_OPTS = {"Note","Dotted","Triplet"}
 sync.FEEL_MULT = {1.0, 1.5, 2.0/3.0}
 sync.COUNT_DIV_OPTS  = {"1/1","1/2","1/4","1/8","1/16"}
@@ -34,9 +55,6 @@ function sync.hz_df(bpm, div_opt, feel_opt)
   return bpm / (beats * 60.0)
 end
 
--- Is this division reachable for the device at this tempo/feel? Off (<=1) always
--- is; a synced div is ok only if its resulting value lands inside the device's
--- range (e.g. Repeat's delay must stay <= 1000 ms).
 function sync.div_ok(id, div_opt, feel_opt, bpm)
   if div_opt <= 1 then return true end
   local m = sync.PARAM_MAP[id]
@@ -45,8 +63,6 @@ function sync.div_ok(id, div_opt, feel_opt, bpm)
   return hz ~= nil and m.in_range(hz)
 end
 
--- Next reachable division in scroll direction d, kept within the synced range
--- (never Off). Skips divisions the tempo makes impossible; stays put at an edge.
 function sync.step_div(id, cur, d, feel_opt, bpm)
   local step = d > 0 and 1 or -1
   local nd = cur + step
@@ -57,8 +73,6 @@ function sync.step_div(id, cur, d, feel_opt, bpm)
   return cur
 end
 
--- Nearest reachable division, for when a tempo change invalidates the current
--- one. Never falls back to Off, so an active sync stays active.
 function sync.clamp_div(id, div_opt, feel_opt, bpm)
   if div_opt <= 1 or sync.div_ok(id, div_opt, feel_opt, bpm) then return div_opt end
   for off = 1, #sync.DIV_OPTS do
@@ -69,7 +83,6 @@ function sync.clamp_div(id, div_opt, feel_opt, bpm)
   return div_opt
 end
 
--- After a tempo change, pull every active synced div back into reach.
 function sync.reconcile(bpm)
   for id, m in pairs(sync.PARAM_MAP) do
     local div = params:get(m.div)
@@ -121,10 +134,11 @@ function sync.push_all(initing, clock_running, override)
 end
 
 function sync.activate_defaults()
-  if params:get("tremolo_sync_div") <= 1 then params:set("tremolo_sync_div", 4) end
-  if params:get("warp_sync_div")    <= 1 then params:set("warp_sync_div",    4) end
-  if params:get("repeat_sync_div")  <= 1 then params:set("repeat_sync_div",  4) end
-  if params:get("looper_quant_div") <= 1 then params:set("looper_quant_div", 4) end
+  local d = sync.DIV_DEFAULT
+  if params:get("tremolo_sync_div") <= 1 then params:set("tremolo_sync_div", d) end
+  if params:get("warp_sync_div")    <= 1 then params:set("warp_sync_div",    d) end
+  if params:get("repeat_sync_div")  <= 1 then params:set("repeat_sync_div",  d) end
+  if params:get("looper_quant_div") <= 1 then params:set("looper_quant_div", d) end
 end
 
 return sync

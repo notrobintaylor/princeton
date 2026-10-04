@@ -23,7 +23,7 @@ seq.mod = {
 }
 
 seq.state                = {}
-seq.clocks               = {}
+seq.clock_gen            = {}
 seq.last_global          = {}
 seq.target_device_filter = {}
 seq.target_param_filter  = {}
@@ -53,7 +53,7 @@ do
   local after = {
     {name="Rate",      suf="_rate",      typ="ctrl", step=0.1, fmt=function(v,i) return string.format("%.1fHz",v) end,
      visible_when=function(idx) return not seq.is_sync_active(idx) end},
-    {name="Sync",      suf="_sync_div",  typ="opt",  nmax=8, fmt=function(v,i) return sync.DIV_OPTS[v] end},
+    {name="Sync",      suf="_sync_div",  typ="opt",  nmax=#sync.DIV_OPTS, fmt=function(v,i) return sync.DIV_OPTS[v] end},
     {name="Sync Feel", suf="_sync_feel", typ="opt",  nmax=3, fmt=function(v,i) return sync.FEEL_OPTS[v] end,
      visible_when=function(idx) return seq.is_sync_active(idx) end},
     {name="Rate Slew", suf="_rate_slew", typ="ctrl", step=0.1, fmt=function(v,i) return string.format("%.1fs",v) end},
@@ -159,7 +159,6 @@ local function apply_to_target(idx)
   local sv = params:get("seq"..idx.."_step_"..s.step_pos) / 100
   if sv < -1 then sv = -1 elseif sv > 1 then sv = 1 end
 
-  -- 0% = base (no modulation), +100% = target max, -100% = target min
   local off
   if sv >= 0 then off = sv * (t.mx - base)
   else            off = sv * (base - t.mn)
@@ -194,7 +193,8 @@ function seq.refresh_dropdowns_for_device(dev_name)
 end
 
 function seq.start_clock(idx)
-  if seq.clocks[idx] then clock.cancel(seq.clocks[idx]); seq.clocks[idx] = nil end
+  seq.clock_gen[idx] = (seq.clock_gen[idx] or 0) + 1
+  local my = seq.clock_gen[idx]
   if is_initing() then return end
   if params:get("seq"..idx.."_enable") ~= 2 then return end
   local target_idx = seq.last_global[idx] or 1
@@ -206,8 +206,9 @@ function seq.start_clock(idx)
   seq.mod.rate_slewed[idx] = nil
   apply_to_target(idx)
 
-  seq.clocks[idx] = clock.run(function()
+  clock.run(function()
     while true do
+      if seq.clock_gen[idx] ~= my then return end
       local cur_target = seq.last_global[idx] or 1
       if cur_target == 1 then break end
 
@@ -232,6 +233,7 @@ function seq.start_clock(idx)
         clock.sleep(1 / math.max(0.05, rate))
       end
 
+      if seq.clock_gen[idx] ~= my then return end
       local s = seq.state[idx]
       local nsteps = seq_g("steps", idx)
       if nsteps < 1 then nsteps = 1 end
@@ -239,7 +241,6 @@ function seq.start_clock(idx)
       apply_to_target(idx)
       if is_pane_visible and is_pane_visible() and redraw_pane then redraw_pane() end
     end
-    seq.clocks[idx] = nil
   end)
 end
 
@@ -252,7 +253,6 @@ function seq.randomize(idx)
 end
 
 -- ── Draw (looper-style knob grid: playhead + edit cursor) ────
--- Reuse the looper pane's knob sprite (5x5), normalised to a stamp.
 local KNOB = (function()
   local raw = sprites_looper.LOOPER_PTS.knob[1]
   local minx, miny = 999, 999
@@ -278,8 +278,6 @@ function seq.draw_half(ox, oy, idx, focused, sel_step)
   local n       = params:get("seq"..idx.."_steps")
   local cur     = seq.state[idx] and seq.state[idx].step_pos or 1
 
-  -- fixed 4x4 layout: knob positions never move; unused steps (k > n) are
-  -- simply not drawn, so adding/removing steps keeps every knob in place.
   local cols   = 4
   local grid_w = 3 * H_PITCH + 5
   local grid_h = 3 * V_PITCH + 5

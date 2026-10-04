@@ -1,12 +1,12 @@
 Engine_Princeton : CroneEngine {
 
-    var synth;
+    var synth, send_dummy_bus, send_own_buses;
     var in_synth, tune_synth;
     var push_synth, push_gain_v, push_tone_v, push_level_v, push_mix_v;
     var distort_synth, distort_gain_v, distort_tone_v, distort_level_v, distort_lowcut_v;
     var fray_synth, fray_drive_v, fray_tone_v, fray_gate_v, fray_comp_v, fray_stab_v, fray_octave_v, fray_octave_mode_v, fray_volume_v;
     var cut_synth, cut_thresh_v, cut_attack_v, cut_hold_v, cut_release_v, cut_range_v, cut_hyst_v, cut_detect_v;
-    var hold_synth, hold_rec_synth, hold_rec_buf, hold_play_bufs, hold_play_idx, hold_phase_bus, hold_wants_on, hold_out_bus, hold_env_bufs, hold_shape_v, hold_interp_v, hold_gain_v, hold_rise_v, hold_fall_v, hold_level_v, hold_size_v, hold_density_v, hold_pitch_v, hold_spread_v, hold_pmix_v, hold_rev_v;
+    var hold_synth, hold_rec_synth, hold_rec_buf, hold_play_bufs, hold_play_idx, hold_phase_bus, hold_wants_on, hold_out_bus, hold_rec_bus, hold_env_bufs, hold_shape_v, hold_interp_v, hold_gain_v, hold_rise_v, hold_fall_v, hold_level_v, hold_size_v, hold_density_v, hold_pitch_v, hold_spread_v, hold_pmix_v, hold_rev_v;
     var loop_buf;
     var tune_freq_bus;
     var count_bus;
@@ -26,19 +26,14 @@ Engine_Princeton : CroneEngine {
         pedal_bus = Bus.audio(context.server, 2);
         looper_in_bus   = Bus.audio(context.server, 2);
         looper_out_bus  = Bus.audio(context.server, 2);
-        // Two Hold instances run in parallel: 2 x 4 stereo output slots.
         hold_out_bus    = Bus.audio(context.server, 16);
-        // ONE shared rolling recorder feeds both instances (they capture the same signal).
+        hold_rec_bus    = Bus.audio(context.server, 2);
         hold_rec_buf    = Buffer.alloc(context.server, (48000 * 1.2).asInteger, 1);
         hold_phase_bus  = Bus.control(context.server, 1);
-        // Per instance: pool of play buffers, cycled per hold_on so a fresh snapshot never
-        // overwrites the buffer an older, still-fading grain synth reads (that stomp clicks).
         hold_play_bufs  = Array.fill(2, { Array.fill(4, { Buffer.alloc(context.server, (48000 * 1.2).asInteger, 1) }) });
         hold_play_idx   = Array.fill(2, 0);
         hold_synth      = Array.fill(2, nil);
         hold_wants_on   = Array.fill(2, false);
-        // Grain windows for the Shape param, read through GrainBuf envbufnum.
-        // Plateau does not reach zero at its edges and can click; that is accepted by design.
         hold_env_bufs = [
             Env([0, 1, 0],    [0.5,  0.5 ],        \sine).asSignal(1024),
             Env([0, 1, 0],    [0.5,  0.5 ],      [4, -4]).asSignal(1024),
@@ -48,10 +43,9 @@ Engine_Princeton : CroneEngine {
         ].collect({ |sig| Buffer.sendCollection(context.server, sig, 1) });
         push_gain_v = 5; push_tone_v = 5; push_level_v = 5; push_mix_v = 25;
         distort_gain_v = 5; distort_tone_v = 7.5; distort_level_v = 5; distort_lowcut_v = 0;
-        fray_drive_v = 5; fray_tone_v = 10; fray_gate_v = 0; fray_comp_v = 5;
+        fray_drive_v = 7.5; fray_tone_v = 10; fray_gate_v = 0; fray_comp_v = 5;
         fray_stab_v = 0; fray_octave_v = 0; fray_octave_mode_v = 1; fray_volume_v = 5;
         cut_thresh_v = -50; cut_attack_v = 1; cut_hold_v = 20; cut_release_v = 100; cut_range_v = -75; cut_hyst_v = 0; cut_detect_v = 0;
-        // Instance 2 starts longer/denser/wider (7.5) so the two layers differ by default.
         hold_gain_v = [5, 5];      hold_rise_v  = [0.25, 0.25]; hold_fall_v   = [2.5, 2.5];
         hold_level_v = [5, 5];     hold_size_v  = [5, 7.5];     hold_density_v = [5, 7.5];
         hold_pitch_v = [-12, 12];  hold_spread_v = [5, 7.5];    hold_pmix_v   = [10, 10];
@@ -133,7 +127,7 @@ Engine_Princeton : CroneEngine {
             push_drive = LeakDC.ar(push_drive);
             push_drive = HPF.ar(push_drive, push_tone.linexp(0, 10, 100, 750));
             push_drive = LPF.ar(push_drive, 3200);
-            push_sig   = push_drive * push_level.linlin(0, 10, 0.0, 1.3);
+            push_sig   = push_drive * push_level.linlin(0, 10, 0.0, 0.988);
             wet = XFade2.ar(push_sig, dry, push_mix.linlin(0, 100, -1, 1));
             ReplaceOut.ar(bus, LinXFade2.ar(dry, wet, env * 2 - 1));
         }).add;
@@ -155,13 +149,13 @@ Engine_Princeton : CroneEngine {
             distort_drive = LeakDC.ar(distort_drive);
             distort_drive = LPF.ar(distort_drive, distort_tone.linexp(0, 10, 300, 5000));
             distort_drive = HPF.ar(distort_drive, Select.kr(distort_lowcut.round(1), [20, 100, 250]));
-            distort_sig   = distort_drive * distort_level.linlin(0, 10, 0.0, 0.170);
+            distort_sig   = distort_drive * distort_level.linlin(0, 10, 0.0, 0.051);
             ReplaceOut.ar(bus, LinXFade2.ar(dry, distort_sig, env * 2 - 1));
         }).add;
 
         SynthDef(\princeton_fray, {
             arg bus = 0, gate = 1, fade = 0.025,
-                fray_drive = 5, fray_tone = 10, fray_gate = 0, fray_comp = 5,
+                fray_drive = 7.5, fray_tone = 10, fray_gate = 0, fray_comp = 5,
                 fray_stab = 0, fray_octave = 0, fray_octave_mode = 1, fray_volume = 5;
             var dry, sig, env, amp, sag, gain, pre, fb, fb_amt, starve, bias;
             var oct_up, oct_down, oct, ring, open, wet;
@@ -208,7 +202,7 @@ Engine_Princeton : CroneEngine {
             pre  = pre * Lag.kr(open, 0.004);
 
             pre = LPF.ar(pre, fray_tone.linexp(0, 10, 750, 7500));
-            wet = pre * fray_volume.linlin(0, 10, 0.0, 0.55);
+            wet = pre * fray_volume.linlin(0, 10, 0.0, 0.0264);
             ReplaceOut.ar(bus, LinXFade2.ar(dry, wet, env * 2 - 1));
         }).add;
 
@@ -223,20 +217,15 @@ Engine_Princeton : CroneEngine {
             env = EnvGen.kr(Env.asr(fade, 1, fade), gate, doneAction: 2);
             dry   = In.ar(bus, 2);
             monoA = (dry[0] + dry[1]) * 0.5;
-            // Detection: Peak = fast follower, RMS = slower/smoother follower
             det = Select.kr(cut_detect.round(1), [
                 Amplitude.kr(monoA, 0.001, 0.01),
                 Amplitude.kr(monoA, 0.02,  0.05)
             ]);
-            // Schmitt trigger gives the open/close hysteresis
             openThr  = cut_thresh.dbamp;
             closeThr = (cut_thresh - cut_hyst).dbamp;
             opened   = Schmidt.kr(det, closeThr, openThr);
-            // Hold: keep open for cut_hold ms after a falling edge
             fell     = (Delay1.kr(opened) - opened).max(0);
             heldOpen = opened.max(Trig1.kr(fell, cut_hold * 0.001));
-            // Gain envelope: floor (cut_range dB) when closed, unity when open,
-            // asymmetric attack (up) / release (down)
             target = heldOpen.linlin(0, 1, cut_range.dbamp, 1.0);
             g      = LagUD.kr(target, cut_attack * 0.001, cut_release * 0.001);
             ReplaceOut.ar(bus, LinXFade2.ar(dry, dry * g, env * 2 - 1));
@@ -244,10 +233,8 @@ Engine_Princeton : CroneEngine {
 
         // ── Hold recorder: always-rolling capture of the post-amp signal ──
         SynthDef(\princeton_hold_rec, {
-            arg looper_in_bus_num = 0, hold_buf_num = 0, phase_out = 0;
-            // Always-rolling circular capture via Phasor + BufWr; the write head is exposed
-            // on a control bus so hold_on can linearise the snapshot (seam -> buffer end).
-            var sig   = In.ar(looper_in_bus_num, 2).sum * 0.5;
+            arg tap_bus_num = 0, hold_buf_num = 0, phase_out = 0;
+            var sig   = In.ar(tap_bus_num, 2).sum * 0.5;
             var phase = Phasor.ar(0, 1, 0, BufFrames.kr(hold_buf_num));
             BufWr.ar(sig, hold_buf_num, phase, loop: 1);
             ReplaceOut.kr(phase_out, A2K.kr(phase));
@@ -269,36 +256,23 @@ Engine_Princeton : CroneEngine {
             hold_density = Lag.kr(hold_density, 0.05);
             hold_pmix    = Lag.kr(hold_pmix,    0.05);
             hold_rev     = Lag.kr(hold_rev,     0.05);
-            rate   = hold_pitch.midiratio;      // semitones -> playback ratio
+            rate   = hold_pitch.midiratio;
             bufdur = BufDur.kr(hold_buf_num);
-            spread = hold_spread * 0.1;         // 0 = regular grid, 1 = full temporal scatter
-            pmix   = hold_pmix * 0.01;          // fraction of grains that get the pitch shift
+            spread = hold_spread * 0.1;
+            pmix   = hold_pmix * 0.01;
             rmix   = hold_rev  * 0.01;
-            // Density = grain overlap of the 6 always-on layers. Two-part curve: the low
-            // end stays cheap (Density 1 = 1.2) and the default (Density 5) stays ~6, but the
-            // top is capped at 8 (was 12) to bound CPU at high Density. CPU scales with it.
             ov     = hold_density.min(5).linlin(1, 5, 1.2, 6) + (hold_density - 5).max(0).linlin(0, 5, 0, 2);
 
-            // 8 always-on grain layers reading the frozen buffer; Density sets their
-            // overlap, Size the grain length. Per-grain gain normalised so the layered
-            // texture matches the old 5-layer loudness (sqrt(5/8) * 0.3 ~= 0.235).
             grains = Mix.fill(6, { |i|
                 var dur  = hold_size.linexp(0, 10, 0.15, 0.6) * (1 + (i * 0.1));
                 var trig, pos, pan, span, base_rate, imp, coin, grate, rcoin, rev;
-                // Cap the grain length so the read never runs past the buffer end at the
-                // current pitch (that hard jump to silence is the click source); then keep
-                // the random start position inside the remaining room.
                 dur  = dur.min(bufdur / rate * 0.9);
                 span = rate.max(1) * dur / bufdur;
                 base_rate = ov / dur * (1 + (i * 0.04));
                 imp  = Impulse.ar(base_rate);
-                // Spread scatters each grain's onset within its own interval (capped below
-                // the interval so no trigger is dropped): 0 = regular grid, 1 = diffuse cloud.
                 trig = TDelay.ar(imp, TRand.ar(0, spread * base_rate.reciprocal * 0.9, imp));
                 pos  = TRand.ar(0.04, (0.98 - span).max(0.04), trig);
                 pan  = TRand.ar(-1.0, 1.0, trig);
-                // Per-grain coin: with probability pmix this grain gets the pitch shift,
-                // otherwise it plays at original pitch -> blend of pitched and dry grains.
                 coin  = TRand.ar(0, 1, trig);
                 grate = 1 + ((rate - 1) * (coin < pmix));
                 rcoin = TRand.ar(0, 1, trig);
@@ -309,11 +283,8 @@ Engine_Princeton : CroneEngine {
             });
             pad = LeakDC.ar(grains);
 
-            // Gain = drive into a soft saturation (character/thickness of the pad),
-            // distinct from Level which is the output mix.
             gain_lin = hold_gain.linexp(0, 10, 0.5, 4.0);
             pad = (pad * gain_lin).tanh;
-            // Gentle low-pass tames the granular high-frequency splatter for a softer pad.
             pad = LPF.ar(pad, 5000);
 
             env = EnvGen.kr(Env.asr(hold_rise, 1, hold_fall.max(0.01)), gate, doneAction: 2);
@@ -334,8 +305,8 @@ Engine_Princeton : CroneEngine {
         SynthDef(\princeton, {
 
             arg out_bus = 0, pedal_bus_num = 0, hold_out_bus_num = 0,
-                looper_in_bus_num = 0, looper_out_bus_num = 0,
-                volume = 5.0, bass = 5, treble = 5, master = 7.5,
+                looper_in_bus_num = 0, looper_out_bus_num = 0, hold_rec_bus_num = 0,
+                volume = 5.0, bass = 2.5, treble = 5, master = 7.5, rectifier = 1,
                 reverb = 25, reverb_length = 2.5, reverb_low_shelf = 0, reverb_high_shelf = 0,
                 trem_speed = 2.5, trem_intensity = 0,
                 mic = 1, characteristic = 0,
@@ -346,8 +317,9 @@ Engine_Princeton : CroneEngine {
                 cab_level = 1.0,
                 eq_bypass = 1, eq_low_freq = 2, eq_low_boost = 0, eq_low_cut = 0,
                 eq_high_freq = 2, eq_high_bw = 0, eq_high_boost = 0, eq_high_cut = 0, eq_gain = 0,
-                limit_bypass = 1, limit_threshold = 0.31623, limit_ratio = 4.0, limit_gain = 1.0, limit_attack = 10, limit_decay = 50,
-                send_a_source = 2, send_a_level = 1.0, send_b_source = 2, send_b_level = 1.0;
+                limit_bypass = 0, limit_threshold = 0.31623, limit_ratio = 2.0, limit_gain = 1.0, limit_attack = 10, limit_decay = 200,
+                send_a_source = 2, send_a_level = 1.0, send_b_source = 2, send_b_level = 1.0,
+                send_a_bus_num = 0, send_b_bus_num = 0;
 
             var sig;
             var repeat_delay, repeat_fb, pre1, toned, pre2, power;
@@ -355,12 +327,12 @@ Engine_Princeton : CroneEngine {
             var trem_lfo, trem_out, trem_depth, trem_dry;
             var sp1, sp2, sp3, diff, spring_wet, wetmix;
             var spring_in, preDel, twang;
-            var input_gain, sag, sag_gain;
+            var input_gain, sag, sag_gain, rect_idx, rect_depth, rect_atk, rect_rel, rect_head, rect_comp;
             var rev_decay, rev_send;
             var out_sig;
             var bass_gain, treble_gain;
             var bass_lf, bass_hf, treble_lf, treble_hf;
-            var final_sig, loop_mix;
+            var final_sig, loop_mix, hold_sum;
             var repeat_fb_lp, repeat_jitter, repeat_noise, repeat_dt;
             var warp_lfo, warp_sig, warp_depth_env;
             var sig_mono;
@@ -431,7 +403,7 @@ Engine_Princeton : CroneEngine {
             sig = sig + (repeat_delay * (repeat_level / 100.0));
 
             // ── Amp: preamp → tone stack → power amp ─────────────────────────
-            input_gain = volume.clip(0.01, 10).linexp(0.01, 10, 0.35, 22.6);
+            input_gain = volume.clip(0.01, 10).linexp(0.01, 10, 0.6544, 42.26);
             pre1 = (sig * input_gain).tanh;
             pre1 = HPF.ar(pre1, 100);
 
@@ -450,9 +422,15 @@ Engine_Princeton : CroneEngine {
             pre2 = (toned * 1.7).tanh * 0.55;
             pre2 = HPF.ar(pre2, 80);
 
-            sag      = Amplitude.ar((pre2[0] + pre2[1]) * 0.5, 0.004, 0.12);
-            sag_gain = 1.0 / (1.0 + sag * 0.35);
-            power    = (pre2 * sag_gain * 2.2).softclip * 0.5;
+            rect_idx   = rectifier.round(1).clip(0, 2);
+            rect_depth = Lag.kr(Select.kr(rect_idx, [0.6,   0.35,  0.08]),  0.1);
+            rect_atk   = Lag.kr(Select.kr(rect_idx, [0.008, 0.004, 0.002]), 0.1);
+            rect_rel   = Lag.kr(Select.kr(rect_idx, [0.25,  0.12,  0.05]),  0.1);
+            rect_head  = Lag.kr(Select.kr(rect_idx, [2.8,   2.2,   1.6]),   0.1);
+            rect_comp  = (2.2 / rect_head) * ((1.0 + (0.3 * rect_depth)) / (1.0 + (0.3 * 0.35)));
+            sag      = Amplitude.ar((pre2[0] + pre2[1]) * 0.5, rect_atk, rect_rel);
+            sag_gain = 1.0 / (1.0 + (sag * rect_depth));
+            power    = (pre2 * sag_gain * rect_head).softclip * 0.5 * rect_comp;
 
             // ── Tremolo ───────────────────────────────────────────────────────
             trem_lfo   = SinOsc.kr(trem_speed, 0, 0.5, 0.5);
@@ -464,9 +442,11 @@ Engine_Princeton : CroneEngine {
             ];
 
             // ── Looper ───────────────────────────────────────────────
-            ReplaceOut.ar(looper_in_bus_num, trem_out);
+            hold_sum = InFeedback.ar(hold_out_bus_num, 16).clump(2).sum;
+            ReplaceOut.ar(hold_rec_bus_num, trem_out);
+            ReplaceOut.ar(looper_in_bus_num, trem_out + hold_sum);
             looper_ret = InFeedback.ar(looper_out_bus_num, 2);
-            loop_mix = trem_out + looper_ret + InFeedback.ar(hold_out_bus_num, 16).clump(2).sum;
+            loop_mix = trem_out + looper_ret + hold_sum;
 
             // ── Spring reverb ─────────────────────────────────────────────────
             rev_decay = reverb_length;
@@ -550,8 +530,8 @@ Engine_Princeton : CroneEngine {
                 Select.ar(send_b_source.round(1), [send_input_tap[0], looper_ret[0], final_sig[0]]),
                 Select.ar(send_b_source.round(1), [send_input_tap[1], looper_ret[1], final_sig[1]])
             ] * send_b_level;
-            if(~sendA.notNil) { ReplaceOut.ar(~sendA, send_a) };
-            if(~sendB.notNil) { ReplaceOut.ar(~sendB, send_b) };
+            ReplaceOut.ar(send_a_bus_num, send_a);
+            ReplaceOut.ar(send_b_bus_num, send_b);
 
         }).add;
 
@@ -593,16 +573,41 @@ Engine_Princeton : CroneEngine {
             \pedal_bus_num, pedal_bus.index
         ], context.xg);
 
+        send_dummy_bus = Bus.audio(context.server, 2);
+        send_own_buses = [];
         synth = Synth.after(in_synth, \princeton, [
             \out_bus,             context.out_b.index,
+            \send_a_bus_num,      send_dummy_bus.index,
+            \send_b_bus_num,      send_dummy_bus.index,
             \pedal_bus_num,       pedal_bus.index,
             \looper_in_bus_num,   looper_in_bus.index,
             \looper_out_bus_num,  looper_out_bus.index,
-            \hold_out_bus_num,    hold_out_bus.index
+            \hold_out_bus_num,    hold_out_bus.index,
+            \hold_rec_bus_num,    hold_rec_bus.index
         ]);
 
+        // ── fx mod sends ─────────────────────────────────────────────
+        this.addCommand("fx_attach", "", {
+            var hw = [context.in_b[0].index, context.in_b[1].index, context.out_b.index, context.out_b.index + 1];
+            var attach = { |key, name|
+                var bus = topEnvironment[key];
+                var i = if(bus.isNil) { nil } { if(bus.isKindOf(Bus)) { bus.index } { bus.asInteger } };
+                case
+                { i.isNil } { ("princeton: fx % - no fx mod found, send rests".format(name)).postln; send_dummy_bus.index }
+                { [i, i + 1].sect(hw).notEmpty } {
+                    var own = Bus.audio(context.server, 2);
+                    send_own_buses = send_own_buses.add([key, bus, own]);
+                    topEnvironment[key] = own;
+                    ("princeton: fx % - the fx mod's bus % overlaps the norns input/output, its plugins read bus % while princeton runs".format(name, i, own.index)).postln;
+                    own.index
+                }
+                { ("princeton: fx % -> bus %".format(name, i)).postln; i }
+            };
+            synth.set(\send_a_bus_num, attach.(\sendA, "send A"), \send_b_bus_num, attach.(\sendB, "send B"));
+        });
+
         hold_rec_synth = Synth.after(synth, \princeton_hold_rec, [
-            \looper_in_bus_num, looper_in_bus.index,
+            \tap_bus_num,       hold_rec_bus.index,
             \hold_buf_num,      hold_rec_buf.bufnum,
             \phase_out,         hold_phase_bus.index
         ]);
@@ -619,6 +624,7 @@ Engine_Princeton : CroneEngine {
             ["amp_treble",           \treble],
             ["amp_master",           \master],
             ["amp_volume",           \volume],
+            ["amp_rectifier",        \rectifier],
             ["warp_bypass",          \warp_bypass],
             ["warp_depth",           \warp_depth],
             ["warp_mix",             \warp_mix],
@@ -701,9 +707,6 @@ Engine_Princeton : CroneEngine {
             hold_wants_on[i] = true;
             if(hold_synth[i].isNil) {
                 hold_play_idx[i] = (hold_play_idx[i] + 1) % 4;
-                // Read the recorder's current write head, then copy the circular capture
-                // into the pool buffer in two parts so it is time-ordered (oldest first).
-                // The seam then sits at the buffer end, which grains never read across.
                 hold_phase_bus.get({ |w|
                     var n, wi, play, slot;
                     if(hold_wants_on[i] and: { hold_synth[i].isNil }) {
@@ -741,9 +744,6 @@ Engine_Princeton : CroneEngine {
 
         this.addCommand("hold_off", "i", { |msg|
             var i = msg[1].asInteger - 1;
-            // Gate off: the pad fades over Fall on the play buffer, which the rolling
-            // recorder never touches, so the fade stays clean and the next hold_on grabs
-            // a fresh snapshot. Clearing hold_wants_on also cancels a pending grab.
             hold_wants_on[i] = false;
             if(hold_synth[i].notNil) {
                 hold_synth[i].set(\gate, 0);
@@ -892,6 +892,8 @@ Engine_Princeton : CroneEngine {
     free {
         synth.free;
         in_synth.free;
+        send_dummy_bus.free;
+        send_own_buses.do { |e| topEnvironment[e[0]] = e[1]; e[2].free };
         if(cut_synth.notNil) { cut_synth.free };
         hold_synth.do({ |s| if(s.notNil) { s.free } });
         if(hold_rec_synth.notNil) { hold_rec_synth.free };
@@ -905,6 +907,7 @@ Engine_Princeton : CroneEngine {
         hold_env_bufs.do({ |b| b.free });
         hold_phase_bus.free;
         hold_out_bus.free;
+        hold_rec_bus.free;
         tune_freq_bus.free;
         count_bus.free;
         env1_bus.free;

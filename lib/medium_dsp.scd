@@ -1,10 +1,3 @@
-// medium_dsp: shared medium-DSP closures (chain/blend/read), loaded at runtime
-// by Engine_Princeton and Engine_Media. Returns an event of closures.
-//   mediumChain.(med, input, amt, bbd_tone_fc)            -- medium colouring
-//   mediumBlend.(med, input, amt, bbd_tone_fc)            -- dry/medium crossfade
-//   mediumRead.(med, rd, bbd_tone_fc, wow_tape, wow_cas, chip_crush, speed_rate)
-// Load via: File.readAllString(PathName(this.class.filenameSymbol.asString).pathOnly
-//             ++ "medium_dsp.scd").interpret.value
 {
     var mediumChain, mediumRead, mediumBlend;
 

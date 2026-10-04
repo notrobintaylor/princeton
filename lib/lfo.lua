@@ -31,7 +31,7 @@ lfo.sync_override = {}
 lfo.random        = { suspend_count = {}, suspended = {} }
 
 lfo.state                = {}
-lfo.clocks               = {}
+lfo.clock_gen            = {}
 lfo.target_base          = {}
 lfo.target_owner         = {}
 lfo.orig_name            = {}
@@ -55,7 +55,7 @@ lfo.STRIP = {
   {name="Direction", suf="_dir",          typ="opt",  nmax=3, fmt=function(v,i) return DIR_OPTS[v] end},
   {name="Phase",     suf="_phase",        typ="opt",  nmax=4, fmt=function(v,i) return ({"0°","90°","180°","270°"})[v] end,
    visible_when=function(idx) return not lfo.is_step_random(idx) end},
-  {name="Sync",      suf="_sync_div",     typ="opt",  nmax=8, fmt=function(v,i) return sync.DIV_OPTS[v] end},
+  {name="Sync",      suf="_sync_div",     typ="opt",  nmax=#sync.DIV_OPTS, fmt=function(v,i) return sync.DIV_OPTS[v] end},
   {name="Sync Feel", suf="_sync_feel",    typ="opt",  nmax=3, fmt=function(v,i) return sync.FEEL_OPTS[v] end,
    visible_when=function(idx) return lfo.is_sync_active(idx) end},
   {name="Rate Slew", suf="_rate_slew",    typ="ctrl", step=0.1, fmt=function(v,i) return string.format("%.1fs",v) end,
@@ -201,6 +201,10 @@ local function target_visible(target_id)
     if sufs == "rate"     then return not target_synced end
     if sufs == "sync_div" or sufs == "sync_feel" then return target_synced end
   end
+  local nt, suft = target_id:match("^trig(%d+)_(.+)$")
+  if nt and (suft == "sync_div" or suft == "sync_feel") then
+    return params:get("trig"..tonumber(nt).."_sync_div") > 1
+  end
   return true
 end
 
@@ -212,10 +216,6 @@ function lfo.rebuild_target_dropdown(idx)
   modtarget.rebuild(binding, idx)
 end
 
--- When a synced param (repeat_time, tremolo_speed, warp_rate) is a mod target,
--- the audible value is the sync-derived one, not the raw param. Center the
--- modulation on that so the LFO wiggles around the synced time, not the low
--- manual base. Mirrors sync.push_all's override-aware div/feel resolution.
 local function synced_base(id)
   local m = sync.PARAM_MAP[id]
   if not (m and is_clock_running()) then return nil end
@@ -295,7 +295,8 @@ function lfo.clear_override(target_id)
 end
 
 function lfo.start_clock(idx)
-  if lfo.clocks[idx] then clock.cancel(lfo.clocks[idx]); lfo.clocks[idx] = nil end
+  lfo.clock_gen[idx] = (lfo.clock_gen[idx] or 0) + 1
+  local my = lfo.clock_gen[idx]
   if is_initing() then return end
   if params:get("lfo"..idx.."_enable") ~= 2 then
     local ti = lfo.last_global[idx] or 1
@@ -309,8 +310,9 @@ function lfo.start_clock(idx)
   local t = TARGET_PARAMS[target_idx]
   if not t or not t.id or lfo.target_owner[t.id] ~= idx then return end
 
-  lfo.clocks[idx] = clock.run(function()
+  clock.run(function()
     while true do
+      if lfo.clock_gen[idx] ~= my then return end
       local cur_target = lfo.last_global[idx] or 1
       if cur_target == 1 then break end
       local wf = params:get("lfo"..idx.."_waveform")
@@ -339,6 +341,7 @@ function lfo.start_clock(idx)
             end
             clock.sleep(1 / math.max(0.05, rate))
           end
+          if lfo.clock_gen[idx] ~= my then return end
           local s = lfo.state[idx]
           local steps = lfo_g("steps", idx)
           if steps > 0 then
@@ -375,6 +378,7 @@ function lfo.start_clock(idx)
         end
         local dt = lfo_adaptive_dt(idx, rate)
         clock.sleep(dt)
+        if lfo.clock_gen[idx] ~= my then return end
         if slew then
           local coeff = math.min(1, dt / slew)
           rate = rate + (target_rate - rate) * coeff
@@ -393,7 +397,6 @@ function lfo.start_clock(idx)
         apply_to_target(idx)
       end
     end
-    lfo.clocks[idx] = nil
   end)
 end
 

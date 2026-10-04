@@ -8,8 +8,8 @@ local MED  = 5
 local FULL = 15
 
 trigs.N           = 4
-trigs.mod         = { rate = {}, probability = {} }
-trigs.clocks      = {}
+trigs.mod         = { rate = {}, probability = {}, sync_div = {}, sync_feel = {} }
+trigs.clock_gen   = {}
 trigs.last_global = {}
 trigs.applied_lfo = {}
 trigs.strip_fn    = {}
@@ -32,7 +32,7 @@ trigs.STRIP = {
   {name="Probability", suf="_probability",   typ="ctrl", step=1,   fmt=function(v,i) return string.format("%d%%",math.floor(v)) end},
   {name="Rate",        suf="_rate",          typ="ctrl", step=0.1, fmt=function(v,i) return string.format("%.1fHz",v) end,
    visible_when=function(idx) return not trigs.strip_fn.sync_active(idx) end},
-  {name="Sync",        suf="_sync_div",      typ="opt",  nmax=8,   fmt=function(v,i) return sync.DIV_OPTS[v] end},
+  {name="Sync",        suf="_sync_div",      typ="opt",  nmax=#sync.DIV_OPTS, fmt=function(v,i) return sync.DIV_OPTS[v] end},
   {name="Sync Feel",   suf="_sync_feel",     typ="opt",  nmax=3,   fmt=function(v,i) return sync.FEEL_OPTS[v] end},
   {name="Device",      suf="_target_device", typ="opt",  nmax_fn=function(i) return #(trigs.target_device_filter[i] or {}) end,
    fmt=function(v,i)
@@ -103,20 +103,22 @@ function trigs.fn.refresh_suspend(idx)
 end
 
 function trigs.fn.start_clock(idx)
-  if trigs.clocks[idx] then clock.cancel(trigs.clocks[idx]); trigs.clocks[idx] = nil end
+  trigs.clock_gen[idx] = (trigs.clock_gen[idx] or 0) + 1
+  local my = trigs.clock_gen[idx]
   if is_initing() then return end
   if params:get("trig"..idx.."_enable") ~= 2 then return end
-  trigs.clocks[idx] = clock.run(function()
+  clock.run(function()
     while true do
-      local sync_div_opt = params:get("trig"..idx.."_sync_div")
+      local sync_div_opt = trigs.mod.sync_div[idx] ~= nil and trigs.mod.sync_div[idx] or params:get("trig"..idx.."_sync_div")
       if sync_div_opt > 1 and is_clock_running() then
-        local feel_opt = params:get("trig"..idx.."_sync_feel")
+        local feel_opt = trigs.mod.sync_feel[idx] ~= nil and trigs.mod.sync_feel[idx] or params:get("trig"..idx.."_sync_feel")
         local beats = sync.DIV_BEATS[sync_div_opt] * sync.FEEL_MULT[feel_opt]
         clock.sync(beats)
       else
         local rate = trigs.mod.rate[idx] ~= nil and trigs.mod.rate[idx] or params:get("trig"..idx.."_rate")
         clock.sleep(1 / math.max(0.05, rate))
       end
+      if trigs.clock_gen[idx] ~= my then return end
       local prob = trigs.mod.probability[idx] ~= nil and trigs.mod.probability[idx] or params:get("trig"..idx.."_probability")
       if prob > 0 and (prob >= 100 or math.random() * 100 < prob) then
         local g = trigs.last_global[idx] or 1

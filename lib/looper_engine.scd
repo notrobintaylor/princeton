@@ -1,8 +1,3 @@
-// looper_engine: looper + imprint SynthDefs (per medium), shared by princeton and media.
-// Loaded at runtime and applied via .value(engine, ctx). ctx provides:
-//   ctx[\mediaNames]   -- medium symbol list ([\bbd, \cas, \cd, \chip, \tape, \vinyl])
-//   ctx[\mediumBlend]  -- medium-DSP blend closure
-//   ctx[\mediumRead]   -- medium-DSP read closure
 { |engine, ctx|
     var mediaNames  = ctx[\mediaNames];
     var mediumBlend = ctx[\mediumBlend];
@@ -11,6 +6,19 @@
     var looperInBus = ctx[\looperInBus], looperOutBus = ctx[\looperOutBus], loopBuf = ctx[\loopBuf];
     var imprint_in_bus, imprint_out_bus, looper_synth, imprint_synth;
     var imp_amt_v = 50, imp_bbd_tone_v = 0, imp_medium_v = 3;
+    var idx, cname, linkBus, own_link_bus, linkState, link_follow_v = 0;
+
+    idx = ctx[\idx] ? 1;
+    own_link_bus = if(ctx[\linkBus].isNil) { Bus.control(server, 3) } { nil };
+    linkBus = ctx[\linkBus] ? own_link_bus;
+    linkState = ctx[\linkState] ? ();
+    cname = { |base|
+        var cut;
+        if(idx == 1) { base } {
+            cut = base.find("_");
+            base.copyRange(0, cut - 1) ++ idx.asString ++ base.copyRange(cut, base.size - 1)
+        }
+    };
 
     imprint_in_bus  = Bus.audio(server, 2);
     imprint_out_bus = Bus.audio(server, 2);
@@ -41,8 +49,10 @@
                 loop_wear_amt = 5,
                 loop_play_from = 0, loop_sample_retrig = 0,
                 loop_wow_tape = 5, loop_wow_cas = 5,
-                loop_bbd_tone = 0, loop_chip_crush = 0, loop_cd_errors = 0, loop_vinyl_noise = 10;
+                loop_bbd_tone = 0, loop_chip_crush = 0, loop_cd_errors = 0, loop_vinyl_noise = 10,
+                link_bus = 0, link_lead = 0, link_follow = 0;
             var input, trem_imprinted, loop_preserve_out;
+            var link_end, link_frames, link_follow_r, link_trig;
             var frames, rec_span, rec_phase, rec_end, fade_samps, speed_rate, dub_style_r, is_resample;
             var loop_reset, retrig_kr, start_trig, write_rate, fill_gate, loop_phase, play_phase;
             var direction_r, pend_phase, pend_read, wrap_trig, pend_wrap_trig, oneshot_trig, in_sample_mode, oneshot_done, sample_gate, out_gate, rand_dir, rand_read;
@@ -72,16 +82,25 @@
             is_resample = dub_style_r > 2.5;
 
             loop_reset = Changed.kr(loop_rec)  * loop_rec;
+            link_follow_r = link_follow.round(1);
+            link_trig  = In.kr(link_bus + 1, 2);
+            loop_reset = Select.kr(link_follow_r, [loop_reset, link_trig[0]]);
             write_rate = Select.kr(loop_rec.round(1), [Select.kr(is_resample * loop_dub.round(1), [speed_rate, 1]), speed_rate]);
 
             rec_phase  = Phasor.ar(loop_reset, write_rate, 0, BufFrames.kr(loop_buf_num), 0);
-            rec_end    = Latch.kr(A2K.kr(rec_phase), Changed.kr(loop_rec) * (1 - loop_rec));
+            link_end   = Changed.kr(loop_rec) * (1 - loop_rec);
+            rec_end    = Latch.kr(A2K.kr(rec_phase), link_end);
+            ReplaceOut.kr(link_bus, Select.kr(link_lead.round(1), [In.kr(link_bus), Latch.kr(A2K.kr(rec_phase) / speed_rate, link_end)]));
+            link_frames = Latch.kr(In.kr(link_bus) * speed_rate, Delay1.kr(link_end));
+            rec_end    = Select.kr(link_follow_r, [rec_end, link_frames]);
             frames     = Select.kr((loop_rec.round(1) + (rec_end < 2)).min(1),
                                    [rec_end, rec_span]).max(2);
             fade_samps = (frames * 0.25).min(512).max(1);
             retrig_kr  = Changed.kr(loop_sample_retrig);
             start_trig = Changed.kr(loop_play) * loop_play * (1 - loop_play_from.round(1))
                        + retrig_kr             *             (1 - loop_play_from.round(1));
+            ReplaceOut.kr(link_bus + 1, Select.kr(link_lead.round(1), [link_trig, [loop_reset, start_trig]]));
+            start_trig = Select.kr(link_follow_r, [start_trig, link_trig[1]]);
             loop_phase = Phasor.ar(loop_reset + start_trig, write_rate, 0, frames, 0);
             play_phase = Phasor.ar(loop_reset + start_trig, speed_rate, 0, frames, 0);
 
@@ -223,33 +242,44 @@
             ["looper_play_from",     \loop_play_from],
             ["looper_wear",          \loop_wear_amt]
         ].do { |pair|
-            engine.addCommand(pair[0], "f", { |msg| if(looper_synth.notNil) { looper_synth.set(pair[1], msg[1]) } });
+            engine.addCommand(cname.value(pair[0]), "f", { |msg| if(looper_synth.notNil) { looper_synth.set(pair[1], msg[1]) } });
         };
 
+        engine.addCommand(cname.value("looper_link"), "f", { |msg|
+            link_follow_v = msg[1];
+            if(looper_synth.notNil) { looper_synth.set(\link_follow, msg[1]) };
+        });
+
 // ── Looper on-demand ─────────────────────────────────────────
-        engine.addCommand("looper_on", "", {
+        engine.addCommand(cname.value("looper_on"), "", {
             if(looper_synth.isNil) {
                 var medName = mediaNames.clipAt(imp_medium_v.asInteger);
-                looper_synth = Synth.after(mainSynth.value, ("princeton_looper_" ++ medName).asSymbol, [
+                var target = if((idx != 1) and: { linkState[\lead].notNil }) { linkState[\lead] } { mainSynth.value };
+                looper_synth = Synth.after(target, ("princeton_looper_" ++ medName).asSymbol, [
                     \looper_in_bus,       looperInBus.index,
                     \looper_out_bus,      looperOutBus.index,
                     \imprint_in_bus_num,  imprint_in_bus.index,
                     \imprint_out_bus_num, imprint_out_bus.index,
-                    \loop_buf_num,        loopBuf.bufnum
+                    \loop_buf_num,        loopBuf.bufnum,
+                    \link_bus,            linkBus.index,
+                    \link_lead,           (idx == 1).asInteger,
+                    \link_follow,         link_follow_v
                 ]);
+                if(idx == 1) { linkState[\lead] = looper_synth };
             };
         });
-        engine.addCommand("looper_off", "", {
+        engine.addCommand(cname.value("looper_off"), "", {
             if(looper_synth.notNil) {
                 looper_synth.free;
                 looper_synth = nil;
+                if(idx == 1) { linkState[\lead] = nil };
                 Synth.after(mainSynth.value, \princeton_looper_silence,
                     [\out_bus, looperOutBus.index]);
             };
         });
 
         // ── Imprint on-demand ────────────────────────────────────────
-        engine.addCommand("imprint_on", "", {
+        engine.addCommand(cname.value("imprint_on"), "", {
             if(imprint_synth.isNil and: { looper_synth.notNil }) {
                 var medName = mediaNames.clipAt(imp_medium_v.asInteger);
                 imprint_synth = Synth.after(looper_synth, ("princeton_imprint_" ++ medName).asSymbol, [
@@ -261,29 +291,29 @@
                 ]);
             };
         });
-        engine.addCommand("imprint_off", "", {
+        engine.addCommand(cname.value("imprint_off"), "", {
             if(imprint_synth.notNil) {
                 imprint_synth.set(\gate, 0);
                 imprint_synth = nil;
             };
         });
 
-        engine.addCommand("looper_imprint", "f", { |msg|
+        engine.addCommand(cname.value("looper_imprint"), "f", { |msg|
             imp_amt_v = msg[1];
             if(imprint_synth.notNil) { imprint_synth.set(\amt, msg[1]) };
         });
-        engine.addCommand("looper_bbd_tone", "f", { |msg|
+        engine.addCommand(cname.value("looper_bbd_tone"), "f", { |msg|
             imp_bbd_tone_v = msg[1];
             if(looper_synth.notNil) { looper_synth.set(\loop_bbd_tone, msg[1]) };
             if(imprint_synth.notNil) { imprint_synth.set(\loop_bbd_tone, msg[1]) };
         });
-        engine.addCommand("looper_medium", "f", { |msg|
+        engine.addCommand(cname.value("looper_medium"), "f", { |msg|
             imp_medium_v = msg[1];
         });
 
-        engine.addCommand("looper_vinyl_noise", "f", { |msg| if(looper_synth.notNil) { looper_synth.set(\loop_vinyl_noise, msg[1]) } });
+        engine.addCommand(cname.value("looper_vinyl_noise"), "f", { |msg| if(looper_synth.notNil) { looper_synth.set(\loop_vinyl_noise, msg[1]) } });
 
-engine.addCommand("loop_clear", "", {
+engine.addCommand(cname.value("loop_clear"), "", {
             loopBuf.zero;
             if(looper_synth.notNil) { looper_synth.set(\loop_rec, 0, \loop_dub, 0, \loop_play, 0) };
         });
@@ -293,5 +323,6 @@ engine.addCommand("loop_clear", "", {
             if(looper_synth.notNil) { looper_synth.free };
             imprint_in_bus.free;
             imprint_out_bus.free;
+            if(own_link_bus.notNil) { own_link_bus.free };
         })
 }

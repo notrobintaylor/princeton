@@ -1,13 +1,3 @@
--- sprites_device: the v2.0 device sprites (Cut, Fray, EQ, Limit).
---
--- Kept apart from lib/sprites.lua because that file is shared byte-for-byte with media,
--- and these devices exist only in princeton. Drawn in sprite_editor.html and imported
--- verbatim by scratchpad/import_sprites.py, so edit the drawing, not this file.
---
--- Slot numbering carries the interaction: 5 is the static body, 12 the engage indicator
--- (dim when bypassed, bright when active), 13.. the knob caps in focus order. Pedal
--- bodies are 33x47 and the caller draws the device name below them; rack bodies are
--- 82x26 and carry no caption, there being no room between two stacked faceplates.
 local sprites_device = {}
 
 local MED  = 5
@@ -361,7 +351,6 @@ sprites_device.SPRITES = {
   },
 }
 
--- Returns false when there is no sprite for that device, so callers can fall back.
 function sprites_device.draw(name, ox, oy, active, focused_knob)
   local sp = sprites_device.SPRITES[name]
   if not sp then return false end

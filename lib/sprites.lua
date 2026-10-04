@@ -580,7 +580,6 @@ function sprites.draw_pedal(ox, oy, name, display, bypassed, focused_knob)
   screen.move(ox + 16, oy + 56); screen.text_center(display)
 end
 
--- looper sprite lives in sprites_looper (single source, shared with media)
 sprites.LOOPER_PTS = include("lib/sprites_looper").LOOPER_PTS
 
 return sprites

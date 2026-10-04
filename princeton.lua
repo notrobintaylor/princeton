@@ -24,7 +24,7 @@ local lifecycle = include("lib/lifecycle")
 
 local PARAMS_DEF = {
   { id="amp_volume",         name="Volume",    default=5.0,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_bass",           name="Bass",      default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
+  { id="amp_bass",           name="Bass",      default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="amp_treble",         name="Treble",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="amp_master",         name="Master",    default=7.5,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="tremolo_intensity", name="Intensity", default=0,    min=0,   max=100, step=1,  db=false, unit="%", cat="Tremolo" },
@@ -41,8 +41,8 @@ local LOOPER_DEF = {
   { id="looper_level",      name="Play Level", default=-2.5, min=-40, max=0, step=0.5, db=true, cat="Loop"  },
   { id="looper_fade_level", name="Fade Level", default=-2.5, min=-40, max=0, step=0.5, db=true, cat="Loop"  },
   { id="looper_speed",      name="Speed",      default=0,   min=-100, max=100, step=1, db=false, cat="Loop"  },
-  { id="looper_quant_div",  name="Quantize",      default=1,   min=1, max=8, step=1, db=false, cat="Loop", options={"Off","1/1","1/2","1/4","1/8","1/16","1/32","1/64"} },
-  { id="looper_quant_feel", name="Quantize Feel", default=1,   min=1, max=3, step=1, db=false, cat="Loop", options={"Note","Dotted","Triplet"} },
+  { id="looper_quant_div",  name="Quantize",      default=1,   min=1, max=#sync.DIV_OPTS, step=1, db=false, cat="Loop", options=sync.DIV_OPTS },
+  { id="looper_quant_feel", name="Quantize Feel", default=1,   min=1, max=3, step=1, db=false, cat="Loop", options=sync.FEEL_OPTS },
 }
 local MIC_NAMES  = { "Center", "Middle", "Edge" }
 local DIR_NAMES  = looper_params.DIR_NAMES
@@ -55,17 +55,26 @@ end
 
 local view_group = 0
 local view_pane  = {[0]=1, [1]=1, [3]=1, [4]=1}
-local gui_mode   = 1   -- 1=Studio, 2=Stage, 3=Off
-local perf_sel   = 1   -- selected device in performance view
-local perf_param = {}  -- per-device selected param index
+local gui_mode   = 1
+local perf_sel   = 1
+local perf_param = {}
 local mod_open   = false
 local studio_sel = 1
 local focus_absorb = {}
 local dev_param_sel = {}
 local studio_apply
 local cab_sel_id
-local MOD_PANE_1 = 3      -- first mod rack pane past Tune (1) and Count (2)
-local refresh_tune    -- forward decl; syncs tune.active to the current view/device
+local RACK_PANES = (function()
+  local t = { { kind = "tune" }, { kind = "count" } }
+  for i = 1, env.NUM  do t[#t + 1] = { kind = "env",  idx = i } end
+  for i = 1, lfo.NUM  do t[#t + 1] = { kind = "lfo",  idx = i } end
+  for i = 1, seq.NUM  do t[#t + 1] = { kind = "seq",  idx = i } end
+  for i = 1, trigs.N  do t[#t + 1] = { kind = "trig", idx = i } end
+  return t
+end)()
+local RACK_LABEL = { tune = "Tune", count = "Count", env = "Sense", lfo = "LFO", seq = "Walk", trig = "Trig" }
+local MOD_PANE_1 = 3
+local refresh_tune
 local lfo_strip_sel = {1, 1, 1, 1, 1, 1, 1, 1}
 local seq_strip_sel = {1, 1}
 local count_strip_sel = 1
@@ -172,6 +181,7 @@ local TARGET_PARAMS = {
   {label="Amp: Bass",          id="amp_bass",          mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_bass(v) end},
   {label="Amp: Treble",        id="amp_treble",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_treble(v) end},
   {label="Amp: Master",        id="amp_master",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_master(v) end},
+  {label="Amp: Rectifier",     id="amp_rectifier",     mn=1,    mx=3,     st=1,    send=function(v) engine.amp_rectifier(math.floor(v + 0.5) - 1) end},
   {label="Tremolo: Speed",     id="tremolo_speed",     mn=0.1,  mx=25,    st=0.1,  send=function(v) engine.tremolo_speed(v) end},
   {label="Tremolo: Intensity", id="tremolo_intensity", mn=0,    mx=100,   st=1,    send=function(v) engine.tremolo_intensity(math.floor(v)) end},
   {label="Hold 1: Size", id="hold1_size", mn=0, mx=10, st=0.1, send=function(v) engine.hold_size(1, v) end},
@@ -251,7 +261,7 @@ local TARGET_PARAMS = {
   {label="LFO 6: Depth",       id="lfo6_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[6] = v end},
   {label="LFO 7: Depth",       id="lfo7_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[7] = v end},
   {label="LFO 8: Depth",       id="lfo8_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[8] = v end},
-  {label="Tremolo: Sync Div",  id="tremolo_sync_div",  mn=2,    mx=8,     st=1,    send=function(v)
+  {label="Tremolo: Sync Div",  id="tremolo_sync_div",  mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["tremolo_sync_div"] ~= new_v then
       lfo.sync_override["tremolo_sync_div"] = new_v
@@ -265,7 +275,7 @@ local TARGET_PARAMS = {
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Warp: Sync Div",     id="warp_sync_div",     mn=2,    mx=8,     st=1,    send=function(v)
+  {label="Warp: Sync Div",     id="warp_sync_div",     mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["warp_sync_div"] ~= new_v then
       lfo.sync_override["warp_sync_div"] = new_v
@@ -279,7 +289,7 @@ local TARGET_PARAMS = {
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Repeat: Sync Div",   id="repeat_sync_div",   mn=2,    mx=8,     st=1,    send=function(v)
+  {label="Repeat: Sync Div",   id="repeat_sync_div",   mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["repeat_sync_div"] ~= new_v then
       lfo.sync_override["repeat_sync_div"] = new_v
@@ -293,7 +303,7 @@ local TARGET_PARAMS = {
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Loop: Quantize",   id="looper_quant_div",  mn=2,    mx=8,     st=1,    send=function(v)
+  {label="Loop: Quantize",   id="looper_quant_div",  mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["looper_quant_div"] ~= new_v then
       lfo.sync_override["looper_quant_div"] = new_v
@@ -314,7 +324,7 @@ for i = 1, lfo.NUM do
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Steps",     id="lfo"..i.."_steps",     mn=1, mx=16,  st=1,   send=function(v) lfo.mod.steps[i]     = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Stability", id="lfo"..i.."_stability", mn=0, mx=100, st=1,   send=function(v) lfo.mod.stability[i] = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Rate Slew", id="lfo"..i.."_rate_slew", mn=0, mx=5,   st=0.1, send=function(v) lfo.mod.rate_slew[i] = v end}
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Sync Div",  id="lfo"..i.."_sync_div",  mn=2, mx=8,   st=1,   send=function(v) lfo.mod.sync_div[i]  = math.floor(v + 0.5) end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Sync Div",  id="lfo"..i.."_sync_div",  mn=2, mx=#sync.DIV_OPTS,   st=1,   send=function(v) lfo.mod.sync_div[i]  = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Sync Feel", id="lfo"..i.."_sync_feel", mn=1, mx=3,   st=1,   send=function(v) lfo.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
 
@@ -322,13 +332,15 @@ for i = 1, seq.NUM do
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate",      id="seq"..i.."_rate",      mn=0.1, mx=25,  st=0.1, send=function(v) seq.mod.rate[i]      = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Steps",     id="seq"..i.."_steps",     mn=2,   mx=16,  st=1,   send=function(v) seq.mod.steps[i]     = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate Slew", id="seq"..i.."_rate_slew", mn=0,   mx=5,   st=0.1, send=function(v) seq.mod.rate_slew[i] = v end}
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Sync Div",  id="seq"..i.."_sync_div",  mn=2,   mx=8,   st=1,   send=function(v) seq.mod.sync_div[i]  = math.floor(v + 0.5) end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Sync Div",  id="seq"..i.."_sync_div",  mn=2, mx=#sync.DIV_OPTS,   st=1,   send=function(v) seq.mod.sync_div[i]  = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Sync Feel", id="seq"..i.."_sync_feel", mn=1,   mx=3,   st=1,   send=function(v) seq.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
 
 for i = 1, trigs.N do
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Rate",        id="trig"..i.."_rate",        mn=0.1, mx=25,  st=0.1, send=function(v) trigs.mod.rate[i]        = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Probability", id="trig"..i.."_probability", mn=0,   mx=100, st=1,   send=function(v) trigs.mod.probability[i] = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Sync Div",    id="trig"..i.."_sync_div",    mn=2,   mx=#sync.DIV_OPTS, st=1, send=function(v) trigs.mod.sync_div[i]  = math.floor(v + 0.5) end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Sync Feel",   id="trig"..i.."_sync_feel",   mn=1,   mx=3,   st=1,   send=function(v) trigs.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
 
 local DEVICE_NAMES     = {}
@@ -391,14 +403,14 @@ local TRIG_TARGETS = (function()
 end)()
 
 local count_active = false
-local count_clock  = nil
+local count_clock_gen = 0
 local count_step   = 0
 
 local k_clock = {}
 
 local B = { DIM=0, MED=5, FULL=15 }
 
-local GROUP_MAX = {[0]=2, [1]=18, [3]=4, [4]=3}
+local GROUP_MAX = {[0]=2, [1]=#RACK_PANES, [3]=4, [4]=3}
 
 local COUNT_STRIP = {
   {name="Division", id="count_div",     typ="opt",  nmax=5,  fmt=function(v) return sync.COUNT_DIV_OPTS[v] end},
@@ -441,7 +453,6 @@ local function fmt_def_val(def, idx)
 end
 local function fmt_val(idx) return fmt_def_val(PARAMS_DEF, idx) end
 
--- reverse lookup so any param id renders exactly as in its studio view
 local PARAM_DEF_OF = {}
 for i, e in ipairs(PARAMS_DEF) do PARAM_DEF_OF[e.id] = { def = PARAMS_DEF, idx = i } end
 for i, e in ipairs(LOOPER_DEF) do PARAM_DEF_OF[e.id] = { def = LOOPER_DEF, idx = i } end
@@ -470,18 +481,13 @@ local function snap_val(v, step)
   else return math.floor(v * 10 + 0.5) / 10 end
 end
 
--- one editing path for every view: device params carry a tuned step in the DEF
--- tables; edit_param applies it (plus the sync-division redirect) so the main
--- view, pedalboard, looper pane and stage view all edit a param identically.
--- params without a DEF step (gate/limit/cab/tune) fall back to params:delta,
--- which is exactly how they behave in the PARAMS menu.
 local PARAM_STEP = {}
 for _, e in ipairs(PARAMS_DEF) do PARAM_STEP[e.id] = e.step end
 for _, e in ipairs(LOOPER_DEF) do PARAM_STEP[e.id] = e.step end
 for _, pd in ipairs(PEDALS) do
   for _, e in ipairs(pd.params) do PARAM_STEP[e.id] = e.step end
 end
-PARAM_STEP["tune_ref"] = 0.1   -- tune has a custom strip edit, no DEF entry
+PARAM_STEP["tune_ref"] = 0.1
 
 local function edit_param(id, d)
   local m = sync.PARAM_MAP[id]
@@ -495,6 +501,58 @@ local function edit_param(id, d)
   else
     params:delta(id, d)
   end
+end
+
+-- ── Tap tempo (Warp, Repeat) ─────────────────────────────────
+local tap = { ID = { warp = "warp_rate", ["repeat"] = "repeat_time" }, DEV = { WRP = "warp", RPT = "repeat" },
+              DIV_OPTS = {}, times = {}, mean = {}, flash = {}, clamped = {}, last_div = {} }
+for i = 2, #sync.DIV_OPTS do tap.DIV_OPTS[i - 1] = sync.DIV_OPTS[i] end
+
+function tap.synced(prefix)
+  return clock_running and params:get(prefix .. "_sync_div") > 1
+end
+
+function tap.apply(prefix)
+  local mean = tap.mean[prefix]
+  if not mean or tap.synced(prefix) then return end
+  local id = tap.ID[prefix]
+  local m  = sync.PARAM_MAP[id]
+  local hz = sync.hz_df(60 / mean, params:get(prefix .. "_tap_div") + 1, params:get(prefix .. "_tap_feel"))
+  local v  = snap_val(m.value_fn(hz), PARAM_STEP[id])
+  tap.clamped[id] = (not m.in_range(hz)) and v or nil
+  params:set(id, v)
+end
+
+function tap.hit(prefix)
+  if tap.synced(prefix) then return end
+  local now = util.time()
+  local ts  = tap.times[prefix] or {}
+  local gap = ts[#ts] and (now - ts[#ts])
+  if gap and (gap > 2 or (#ts >= 2 and gap > 2 * tap.mean[prefix])) then ts = {} end
+  ts[#ts + 1] = now
+  while #ts > 5 do table.remove(ts, 1) end
+  tap.times[prefix] = ts
+  if #ts >= 2 then
+    tap.mean[prefix] = (ts[#ts] - ts[1]) / (#ts - 1)
+    tap.apply(prefix)
+  end
+  tap.flash[tap.ID[prefix]] = now + 0.08
+  clock.run(function() clock.sleep(0.09); redraw() end)
+  redraw()
+end
+
+function tap.forget(prefix)
+  tap.times[prefix] = nil
+  tap.mean[prefix]  = nil
+end
+
+function tap.level(id, default)
+  local f = tap.flash[id]
+  if f and util.time() < f then return B.DIM end
+  local c = tap.clamped[id]
+  local m = sync.PARAM_MAP[id]
+  if c and params:get(id) == c and not (m and params:get(m.div) > 1) then return B.MED end
+  return default
 end
 
 local function draw_icon_filled_circle(cx, y)
@@ -538,7 +596,6 @@ local function draw_strip(cat, name, val_str, val_lv, val_str2)
   screen.level(B.DIM); screen.rect(0, 0, cabinet.LEFT_W, 64); screen.fill()
   screen.font_size(8); screen.font_face(0)
   screen.level(B.MED);  screen.move(cabinet.LEFT_CX,  8); screen.text_center(cat)
-  -- name: multi-part names always split onto two lines (for consistency)
   local name2
   local sp = name:find(" ")
   if sp then name, name2 = name:sub(1, sp - 1), name:sub(sp + 1) end
@@ -548,10 +605,9 @@ local function draw_strip(cat, name, val_str, val_lv, val_str2)
     screen.level(B.MED); screen.move(cabinet.LEFT_CX, 26); screen.text_center(name2)
     vy = 35
   end
-  -- unify value/unit: drop decimals on percent values, then no space before the unit
   if val_str then
-    val_str = val_str:gsub("(%-?%d+)%.%d+(%s*%%)", "%1%2")  -- percent steps in whole %, so no decimals
-    val_str = val_str:gsub("(%d)%s+([%a%%])", "%1%2")       -- "440.0 Hz"->"440.0Hz", "50 %"->"50%"
+    val_str = val_str:gsub("(%-?%d+)%.%d+(%s*%%)", "%1%2")
+    val_str = val_str:gsub("(%d)%s+([%a%%])", "%1%2")
   end
   screen.level(val_lv); screen.move(cabinet.LEFT_CX, vy); screen.text_center(val_str)
   if val_str2 then
@@ -567,11 +623,9 @@ local function draw_looper_state_icon()
   end
 end
 
--- H1 | H2: enable state of the two Hold instances as a centered fifth strip line.
--- One thin vertical stroke as a compact divider. Bypass = MED, Active = FULL.
 local function draw_hold_status()
   screen.font_size(8); screen.font_face(0)
-  local g  = 3   -- space on each side of the divider stroke
+  local g  = 3
   local w1 = screen.text_extents("H1")
   local w2 = screen.text_extents("H2")
   local left = math.floor(cabinet.LEFT_CX - (w1 + g + 1 + g + w2) / 2 + 0.5)
@@ -632,12 +686,14 @@ local function draw_group1_pane()
   screen.clear()
   local p       = view_pane[1]
   local is_left = (p % 2) == 1
-  local pair    = math.ceil(p / 2)
+  local src     = RACK_PANES[p]
+  local src_l   = RACK_PANES[is_left and p or p - 1]
+  local src_r   = RACK_PANES[is_left and p + 1 or p]
   local OX1     = cabinet.CAB.x
   local OX2     = cabinet.CAB.x + cabinet.CAB.w - 33
   local py      = 4
 
-  if pair == 1 then
+  if src.kind == "tune" or src.kind == "count" then
     tune.draw_half(OX1, py, is_left)
     draw_metro_half(OX2, py, not is_left)
     if is_left then
@@ -646,10 +702,10 @@ local function draw_group1_pane()
       local ms = COUNT_STRIP[count_strip_sel]
       draw_strip("Count", ms.name, ms.fmt(params:get(ms.id)), B.FULL)
     end
-  elseif pair == 2 then
-    env.draw_half(OX1, py, 1, is_left)
-    env.draw_half(OX2, py, 2, not is_left)
-    local idx       = is_left and 1 or 2
+  elseif src.kind == "env" then
+    env.draw_half(OX1, py, src_l.idx, is_left)
+    env.draw_half(OX2, py, src_r.idx, not is_left)
+    local idx       = src.idx
     local strip_idx = env.strip_sel[idx]
     local es        = env.STRIP[strip_idx]
     local id  = "env" .. idx .. es.suf
@@ -660,14 +716,14 @@ local function draw_group1_pane()
       if sp then v1, v2 = v1:sub(1, sp - 1), v1:sub(sp + 1) end
     end
     draw_strip("Sense " .. idx, es.name, v1, B.FULL, v2)
-  elseif pair == 7 then
-    local idx       = is_left and 1 or 2
+  elseif src.kind == "seq" then
+    local idx       = src.idx
     local strip_idx = seq.strip_resolve(idx, seq_strip_sel[idx])
     local ss        = seq.STRIP[strip_idx]
     local sel_step  = ss.suf:match("^_step_(%d+)$")
     sel_step = sel_step and tonumber(sel_step) or nil
-    seq.draw_half(OX1, py, 1, is_left,     is_left and sel_step or nil)
-    seq.draw_half(OX2, py, 2, not is_left, (not is_left) and sel_step or nil)
+    seq.draw_half(OX1, py, src_l.idx, is_left,     is_left and sel_step or nil)
+    seq.draw_half(OX2, py, src_r.idx, not is_left, (not is_left) and sel_step or nil)
     local id  = "seq" .. idx .. ss.suf
     local v1  = ss.fmt(params:get(id), idx)
     local v2  = nil
@@ -676,23 +732,19 @@ local function draw_group1_pane()
       if sp then v1, v2 = v1:sub(1, sp - 1), v1:sub(sp + 1) end
     end
     draw_strip("Walk " .. idx, ss.name, v1, B.FULL, v2)
-  elseif pair >= 8 then
-    local trig_l = (pair - 8) * 2 + 1
-    local trig_r = trig_l + 1
-    trigs.draw_half(OX1, py, trig_l, is_left)
-    trigs.draw_half(OX2, py, trig_r, not is_left)
-    local idx       = is_left and trig_l or trig_r
+  elseif src.kind == "trig" then
+    trigs.draw_half(OX1, py, src_l.idx, is_left)
+    trigs.draw_half(OX2, py, src_r.idx, not is_left)
+    local idx       = src.idx
     local strip_idx = trigs.strip_fn.resolve(idx, trigs.strip_sel[idx])
     local ts        = trigs.STRIP[strip_idx]
     local id  = "trig" .. idx .. ts.suf
     local v1  = ts.fmt(params:get(id), idx)
     draw_strip("Trigger " .. idx, ts.name, v1, B.FULL)
   else
-    local lfo_l = (pair - 3) * 2 + 1
-    local lfo_r = lfo_l + 1
-    lfo.draw_half(OX1, py, lfo_l, is_left)
-    lfo.draw_half(OX2, py, lfo_r, not is_left)
-    local idx       = is_left and lfo_l or lfo_r
+    lfo.draw_half(OX1, py, src_l.idx, is_left)
+    lfo.draw_half(OX2, py, src_r.idx, not is_left)
+    local idx       = src.idx
     local strip_idx = lfo.strip_resolve(idx, lfo_strip_sel[idx])
     local ls        = lfo.STRIP[strip_idx]
     local id  = "lfo" .. idx .. ls.suf
@@ -706,23 +758,10 @@ local function draw_group1_pane()
   end
 
   local cur_cx = (is_left and OX1 or OX2) + 16
-  local cur_label
-  if pair == 1 then
-    cur_label = is_left and "Tune" or "Count"
-  elseif pair == 2 then
-    cur_label = "Sense " .. (is_left and 1 or 2)
-  elseif pair == 7 then
-    cur_label = "Walk " .. (is_left and 1 or 2)
-  elseif pair >= 8 then
-    local trig_l = (pair - 8) * 2 + 1
-    cur_label = "Trig " .. (is_left and trig_l or (trig_l + 1))
-  else
-    local lfo_l = (pair - 3) * 2 + 1
-    cur_label = "LFO " .. (is_left and lfo_l or (lfo_l + 1))
-  end
+  local cur_label  = RACK_LABEL[src.kind] .. (src.idx and (" " .. src.idx) or "")
   draw_label_cursor(cur_cx, py + 56, cur_label)
 
-  if p <= 2 then
+  if src.kind == "tune" or src.kind == "count" then
     draw_looper_state_icon()
     draw_hold_status()
   end
@@ -742,7 +781,7 @@ local function draw_pedalboard()
     if p.options then vstr = p.options[v]
     else vstr = fmt_unit(v, p) end
   end
-  draw_strip(pd.name, p.name, vstr, sync.val_level(p.id, clock_running))
+  draw_strip(pd.name, p.name, vstr, tap.level(p.id, sync.val_level(p.id, clock_running)))
 
   -- ── Two pedals, snapped to CAB edges ────────────────────────────
   local OX1 = cabinet.CAB.x
@@ -773,8 +812,6 @@ local function draw_looper_pane()
   looper_ui.draw_pane()
 end
 
--- The signal chain, in flow order. Single source of truth for the Stage view, the
--- studio device focus and Follow Focus. Fray and EQ join once they exist (t128/t129).
 local PERF_DEVICES = {
   { abbr="TUN", name="Tune",     enable="tune_mute", active=function() return tune.muted end,
     params={"tune_ref"} },
@@ -811,9 +848,6 @@ local PERF_DEVICES = {
     params={"limit_threshold","limit_ratio","limit_attack","limit_decay","limit_gain"} },
 }
 
--- MIDI-follow: reverse index param id -> {device index, param index within device}.
--- Used by the Follow-MIDI poll (init) to move the Stage focus onto whatever device a
--- norns-mapped CC last touched, without changing the current view.
 local PERF_INDEX_OF = {}
 for i, dev in ipairs(PERF_DEVICES) do PERF_INDEX_OF[dev.abbr] = i end
 
@@ -881,7 +915,7 @@ local function focus_device(id)
 end
 
 local function perf_active(dev)
-  if dev.placeholder then return false end   -- not built yet: always reads as bypassed
+  if dev.placeholder then return false end
   if dev.active then return dev.active() end
   return params:get(dev.enable) == 2
 end
@@ -891,16 +925,12 @@ local function perf_pid()
 end
 
 -- ── Stage chain text ──────────────────────────────────────────
--- The chain is drawn as centered, auto-wrapped lines of full device names joined by
--- ">", with "//" between the two parallel Holds. Widths are measured at draw time, so
--- the layout adapts by itself when devices are added.
 local CHAIN_X       = cabinet.CAB.x
 local CHAIN_W       = 128 - cabinet.CAB.x
-local CHAIN_LH      = 9    -- readout line pitch, so both columns share one baseline grid
-local CHAIN_Y0      = 8    -- first baseline, matching the readout's first line
-local CHAIN_ARROW_W = 2    -- hand-drawn chevron, far narrower than the ">" glyph
+local CHAIN_LH      = 9
+local CHAIN_Y0      = 8
+local CHAIN_ARROW_W = 2
 
--- small 2x3 chevron, vertically centred on the capitals
 local function draw_chain_arrow(x, y)
   screen.rect(x,     y - 4, 1, 1)
   screen.rect(x + 1, y - 3, 1, 1)
@@ -908,16 +938,12 @@ local function draw_chain_arrow(x, y)
   screen.fill()
 end
 
--- A unit is one device, or the inseparable "Hold 1 // Hold 2" pair. Every unit but the
--- last carries a trailing ">" so a wrapped line ends on the arrow. Gaps are explicit
--- pixels rather than space glyphs, so spacing does not depend on font metrics.
 local CHAIN_GAP = 3
 
 local function chain_units()
   local units, i = {}, 1
   while i <= #PERF_DEVICES do
     if PERF_DEVICES[i].parallel and PERF_DEVICES[i + 1] then
-      -- the parallel Holds are joined by a single divider stroke, as in the readout
       units[#units + 1] = { parts = { {d=i, pre=0}, {div=true, pre=CHAIN_GAP}, {d=i+1, pre=CHAIN_GAP} } }
       i = i + 2
     else
@@ -931,15 +957,6 @@ local function chain_units()
   return units
 end
 
--- Fixed line layout: the chain is hand-set, not wrapped automatically. Each number is
--- how many blocks sit on that line, in chain order, with the parallel Holds counting as
--- one block:
---     TUN > CUT
---     FRY > PSH > DST
---     WRP > RPT > AMP
---     TRM > HD1 | HD2
---     LOP > RVB > CAB
--- Adding or removing a device means updating this list.
 local CHAIN_ROWS = { 2, 3, 3, 2, 3, 2 }
 
 local function chain_span(units, i, j)
@@ -980,7 +997,7 @@ local function chain_layout()
     emit(i, j)
     i = j + 1
   end
-  if i <= #units then emit(i, #units) end   -- CHAIN_ROWS out of date: park the rest
+  if i <= #units then emit(i, #units) end
   chain_cache = lines
   return lines
 end
@@ -988,7 +1005,7 @@ end
 local function draw_chain()
   local lines = chain_layout()
   screen.font_size(8); screen.font_face(0)
-  local y0 = CHAIN_Y0   -- share the readout's baseline grid exactly
+  local y0 = CHAIN_Y0
   for li, ln in ipairs(lines) do
     local x = math.floor(CHAIN_X + (CHAIN_W - ln.w) / 2 + 0.5)
     local y = y0 + (li - 1) * CHAIN_LH
@@ -1005,7 +1022,6 @@ local function draw_chain()
         else
           screen.level(perf_active(PERF_DEVICES[p.d]) and B.FULL or B.MED)
           screen.move(x, y); screen.text(p.text)
-          -- selection marker: same 1px cursor the studio panes use
           if p.d == perf_sel then
             screen.level(B.FULL)
             screen.rect(x - 2, y - 5, 1, 1); screen.fill()
@@ -1019,16 +1035,12 @@ end
 
 local function draw_performance()
   screen.clear()
-  -- left: studio-style readout for the selected device
   local dev = PERF_DEVICES[perf_sel]
   if dev.abbr == "LOP" then
     local li = perf_param[perf_sel] or 1
     local lp = LOOPER_DEF[li]
     draw_strip(lp.cat, lp.name, fmt_def_val(LOOPER_DEF, li), sync.val_level(lp.id, clock_running))
   elseif dev.abbr == "TUN" then
-    -- Stage tuner: the Reference value is not useful here, so the upper strip area
-    -- shows the live note/octave/arrow instead. H1/H2 (y44) and the looper icon (y55)
-    -- stay in place like on every other device.
     local cx  = cabinet.LEFT_CX
     local tlv = tune.muted and B.FULL or B.MED
     screen.font_size(8); screen.font_face(0)
@@ -1044,14 +1056,13 @@ local function draw_performance()
   else
     local pid = perf_pid()
     if pid then
-      draw_strip(dev.name, params:lookup_param(pid).name, fmt_param(pid), B.FULL)
+      draw_strip(dev.name, params:lookup_param(pid).name, fmt_param(pid), tap.level(pid, B.FULL))
     else
       draw_strip(dev.name, "Not built", "--", B.MED)
     end
   end
   draw_looper_state_icon()
   draw_hold_status()
-  -- right: the signal chain as centered, auto-wrapped text
   draw_chain()
   screen.update()
 end
@@ -1226,7 +1237,7 @@ end
 
 local function set_pane(p)
   local g  = view_group
-  local lo = (g == 1 and mod_open) and MOD_PANE_1 or 1   -- no Tune/Count from Stage
+  local lo = (g == 1 and mod_open) and MOD_PANE_1 or 1
   view_pane[g] = util.clamp(p, lo, GROUP_MAX[g])
   tune.set_active(is_tune_active())
   redraw()
@@ -1296,17 +1307,18 @@ local function count_tick_now()
 end
 
 local function count_clock_start()
-  if count_clock then clock.cancel(count_clock) end
+  count_clock_gen = count_clock_gen + 1
+  local my = count_clock_gen
   count_step = 0
-  count_clock = clock.run(function()
+  clock.run(function()
     if clock_running then
       clock.sync(sync.COUNT_DIV_BEATS[lfo.count.div or params:get("count_div")])
-      while true do
+      while my == count_clock_gen do
         count_tick_now()
         clock.sync(sync.COUNT_DIV_BEATS[lfo.count.div or params:get("count_div")])
       end
     else
-      while true do
+      while my == count_clock_gen do
         count_tick_now()
         local div = lfo.count.div or params:get("count_div")
         local bpm = tonumber(params:get("count_bpm")) or 120
@@ -1317,12 +1329,11 @@ local function count_clock_start()
 end
 
 local function count_clock_stop()
-  if count_clock then clock.cancel(count_clock); count_clock = nil end
+  count_clock_gen = count_clock_gen + 1
 end
 
 function enc(n, d)
   if gui_mode == 3 then return end
-  -- in Stage the mod rack borrows the regular group-1 handling below
   if gui_mode == 2 and not mod_open then perf_enc(n, d); return end
   if n == 1 then
     if mod_open then
@@ -1348,10 +1359,10 @@ function enc(n, d)
     return
   end
   if view_group == 1 then
-    local p = view_pane[1]
-    if p == 1 then
+    local src = RACK_PANES[view_pane[1]]
+    if src.kind == "tune" then
       if n == 3 then edit_param("tune_ref", d) end
-    elseif p == 2 then
+    elseif src.kind == "count" then
       if n == 2 then
         count_strip_sel = util.clamp(count_strip_sel + d, 1, #COUNT_STRIP)
         redraw()
@@ -1364,8 +1375,8 @@ function enc(n, d)
         end
         redraw()
       end
-    elseif p == 3 or p == 4 then
-      local idx = (p == 3) and 1 or 2
+    elseif src.kind == "env" then
+      local idx = src.idx
       if n == 2 then
         env.strip_sel[idx] = env.strip_advance(idx, env.strip_sel[idx], d)
         redraw()
@@ -1382,8 +1393,8 @@ function enc(n, d)
         end
         redraw()
       end
-    elseif p == 13 or p == 14 then
-      local idx = (p == 13) and 1 or 2
+    elseif src.kind == "seq" then
+      local idx = src.idx
       if n == 2 then
         seq_strip_sel[idx] = seq.strip_advance(idx, seq_strip_sel[idx], d)
         redraw()
@@ -1401,10 +1412,8 @@ function enc(n, d)
         if ss.suf == "_sync_div" then seq.start_clock(idx) end
         redraw()
       end
-    elseif p >= 15 then
-      local is_left = (p % 2) == 1
-      local pair    = math.ceil(p / 2)
-      local idx     = (pair - 8) * 2 + (is_left and 1 or 2)
+    elseif src.kind == "trig" then
+      local idx = src.idx
       if n == 2 then
         trigs.strip_sel[idx] = trigs.strip_fn.advance(idx, trigs.strip_sel[idx], d)
         redraw()
@@ -1423,9 +1432,7 @@ function enc(n, d)
         redraw()
       end
     else
-      local is_left = (p % 2) == 1
-      local pair    = math.ceil(p / 2)
-      local idx     = (pair - 3) * 2 + (is_left and 1 or 2)
+      local idx = src.idx
       if n == 2 then
         lfo_strip_sel[idx] = lfo.strip_advance(idx, lfo_strip_sel[idx], d)
         redraw()
@@ -1492,40 +1499,21 @@ local function long_press(key, z, fn_long, fn_short)
 end
 
 -- ── Mod rack key actions ──────────────────────────────────────
--- Shared by the Studio mod rack and the Stage overlay, so both behave identically.
-local function mod_rack_lfo_idx(p)
-  local is_left = (p % 2) == 1
-  local pair    = math.ceil(p / 2)
-  return (pair - 3) * 2 + (is_left and 1 or 2)
-end
-
-local function mod_rack_trig_idx(p)
-  local is_left = (p % 2) == 1
-  local pair    = math.ceil(p / 2)
-  return (pair - 8) * 2 + (is_left and 1 or 2)
-end
-
 local function mod_rack_randomize()
-  local p = view_pane[1]
-  if p >= 5 and p <= 12 then
-    params:set("lfo" .. mod_rack_lfo_idx(p) .. "_randomize", 1)
-  elseif p == 13 or p == 14 then
-    params:set("seq" .. ((p == 13) and 1 or 2) .. "_randomize", 1)
+  local src = RACK_PANES[view_pane[1]]
+  if src.kind == "lfo" or src.kind == "seq" then
+    params:set(src.kind .. src.idx .. "_randomize", 1)
   end
 end
 
 local function mod_rack_toggle()
-  local p = view_pane[1]
-  local function flip(id) params:set(id, 3 - params:get(id)) end
-  if p == 3 or p == 4 then           flip("env" .. ((p == 3) and 1 or 2) .. "_enable")
-  elseif p >= 5 and p <= 12 then     flip("lfo" .. mod_rack_lfo_idx(p) .. "_enable")
-  elseif p == 13 or p == 14 then     flip("seq" .. ((p == 13) and 1 or 2) .. "_enable")
-  elseif p >= 15 then                flip("trig" .. mod_rack_trig_idx(p) .. "_enable")
+  local src = RACK_PANES[view_pane[1]]
+  if src.idx then
+    local id = src.kind .. src.idx .. "_enable"
+    params:set(id, 3 - params:get(id))
   end
 end
 
--- Amp and Loop keep the looper transport on K2/K3, so it stays reachable from the
--- default focus; every other device toggles itself on K3.
 local function is_transport_dev(dev)
   return dev.abbr == "LOP" or dev.abbr == "AMP"
 end
@@ -1535,7 +1523,13 @@ local function device_key(dev, n, z)
     if dev.abbr ~= "LOP" then focus_absorb["@loop"] = true end
     fn()
   end
-  if n == 2 then
+  if n == 2 and tap.DEV[dev.abbr] then
+    if z == 1 then
+      if gui_mode == 2 then perf_param[perf_sel] = 1
+      elseif view_group == 3 then cur_pedal().psel = 1 end
+      tap.hit(tap.DEV[dev.abbr])
+    end
+  elseif n == 2 then
     long_press("k2", z, function() end, function()
       if is_transport_dev(dev) then transport(looper.stop_clear) end
     end)
@@ -1573,15 +1567,24 @@ function key(n, z)
 end
 
 function init()
+  engine.fx_attach()
   if not params._orig_read then
     params._orig_read = params.read
     params.pset_loading = false
     params.read = function(self, ...)
       params.pset_loading = true
+      local marked = params.lookup and params.lookup["sync_scheme"]
+      if marked then params:set("sync_scheme", 1) end
       local ok, err = pcall(params._orig_read, self, ...)
+      if ok and marked and params:get("sync_scheme") < sync.SCHEME then
+        sync.migrate_psets()
+      end
+      if marked then params:set("sync_scheme", sync.SCHEME) end
       params.pset_loading = false
       if not ok then error(err) end
     end
+    params:add_number("sync_scheme", "sync scheme", 1, 9, sync.SCHEME)
+    params:hide("sync_scheme")
   end
   audio.level_monitor(0)
   looper.init({
@@ -1648,7 +1651,7 @@ function init()
       for i = 1, lfo.NUM do lfo.rebuild_target_dropdown(i) end
       env.rebuild_all_target_dropdowns()
     end,
-    is_pane_visible  = function() return view_group == 1 and (view_pane[1] == 13 or view_pane[1] == 14) end,
+    is_pane_visible  = function() return view_group == 1 and RACK_PANES[view_pane[1]].kind == "seq" end,
     redraw_pane      = function() if not initing then redraw() end end,
   })
   local function re() if not initing then redraw() end end
@@ -1668,6 +1671,11 @@ function init()
   local function sync_df_action(prefix)
     local dev_name = prefix:sub(1,1):upper() .. prefix:sub(2)
     return function(_)
+      if tap.ID[prefix] then
+        local div = params:get(prefix .. "_sync_div")
+        if tap.last_div[prefix] and (div > 1) ~= (tap.last_div[prefix] > 1) then tap.forget(prefix) end
+        tap.last_div[prefix] = div
+      end
       if not initing then
         sync.push_all(initing, clock_running, lfo.sync_override)
         lfo.refresh_dropdowns_for_device(dev_name)
@@ -1687,10 +1695,19 @@ function init()
 
   local function add_sync_params(prefix)
     params:add_separator(prefix .. "_sep_sync", "─── Synchronization ───")
-    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, 4)
+    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, sync.DIV_DEFAULT)
     params:set_action(prefix .. "_sync_div", sync_df_action(prefix))
     params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
     params:set_action(prefix .. "_sync_feel", sync_df_action(prefix))
+    if tap.ID[prefix] then
+      local function retap() if not (initing or params.pset_loading) then tap.apply(prefix) end end
+      params:add_option(prefix .. "_tap_div", "Tap Div", tap.DIV_OPTS, sync.DIV_DEFAULT - 1)
+      params:set_action(prefix .. "_tap_div", retap)
+      params:add_option(prefix .. "_tap_feel", "Tap Feel", sync.FEEL_OPTS, 1)
+      params:set_action(prefix .. "_tap_feel", retap)
+      params:add_binary(prefix .. "_tap", "Tap", "trigger", 0)
+      params:set_action(prefix .. "_tap", function() if not (initing or params.pset_loading) then tap.hit(prefix) end end)
+    end
   end
 
   local function setup_pedal(idx)
@@ -1700,7 +1717,7 @@ function init()
     for _, p in ipairs(ped.params) do
       if sync.PARAM_MAP[p.id] then has_sync = true; break end
     end
-    params:add_group(ped.name:upper(), 6 + (has_sync and 3 or 0))
+    params:add_group(ped.name:upper(), 6 + (has_sync and 6 or 0))
     params:add_separator(prefix .. "_sep_control", "─── Control ───")
     params:add_option(ped.enable_id, "Engage", {"Bypass", "Active"}, 1)
     params:set_action(ped.enable_id, function(v)
@@ -1713,14 +1730,16 @@ function init()
   end
 
   local function setup_amp()
-    params:add_group("AMP", 6)
+    params:add_group("AMP", 7)
     params:add_separator("amp_sep_control", "─── Control ───")
     params:add_option("amp_enable", "Engage", {"Bypass", "Active"}, 2)
     params:set_action("amp_enable", function(v) engine.amp_bypass(2 - v); re() end)
     add_engine_ctrl("amp_volume", "Volume", 0, 10, "lin", 0.1, 5.0)
-    add_engine_ctrl("amp_bass",   "Bass",   0, 10, "lin", 0.1, 5.0)
+    add_engine_ctrl("amp_bass",   "Bass",   0, 10, "lin", 0.1, 2.5)
     add_engine_ctrl("amp_treble", "Treble", 0, 10, "lin", 0.1, 5.0)
     add_engine_ctrl("amp_master", "Master", 0, 10, "lin", 0.1, 7.5)
+    params:add_option("amp_rectifier", "Rectifier", {"Tube 5Y3", "Tube 5U4", "Silicon"}, 2)
+    params:set_action("amp_rectifier", function(v) engine.amp_rectifier(v - 1); re() end)
   end
 
   local function setup_tremolo()
@@ -1805,20 +1824,20 @@ function init()
   local function setup_limit()
     params:add_group("LIMIT", 7)
     params:add_separator("limit_sep_control", "─── Control ───")
-    params:add_option("limit_enable", "Engage", {"Bypass", "Active"}, 1)
+    params:add_option("limit_enable", "Engage", {"Bypass", "Active"}, 2)
     params:set_action("limit_enable", function(v) engine.limit_bypass(2 - v); re() end)
     params:add_control("limit_threshold", "Threshold", controlspec.new(-40, 0, "lin", 0.5, -10, "dB"))
     params:set_action("limit_threshold", db_action("limit_threshold"))
-    add_engine_ctrl("limit_ratio",  "Ratio",  2.0, 20.0, "lin", 0.5, 4.0, ": 1")
+    add_engine_ctrl("limit_ratio",  "Ratio",  2.0, 20.0, "lin", 0.5, 2.0, ": 1")
     add_engine_ctrl("limit_attack", "Attack", 1,   100,  "lin", 1,   10,  "ms")
-    add_engine_ctrl("limit_decay",  "Decay",  50,  2000, "lin", 50,  50,  "ms")
+    add_engine_ctrl("limit_decay",  "Decay",  50,  2000, "lin", 50,  200, "ms")
     params:add_control("limit_gain", "Gain", controlspec.new(-20, 20, "lin", 0.5, 0, "dB"))
     params:set_action("limit_gain", db_action("limit_gain"))
   end
 
   local function setup_hold(idx)
     local p = "hold" .. idx .. "_"
-    local d  = (idx == 2) and 7.5 or 5   -- Hold 2 startet laenger/dichter/breiter
+    local d  = (idx == 2) and 7.5 or 5
     local st = (idx == 2) and 12 or -12
     params:add_group("HOLD " .. idx, 14)
     params:add_separator(p .. "sep_control", "─── Control ───")
@@ -1872,7 +1891,7 @@ function init()
     params:add_separator("fray_sep_control", "─── Control ───")
     params:add_option("fray_enable", "Engage", {"Bypass", "Active"}, 1)
     params:set_action("fray_enable", function(v) lifecycle.set("fray", v == 2); re() end)
-    add_engine_ctrl("fray_drive",  "Drive",  0, 10, "lin", 0.1, 5)
+    add_engine_ctrl("fray_drive",  "Drive",  0, 10, "lin", 0.1, 7.5)
     add_engine_ctrl("fray_comp",   "Comp",   0, 10, "lin", 0.1, 5)
     add_engine_ctrl("fray_stab",   "Stab",   0, 10, "lin", 0.1, 0)
     add_engine_ctrl("fray_octave", "Octave", 0, 10, "lin", 0.1, 0)
@@ -2314,12 +2333,21 @@ function init()
 
     params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, 1)
     params:set_action(prefix .. "_sync_div", function(_)
+      trigs.mod.sync_div[idx] = nil
+      lfo.target_base[prefix .. "_sync_div"] = nil
       refresh_visibility()
-      if not initing then trigs.fn.start_clock(idx) end
+      if not initing then
+        lfo.refresh_dropdowns_for_device("Trigger " .. idx)
+        trigs.fn.start_clock(idx)
+      end
       re()
     end)
 
     params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
+    params:set_action(prefix .. "_sync_feel", function(_)
+      trigs.mod.sync_feel[idx] = nil
+      lfo.target_base[prefix .. "_sync_feel"] = nil
+    end)
 
     params:add_separator(prefix .. "_sep_target", "─── Target ───")
 
@@ -2413,7 +2441,7 @@ function init()
         local current_source = nil
         pcall(function() current_source = params:get("clock_source") end)
         if current_source and current_source ~= last_source then
-          local default = current_source == 2 and 4 or 1
+          local default = current_source == 2 and sync.DIV_DEFAULT or 1
           params:set("tremolo_sync_div", default)
           params:set("warp_sync_div",    default)
           params:set("repeat_sync_div",  default)
@@ -2452,10 +2480,10 @@ function init()
     params:set_action("gui", function(v)
       gui_mode = v
       mod_open = false
-      if v == 1 then           -- Studio opens on the amp
+      if v == 1 then
         studio_sel = STUDIO_INDEX_OF.AMP or 1
         studio_apply()
-      elseif v == 2 then       -- Stage opens on the tuner
+      elseif v == 2 then
         perf_sel = PERF_INDEX_OF.TUN or 1
       end
       if refresh_tune then refresh_tune() end
@@ -2465,8 +2493,6 @@ function init()
     params:add_binary("gui_init", "Initialize", "trigger", 0)
     params:set_action("gui_init", function(v)
       if v ~= 1 or initing then return end
-      -- mirror PSET-load: bypass the L35 +/-1 clamp so target dropdowns
-      -- (LFO/Sense/Trigger/Walk) actually jump back to their default, not by one step.
       local was_loading = params.pset_loading
       params.pset_loading = true
       for i = 1, params.count do
@@ -2711,7 +2737,6 @@ function init()
     while true do
       clock.sleep(1/25)
       if _G.screenstream_active then
-        redraw()
         local ok, d = pcall(screen.peek, 0, 0, 128, 64)
         if ok and type(d) == "string" and #d == 8192 then
           local f = io.open("/dev/shm/norns_screen.raw.tmp", "wb")

@@ -127,11 +127,8 @@ function tune.set_active(b)
   end
 end
 
--- tuning indicator: centered dot when in tune, otherwise a pixel-symmetric
--- triangle that points inward toward the centre (built from columns so the
--- left/right arrows are exact mirrors and each is vertically symmetric)
 function tune.draw_arrow(cx, y, arrow)
-  y = y - 1   -- sit one pixel higher
+  y = y - 1
   if arrow == 0 then
     screen.rect(cx - 1, y - 2, 3, 1)
     screen.rect(cx - 2, y - 1, 5, 3)

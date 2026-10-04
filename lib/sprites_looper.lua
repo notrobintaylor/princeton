@@ -1,6 +1,3 @@
--- looper sprite, shared by princeton and media.
--- Raw cabinet 82x56 sprite at screen origin (45,4), 0-based; LOOPER_PTS is the
--- partitioned point set (bg / knob[1..9] / ldisp / rdisp / led) the looper pane blits.
 local sprites_looper = {}
 
 local LOOPER = {
