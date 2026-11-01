@@ -546,6 +546,10 @@ end
 
 local function fmt_param(id, v_in)
   if id == "tune_ref" then return string.format("%.1f Hz", params:get(id)) end
+  -- NAM profile names outgrow the strip, so it shows the list position instead
+  if id == "amp_model" then
+    return (v_in or params:get(id)) .. "/" .. #params:lookup_param(id).options
+  end
   local d = PARAM_DEF_OF[id]
   if d then return fmt_def_val(d.def, d.idx, v_in) end
   local pe = PARAM_PED_OF[id]
@@ -1783,30 +1787,6 @@ local function draw_device_pane()
   screen.update()
 end
 
--- An NAM profile name is usually longer than the param strip can hold. While a profile is being
--- chosen the grille becomes the display: the name wrapped at word boundaries and centred, its
--- list position dimmer below.
-local function draw_nam_model()
-  local g    = cabinet.NAM_GRILL
-  local opts = params:lookup_param("amp_model").options
-  local i    = params:get("amp_model")
-  screen.level(0); screen.rect(g.x, g.y, g.w + 1, g.h + 1); screen.fill()
-  screen.font_size(8); screen.font_face(0)
-  local lines, cur = {}, ""
-  for word in (opts[i] or "-"):gmatch("%S+") do
-    local try = (cur == "") and word or (cur .. " " .. word)
-    if cur ~= "" and screen.text_extents(try) > g.w - 6 then lines[#lines + 1] = cur; cur = word
-    else cur = try end
-  end
-  if cur ~= "" then lines[#lines + 1] = cur end
-  local cx  = g.x + math.floor(g.w / 2)
-  local top = g.y + math.floor((g.h + 1 - (#lines * 9 + 5)) / 2)
-  screen.level(B.FULL)
-  for k, l in ipairs(lines) do screen.move(cx, top + 5 + (k - 1) * 9); screen.text_center(l) end
-  screen.level(B.MED)
-  screen.move(cx, top + #lines * 9 + 5); screen.text_center(i .. "/" .. #opts)
-end
-
 function redraw()
   if initing then return end
   strip_live = false
@@ -1826,7 +1806,6 @@ function redraw()
   draw_left_strip()
   local neutral = params:get("amp_type") == 2
   cabinet.draw_grillcloth(params:get("cab_mode"), cab_sel_id() == "mic_position", params:get("mic_position") - 1, neutral)
-  if neutral and cab_sel_id() == "amp_model" then draw_nam_model() end
   cabinet.draw_panel(sel, params:get("signal_input") == 2, amp_is_bypassed(), neutral and AMP_NAM_KNOBS or nil)
   cabinet.draw_cabinet(neutral)
   screen.update()

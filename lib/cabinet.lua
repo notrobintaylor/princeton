@@ -47,8 +47,6 @@ NEUTRAL.lamp  = CAB.x + CAB.w - 4
 NEUTRAL.knob_x = {}
 for i = 1, NUM_AMP_KNOBS + 1 do NEUTRAL.knob_x[i] = CAB.x + 17 + 6 * (i - 1) end
 
-cabinet.NAM_GRILL = NEUTRAL.grill
-
 local KNOB_R = 2
 
 -- The param strip on the left ends 2 px before the box; its text stays on the same centre line.
