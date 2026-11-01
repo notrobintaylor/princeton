@@ -6,82 +6,94 @@ local FULL = 15
 
 local NUM_AMP_KNOBS = 8
 
-local CAB_W, CAB_H = 82, 56
-cabinet.CAB = {
-  x = 45,
-  y = math.floor((64 - CAB_H) / 2),
-  w = CAB_W,
-  h = CAB_H,
-}
+-- The box every pane stands in, x 44..125 and y 2..61, filled by one device or shared by two
+-- halves. CAB.y sits one row low because devices have always been drawn one row above their y.
+cabinet.CAB = { x = 44, y = 3, w = 82, h = 59 }
 local CAB = cabinet.CAB
+local TOP = CAB.y - 1
+cabinet.TOP    = TOP
+cabinet.H      = CAB.y + CAB.h - TOP
+cabinet.HALF_W = 37
 
-local BORDER_LVL = MED
-local BORDER_GAP = 3
+local INNER = 3
 
-cabinet.INT = {
-  x = CAB.x + BORDER_GAP + 2,
-  y = CAB.y + BORDER_GAP + 2,
-  w = CAB.w - (BORDER_GAP + 2) * 2,
-  h = CAB.h - (BORDER_GAP + 2) * 2,
-}
-local INT = cabinet.INT
+-- The classic amp is a cabinet whose baffle holds the grille cloth and a row of knobs. 82 px
+-- doesn't divide by 4, so the bars stand every 5 px from the centre outward.
+local CLASSIC = {}
+CLASSIC.x = CAB.x + 5
+CLASSIC.w = 72
+CLASSIC.panel = { x=CAB.x + 3, y=TOP + 3, w=CAB.w - 6, h=12 }
+CLASSIC.grill = { x=CAB.x + 4, y=TOP + 15, w=74, h=41 }
+CLASSIC.stays = { 0 }
+for dx = 4, 69, 5 do CLASSIC.stays[#CLASSIC.stays + 1] = dx end
+CLASSIC.stays[#CLASSIC.stays + 1] = 73
+CLASSIC.knob_y = TOP + 9
+CLASSIC.jack1 = CLASSIC.x
+CLASSIC.jack2 = CLASSIC.x + 2
+CLASSIC.lamp  = CLASSIC.x + CLASSIC.w - 1
+CLASSIC.knob_x = {}
+for i = 1, NUM_AMP_KNOBS do CLASSIC.knob_x[i] = CLASSIC.x + 8 + 6 * (i - 1) end
 
-local PANEL_H = 10
-cabinet.PANEL = { x=INT.x, y=INT.y,          w=INT.w, h=PANEL_H        }
-cabinet.GRILL = { x=INT.x, y=INT.y+PANEL_H, w=INT.w, h=INT.h-PANEL_H }
-local PANEL = cabinet.PANEL
-local GRILL = cabinet.GRILL
-local SEP_Y = INT.y + PANEL_H
+-- The neutral cabinet for NAM: no baffle, staggered dashes instead of a grid. The dash rows
+-- alternate between two levels, keeping the surface calm yet giving it depth.
+local NEUTRAL = {}
+NEUTRAL.panel = { x=CAB.x + 1, y=TOP + 1, w=CAB.w - 2, h=14 }
+NEUTRAL.grill = { x=CAB.x + 3, y=TOP + 18, w=CAB.w - 7, h=38 }
+NEUTRAL.sep_y = TOP + 15
+NEUTRAL.knob_y = TOP + 8
+NEUTRAL.jack1 = CAB.x + 3
+NEUTRAL.jack2 = CAB.x + 5
+NEUTRAL.lamp  = CAB.x + CAB.w - 4
+NEUTRAL.knob_x = {}
+for i = 1, NUM_AMP_KNOBS + 1 do NEUTRAL.knob_x[i] = CAB.x + 17 + 6 * (i - 1) end
 
-local KNOB_R       = 2
-local KNOB_Y       = PANEL.y + math.floor((PANEL.h - 1) / 2)
-local PANEL_BUCHSE1 = PANEL.x
-local PANEL_BUCHSE2 = PANEL.x + 2
-local PANEL_LAMP    = PANEL.x + PANEL.w - 2
-local KNOB_SPACING  = 6
-local KNOB_START    = PANEL.x + 5
-local KNOB_X = {}
-for i = 1, NUM_AMP_KNOBS do
-  KNOB_X[i] = KNOB_START + KNOB_SPACING * (i - 1) + math.floor(KNOB_SPACING / 2)
-end
+cabinet.NAM_GRILL = NEUTRAL.grill
 
+local KNOB_R = 2
+
+-- The param strip on the left ends 2 px before the box; its text stays on the same centre line.
 cabinet.LEFT_W  = CAB.x - 1
-cabinet.LEFT_CX = math.floor(cabinet.LEFT_W / 2) - 1
+cabinet.LEFT_CX = math.floor(CAB.x / 2) - 1
 cabinet.ICON_Y  = 55
 
-local function rect_outline(x, y, w, h, lv)
-  screen.level(lv)
-  screen.line_width(1)
-  screen.rect(x, y, w, h)
-  screen.stroke()
+local function px_rect(x, y, w, h, lv)
+  screen.level(lv); screen.rect(x, y, w, h); screen.fill()
 end
 
-function cabinet.draw_cabinet()
-  rect_outline(CAB.x, CAB.y, CAB.w, CAB.h, BORDER_LVL)
-  local g = BORDER_GAP
-  rect_outline(CAB.x+g, CAB.y+g, CAB.w-g*2, CAB.h-g*2, BORDER_LVL)
+-- Filled, not stroked: on norns a stroked rectangle lands one pixel left of and above its
+-- target and would overhang the base.
+local function frame(x, y, w, h, lv)
+  px_rect(x, y, w, 1, lv); px_rect(x, y + h - 1, w, 1, lv)
+  px_rect(x, y + 1, 1, h - 2, lv); px_rect(x + w - 1, y + 1, 1, h - 2, lv)
 end
+cabinet.frame = frame
 
-function cabinet.draw_panel(sel, stereo, bypassed)
-  screen.level(DIM); screen.rect(PANEL.x, PANEL.y, PANEL.w, PANEL.h); screen.fill()
-
-  screen.level(FULL)
-  screen.rect(PANEL_BUCHSE1, KNOB_Y, 1, 1); screen.fill()
-  screen.level(stereo and FULL or MED)
-  screen.rect(PANEL_BUCHSE2, KNOB_Y, 1, 1); screen.fill()
-
-  screen.level(bypassed and MED or FULL)
-  screen.rect(PANEL_LAMP, KNOB_Y, 1, 1); screen.fill()
-
-  for i = 1, NUM_AMP_KNOBS do
-    screen.level(i == sel and FULL or MED)
-    screen.circle(KNOB_X[i], KNOB_Y, KNOB_R); screen.fill()
+function cabinet.draw_cabinet(neutral)
+  local h = CAB.y + CAB.h - TOP
+  if neutral then
+    px_rect(CAB.x, TOP, CAB.w, 1, MED)
+    px_rect(CAB.x, TOP + h - 1, CAB.w, 1, MED)
+    px_rect(CAB.x, TOP + 1, 1, h - 2, MED)
+    px_rect(CAB.x + CAB.w - 1, TOP + 1, 1, h - 2, MED)
+    return
   end
+  frame(CAB.x, TOP, CAB.w, h, MED)
+  frame(CAB.x + 2, TOP + 2, CAB.w - 4, h - 4, INNER)
+end
 
-  screen.line_width(1); screen.level(MED)
-  screen.move(CAB.x + BORDER_GAP + 1, SEP_Y)
-  screen.line(PANEL.x + PANEL.w,      SEP_Y)
-  screen.stroke()
+function cabinet.draw_panel(sel, stereo, bypassed, slots)
+  local neutral = slots and true or false
+  local L = neutral and NEUTRAL or CLASSIC
+  local P = L.panel
+  px_rect(P.x, P.y, P.w, P.h, DIM)
+  px_rect(L.jack1, L.knob_y, 1, 1, FULL)
+  px_rect(L.jack2, L.knob_y, 1, 1, stereo and FULL or MED)
+  px_rect(L.lamp, L.knob_y, 1, 1, bypassed and MED or FULL)
+  for i = 1, slots and #slots or NUM_AMP_KNOBS do
+    screen.level((slots and slots[i] or i) == sel and FULL or MED)
+    screen.circle(L.knob_x[i], L.knob_y, KNOB_R); screen.fill()
+  end
+  if neutral then px_rect(CAB.x + 1, L.sep_y, CAB.w - 2, 1, INNER) end
 end
 
 local function draw_speaker_x(cx, cy, lv)
@@ -90,41 +102,47 @@ local function draw_speaker_x(cx, cy, lv)
   screen.move(cx+2, cy-2); screen.line(cx-2, cy+2); screen.stroke()
 end
 
-function cabinet.draw_grillcloth(cab_mode, mic_cat_active, mic_position)
-  local gx, gy, gw, gh = GRILL.x, GRILL.y, GRILL.w, GRILL.h
+function cabinet.draw_grillcloth(cab_mode, mic_cat_active, mic_position, neutral)
+  local G = neutral and NEUTRAL.grill or CLASSIC.grill
+  local gx, gy, gw, gh = G.x, G.y, G.w, G.h
+
+  if not mic_cat_active and not neutral then
+    for _, dx in ipairs(CLASSIC.stays) do px_rect(gx + dx, gy, 1, gh, 2) end
+    for y = gy, gy + gh - 1, 2 do px_rect(gx, y, gw, 1, 3) end
+    return
+  end
 
   if not mic_cat_active then
-    screen.line_width(1)
-    local y = gy
-    while y <= gy + gh do
-      screen.level(MED)
-      screen.move(gx, y); screen.line(gx + gw, y); screen.stroke()
-      y = y + 2
-    end
-    local x = gx
-    while x <= gx + gw do
-      screen.level(MED)
-      screen.move(x, gy); screen.line(x, gy + gh); screen.stroke()
-      x = x + 4
+    local row = 0
+    for y = gy, gy + gh, 2 do
+      local x = gx + (row % 2) * 3
+      while x < gx + gw do
+        px_rect(x, y, math.min(4, gx + gw + 1 - x), 1, row % 2 == 0 and 3 or 2)
+        x = x + 6
+      end
+      row = row + 1
     end
     return
   end
 
-  screen.level(DIM); screen.rect(gx, gy, gw, gh); screen.fill()
-  local cx = math.floor(gx + gw / 2 + 0.5)
-  local cy = math.floor(gy + gh / 2 + 0.5)
+  local cx, cy
+  if neutral then
+    px_rect(gx, gy, gw + 1, gh + 1, DIM)
+    cx, cy = gx + math.floor(gw / 2), gy + math.floor(gh / 2)
+  else
+    px_rect(gx, gy, gw, gh, DIM)
+    px_rect(gx, gy, gw, 1, 3)
+    cx, cy = math.floor(gx + gw / 2 + 0.5), math.floor(gy + gh / 2 + 0.5)
+  end
 
   if cab_mode == 2 then
-    screen.level(MED); screen.line_width(1)
-    screen.circle(cx, cy, 16); screen.stroke()
-    screen.level(DIM)
-    screen.circle(cx, cy, 11); screen.stroke()
-    screen.level(MED)
-    screen.circle(cx, cy, 5); screen.stroke()
+    screen.line_width(1)
+    screen.level(MED); screen.circle(cx, cy, 16); screen.stroke()
+    screen.level(neutral and 2 or DIM); screen.circle(cx, cy, 11); screen.stroke()
+    screen.level(MED); screen.circle(cx, cy, 5);  screen.stroke()
     local x_offsets = { 0, 8, 14 }
-    for i = 1, 3 do
-      draw_speaker_x(cx + x_offsets[i], cy, (i - 1 == mic_position) and FULL or DIM)
-    end
+    -- only the mic currently in place is marked; otherwise the rings stay closed
+    draw_speaker_x(cx + x_offsets[mic_position + 1], cy, FULL)
   else
     screen.level(MED); screen.line_width(1)
     screen.move(cx - 5, cy - 5); screen.line(cx + 5, cy + 5); screen.stroke()

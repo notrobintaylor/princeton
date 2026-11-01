@@ -1,4 +1,7 @@
+-- looper_ui draws the Looper's pane, nine knobs, two meters and an LED that blinks on the quantize
+-- grid. The image arrives pre-sorted from lib/sprites_looper, so only the levels are set here.
 local looper_ui = {}
+local sprite = include("lib/sprite")
 
 function looper_ui.new(ctx, into)
   local U = into or {}
@@ -16,18 +19,18 @@ function looper_ui.new(ctx, into)
 
   ctx.draw_state_icon()
 
-  local OX, OY      = 44, 3
+  local OX, OY      = ctx.LOOPER_OX, ctx.LOOPER_OY
   local rec_active  = (looper.state == looper.REC or looper.state == looper.PLAY or looper.state == looper.DUB)
   local left_active = (looper.state == looper.STOP)
 
   local function blit(lst, lv)
     if #lst == 0 then return end
     screen.level(lv)
-    for _, q in ipairs(lst) do screen.rect(OX + q[1], OY + q[2], 1, 1) end
+    sprite.rects(lst, OX, OY)
     screen.fill()
   end
 
-  blit(pts.bg, B.MED)
+  for lv, lst in pairs(pts.bg_lv) do blit(lst, lv) end
   for i = 1, 9 do blit(pts.knob[i], (sel == i) and B.FULL or B.MED) end
   blit(pts.ldisp, left_active          and B.FULL or B.MED)
   blit(pts.rdisp, rec_active           and B.FULL or B.MED)

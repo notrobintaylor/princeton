@@ -1,4 +1,11 @@
+-- modtarget: who modulates whom; LFO, Sense, Trig and Walk claim targets, one owner each, so menu
+-- lists show only free targets and a list position is not a stable name. Each source therefore saves its
+-- target's id in a hidden param (<prefix>_target_id) that restore_from_ids() resolves after a PSET load.
+
 local modtarget = {}
+
+local UNKNOWN = "?"   -- set before loading: "this PSET carries no target ids yet"
+modtarget.UNKNOWN = UNKNOWN
 
 local function owner_key(b, g)
   local t = b.targets[g]
@@ -14,6 +21,8 @@ end
 local function available(b, idx, g)
   return b.visible(g) and owner_ok(b, idx, g)
 end
+
+local function id_param(b, idx) return b.prefix(idx) .. "_target_id" end
 
 function modtarget.rebuild_param(b, idx, dev_idx)
   local p = params:lookup_param(b.prefix(idx) .. "_target_param")
@@ -102,8 +111,70 @@ function modtarget.set_target(b, idx, new_global)
     end
   end
 
+  -- record the target id, except while a PSET loads: the PSET brings its own
+  local pid = id_param(b, idx)
+  if params.lookup[pid] and not params.pset_loading then
+    params:set(pid, owner_key(b, new_global) or "")
+  end
+
   modtarget.rebuild_all(b)
   if b.on_rebuilt then b.on_rebuilt() end
+end
+
+-- The three functions below take the bindings list explicitly. include() loads a fresh copy of this
+-- module per library, so a registry kept in here would only see one of them.
+
+-- Before a PSET loads: mark every id unknown, so an old PSET without ids can be recognised.
+function modtarget.mark_unknown(bindings)
+  for _, b in ipairs(bindings) do
+    for i = 1, b.num do
+      local pid = id_param(b, i)
+      if params.lookup[pid] then params:set(pid, UNKNOWN) end
+    end
+  end
+end
+
+-- After loading: release every source that has an id, then reclaim each by id. Two passes, because
+-- otherwise one source could still hold a target that another is about to claim.
+function modtarget.restore_from_ids(bindings)
+  local want = {}
+  for _, b in ipairs(bindings) do
+    for i = 1, b.num do
+      local pid = id_param(b, i)
+      local id  = params.lookup[pid] and params:get(pid) or UNKNOWN
+      if id ~= UNKNOWN then
+        local g = 1
+        for gi, t in ipairs(b.targets) do
+          if t.id == id then g = gi; break end
+        end
+        want[#want + 1] = { b = b, i = i, g = g }
+        modtarget.set_target(b, i, 1)
+      end
+    end
+  end
+  for _, w in ipairs(want) do
+    if w.b.set then w.b.set(w.i, w.g) else modtarget.set_target(w.b, w.i, w.g) end
+  end
+  -- old PSETs: fill in the id from the loaded state, ready for the next save
+  for _, b in ipairs(bindings) do
+    for i = 1, b.num do
+      local pid = id_param(b, i)
+      if params.lookup[pid] and params:get(pid) == UNKNOWN then
+        params:set(pid, owner_key(b, b.last_global[i] or 1) or "")
+      end
+    end
+  end
+end
+
+-- Create the hidden target-id params for all bindings (once in init, after the sources).
+function modtarget.add_id_params(bindings)
+  for _, b in ipairs(bindings) do
+    for i = 1, b.num do
+      local pid = id_param(b, i)
+      params:add_text(pid, pid, owner_key(b, b.last_global[i] or 1) or "")
+      params:hide(pid)
+    end
+  end
 end
 
 return modtarget

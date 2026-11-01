@@ -1,3 +1,5 @@
+-- scales lets Count play notes as well as click, a root plus a degree, walking the scale beat by
+-- beat with Play. Chords are stacked from the scale's own notes, so a minor triad sounds minor.
 local scales = {}
 
 scales.NOTE_NAMES  = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}

@@ -1,5 +1,8 @@
 local sync = include("lib/sync")
 
+-- looper is a memory with one button that steps through record, play and overdub, and Undo takes
+-- back the last overdub. Loop length is the time between the first two presses, and Quantize makes
+-- each press wait for the next beat.
 local looper = {}
 
 looper.IDLE = 0
@@ -57,6 +60,7 @@ function looper.new(deps, into)
   local rec_auto_gen = 0
   local rec_auto_start
   local engine_active = false
+  local snap_stable, snap_undo
 
   L.on_transition = nil
   local function notify(st)
@@ -96,6 +100,7 @@ function looper.new(deps, into)
     L.frames = 0
     E("imprint_off")()
     E("loop_clear")()
+    snap_stable, snap_undo = nil, nil
     deactivate()
     redraw()
     notify(IDLE)
@@ -119,9 +124,15 @@ function looper.new(deps, into)
 
   local function transition_to(st)
     rec_auto_gen = rec_auto_gen + 1
+    local prev = L.state
     L.state = st
     if st == REC then notify("prepare") end
     set_engine(st)
+    if prev == REC or prev == DUB then
+      snap_stable = (snap_undo == 0) and 1 or 0
+      E("loop_snapshot")(snap_stable)
+    end
+    if st == DUB then snap_undo = snap_stable end
     notify(st)
     if st == REC then rec_auto_start() end
     redraw()
@@ -292,8 +303,28 @@ function looper.new(deps, into)
     end
   end
 
+  function L.undo()
+    if snap_undo == nil then return false end
+    if L.state ~= PLAY and L.state ~= STOP and L.state ~= DUB then return false end
+    if L.state == DUB then
+      L.state = PLAY
+      set_engine(PLAY)
+    end
+    E("loop_undo")(snap_undo)
+    snap_stable, snap_undo = snap_undo, nil
+    notify("undo")
+    redraw()
+    return true
+  end
+
   function L.follow(st)
     if st == "prepare" then ensure_active() return end
+    if st == "undo" then
+      following = true
+      L.undo()
+      following = false
+      return
+    end
     if st == L.state then return end
     following = true
     if st == IDLE then

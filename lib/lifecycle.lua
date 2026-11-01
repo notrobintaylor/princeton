@@ -1,3 +1,5 @@
+-- lifecycle builds devices only when needed, because some engine devices cost CPU even when silent.
+-- It tracks what's standing, so nothing is built twice or torn down that never stood.
 local lifecycle = {}
 
 lifecycle.active = {}

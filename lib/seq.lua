@@ -1,7 +1,9 @@
 local sync           = include("lib/sync")
 local modtarget      = include("lib/modtarget")
-local sprites_looper = include("lib/sprites_looper")
 
+-- seq is Walk, a step sequencer of up to sixteen steps that walks a parameter along on its rate or
+-- the clock. Up and down are scaled separately, so ±100 % lands exactly at the limit wherever the
+-- base sits.
 local seq = {}
 
 local MED  = 5
@@ -107,6 +109,8 @@ local function seq_g(field, idx)
   return seq.mod[field][idx] or params:get("seq"..idx.."_"..field)
 end
 
+-- Targets that do nothing in their device's current setting stay off the list.
+-- A sync division shows only while sync is on, a free rate only while it is off.
 local function target_visible(target_id)
   if target_id == "tremolo_sync_div" or target_id == "tremolo_sync_feel" then return params:get("tremolo_sync_div") > 1 end
   if target_id == "warp_sync_div"    or target_id == "warp_sync_feel"    then return params:get("warp_sync_div")    > 1 end
@@ -244,6 +248,12 @@ function seq.start_clock(idx)
   end)
 end
 
+-- K2 in the rack: back to step 1 while the clock keeps running.
+function seq.reset(idx)
+  seq.state[idx].step_pos = 1
+  apply_to_target(idx)
+end
+
 function seq.randomize(idx)
   local n = params:get("seq"..idx.."_steps")
   for k = 1, n do
@@ -252,52 +262,7 @@ function seq.randomize(idx)
   apply_to_target(idx)
 end
 
--- ── Draw (looper-style knob grid: playhead + edit cursor) ────
-local KNOB = (function()
-  local raw = sprites_looper.LOOPER_PTS.knob[1]
-  local minx, miny = 999, 999
-  for _, q in ipairs(raw) do
-    if q[1] < minx then minx = q[1] end
-    if q[2] < miny then miny = q[2] end
-  end
-  local st = {}
-  for _, q in ipairs(raw) do st[#st + 1] = { q[1] - minx, q[2] - miny } end
-  return st
-end)()
 
-local H_PITCH, V_PITCH = 8, 11
-
-local function blit_knob(kx, ky, lv)
-  screen.level(lv)
-  for _, q in ipairs(KNOB) do screen.rect(kx + q[1], ky + q[2], 1, 1) end
-  screen.fill()
-end
-
-function seq.draw_half(ox, oy, idx, focused, sel_step)
-  local enabled = seq.is_enabled(idx)
-  local n       = params:get("seq"..idx.."_steps")
-  local cur     = seq.state[idx] and seq.state[idx].step_pos or 1
-
-  local cols   = 4
-  local grid_w = 3 * H_PITCH + 5
-  local grid_h = 3 * V_PITCH + 5
-  local x0     = ox + math.floor((33 - grid_w) / 2)
-  local y0     = oy - 1
-
-  for k = 1, n do
-    local kx = x0 + ((k - 1) % cols) * H_PITCH
-    local ky = y0 + math.floor((k - 1) / cols) * V_PITCH
-    blit_knob(kx, ky, (enabled and k == cur) and FULL or MED)
-    if sel_step == k then
-      screen.level(FULL)
-      screen.rect(kx - 1, ky - 1, 1, 1); screen.fill()
-    end
-  end
-
-  screen.font_size(8); screen.font_face(0)
-  screen.level(enabled and FULL or MED)
-  screen.move(ox + 16, oy + 56); screen.text_center("Walk " .. idx)
-end
 
 function seq.init(deps)
   TARGET_PARAMS    = deps.TARGET_PARAMS
@@ -323,6 +288,7 @@ function seq.init(deps)
   end
 
   binding = {
+    set              = function(i, g) seq.set_target(i, g) end,
     num              = NUM_SEQS,
     none_option      = true,
     prefix           = function(i) return "seq" .. i end,
@@ -357,5 +323,7 @@ function seq.init(deps)
     end,
   }
 end
+
+function seq.binding() return binding end
 
 return seq

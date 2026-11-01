@@ -1,5 +1,9 @@
+-- env: Sense, an envelope follower that pushes a parameter further the louder you play; the engine
+-- polls it 30 times a second and Freeze holds the last value. Sense shares the LFOs' owner registry
+-- (lfo.target_owner), so a claimed target has one owner and returns to its base on release.
 local env = {}
 local modtarget = include("lib/modtarget")
+local scope     = include("lib/scope")
 
 local MED  = 5
 local FULL = 15
@@ -12,6 +16,7 @@ env.last_value           = {}
 env.target_device_filter = {}
 env.target_param_filter  = {}
 env.polls                = {}
+env.scope                = {}
 env.strip_sel            = {1, 1}
 
 local TARGET_PARAMS, DEVICE_NAMES, DEVICE_PARAMS, TARGET_DEVICE_OF
@@ -25,6 +30,7 @@ env.STRIP = {
   {name="Depth",     suf="_depth",        typ="ctrl", step=1, fmt=function(v,i) return string.format("%d%%", math.floor(v)) end},
   {name="Direction", suf="_dir",          typ="opt",  nmax=2, fmt=function(v,i) return env.DIR_OPTS[v] end},
   {name="Slew",      suf="_slew",         typ="ctrl", step=1, fmt=function(v,i) return string.format("%dms", math.floor(v)) end},
+  {name="Freeze",    suf="_freeze",       typ="opt",  nmax=2, fmt=function(v,i) return ({"Off", "On"})[v] end},
   {name="Device",    suf="_target_device", typ="opt",  nmax_fn=function(i) return #(env.target_device_filter[i] or {}) end,
     fmt=function(v,i)
       local dmap = env.target_device_filter[i]
@@ -48,6 +54,8 @@ end
 
 function env.is_enabled(idx) return params:get("env"..idx.."_enable") == 2 end
 
+-- Targets that do nothing in their device's current setting stay off the list.
+-- A sync division shows only while sync is on, a free rate only while it is off.
 local function target_visible(target_id)
   if target_id == "tremolo_sync_div" or target_id == "tremolo_sync_feel" then return params:get("tremolo_sync_div") > 1 end
   if target_id == "warp_sync_div"    or target_id == "warp_sync_feel"    then return params:get("warp_sync_div")    > 1 end
@@ -124,7 +132,9 @@ function env.start_polls()
     if env.polls[i] then env.polls[i]:stop() end
     local ii = i
     local p = poll.set("env" .. ii .. "_value", function(v)
-      env.last_value[ii] = v or 0
+      -- while frozen, hold the last value instead of following the input
+      if params:get("env" .. ii .. "_freeze") ~= 2 then env.last_value[ii] = v or 0 end
+      scope.push(env.scope[ii], util.time(), util.clamp(env.last_value[ii] * env.GAIN, 0, 1))
       apply_to_target(ii)
       if half_visible(ii) and redraw_pane then redraw_pane() end
     end)
@@ -142,30 +152,17 @@ function env.poll_set_active(idx, on)
   if on then p:start() else p:stop() end
 end
 
-function env.draw_half(ox, oy, idx, focused)
-  local cx       = ox + 16
-  local mid      = oy + 24
-  local enabled  = env.is_enabled(idx)
-  local lv       = enabled and FULL or MED
-  screen.level(lv)
-  screen.rect(cx - 14, mid, 28, 1); screen.fill()
-  if enabled then
-    local v = env.last_value[idx] or 0
-    if v < 0 then v = 0 elseif v > 1 then v = 1 end
-    local depth = params:get("env"..idx.."_depth")
-    local dir   = params:get("env"..idx.."_dir")
-    local h     = math.floor(util.clamp(v * (depth / 100) * 3, 0, 1) * 22 + 0.5)
-    if h > 0 then
-      screen.level(FULL)
-      if dir == 1 then screen.rect(cx - 14, mid - h, 28, h)
-      else             screen.rect(cx - 14, mid + 1, 28, h) end
-      screen.fill()
-    end
-  end
-  screen.font_size(8); screen.font_face(0)
-  screen.level(lv)
-  screen.move(cx, oy + 56); screen.text_center("Sense " .. idx)
+-- The scope shows the raw envelope of the last few seconds, before Depth and Direction, so it shows the input.
+-- The follower reports small values, and GAIN lifts them to screen height.
+env.GAIN = 3
+
+function env.scope_live(idx)
+  local sc = env.scope[idx]
+  return sc and sc.n > 0 and env.is_enabled(idx)
 end
+
+function env.scope_reset(idx) scope.reset(env.scope[idx]) end
+
 
 function env.init(deps)
   TARGET_PARAMS     = deps.TARGET_PARAMS
@@ -182,6 +179,7 @@ function env.init(deps)
   for i = 1, env.NUM do
     env.last_global[i] = 1
     env.last_value[i]  = 0
+    env.scope[i]       = scope.new()
     env.target_device_filter[i] = {}
     for di = 1, #DEVICE_NAMES do env.target_device_filter[i][di] = di end
     env.target_param_filter[i] = {}
@@ -191,6 +189,7 @@ function env.init(deps)
   end
 
   binding = {
+    set              = function(i, g) env.set_target(i, g) end,
     num              = env.NUM,
     none_option      = true,
     prefix           = function(i) return "env" .. i end,
@@ -225,5 +224,7 @@ function env.init(deps)
     end,
   }
 end
+
+function env.binding() return binding end
 
 return env

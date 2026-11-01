@@ -1,7 +1,10 @@
 local sync      = include("lib/sync")
-local sprites   = include("lib/sprites")
 local modtarget = include("lib/modtarget")
+local scope     = include("lib/scope")
 
+-- trigger: four Trigs, fingers over the switches; on each beat of their rate (or the clock) Probability
+-- decides whether to fire an action from TRIG_TARGETS (princeton.lua). A Stepped Random LFO with a Trig
+-- on it stops running freely and steps only when fired (refresh_suspend counts the Trigs holding it).
 local trigs = {}
 
 local MED  = 5
@@ -15,12 +18,15 @@ trigs.applied_lfo = {}
 trigs.strip_fn    = {}
 trigs.fn          = {}
 trigs.strip_sel   = {1, 1, 1, 1}
+trigs.last_fire   = {}
+trigs.last_skip   = {}
+trigs.scope       = {}
 
 trigs.target_owner         = {}
 trigs.target_device_filter = {}
 trigs.target_param_filter  = {}
 
-for i = 1, trigs.N do trigs.last_global[i] = 1 end
+for i = 1, trigs.N do trigs.last_global[i] = 1; trigs.scope[i] = scope.new() end
 
 local looper, lfo
 local is_initing, is_clock_running
@@ -102,6 +108,16 @@ function trigs.fn.refresh_suspend(idx)
   trigs.applied_lfo[idx] = desired_lfo
 end
 
+-- Fire: run the action and remember when. The clock calls it when Probability says yes; K2 in the rack fires unconditionally.
+function trigs.fn.fire(idx)
+  trigs.last_fire[idx] = util.time()
+  scope.push(trigs.scope[idx], trigs.last_fire[idx], 1)
+  local entry = trigs.TARGETS[trigs.last_global[idx] or 1]
+  if entry and entry.action and (not entry.lfo_idx or lfo.is_step_random(entry.lfo_idx)) then
+    entry.action()
+  end
+end
+
 function trigs.fn.start_clock(idx)
   trigs.clock_gen[idx] = (trigs.clock_gen[idx] or 0) + 1
   local my = trigs.clock_gen[idx]
@@ -121,11 +137,10 @@ function trigs.fn.start_clock(idx)
       if trigs.clock_gen[idx] ~= my then return end
       local prob = trigs.mod.probability[idx] ~= nil and trigs.mod.probability[idx] or params:get("trig"..idx.."_probability")
       if prob > 0 and (prob >= 100 or math.random() * 100 < prob) then
-        local g = trigs.last_global[idx] or 1
-        local entry = trigs.TARGETS[g]
-        if entry and entry.action and (not entry.lfo_idx or lfo.is_step_random(entry.lfo_idx)) then
-          entry.action()
-        end
+        trigs.fn.fire(idx)
+      else
+        trigs.last_skip[idx] = util.time()
+        scope.push(trigs.scope[idx], trigs.last_skip[idx], 0)
       end
     end
   end)
@@ -150,15 +165,15 @@ function trigs.fn.refresh_dropdowns_for_lfo(lfo_idx)
   if _menu and _menu.rebuild_params then _menu.rebuild_params() end
 end
 
-function trigs.draw_half(ox, oy, idx, focused)
-  local cx      = ox + 16
-  local enabled = params:get("trig"..idx.."_enable") == 2
-  local icon_lv = enabled and FULL or MED
-  sprites.draw_trigger_icon(cx, oy + 28, icon_lv)
-  screen.font_size(8); screen.font_face(0)
-  screen.level(icon_lv)
-  screen.move(cx, oy + 56); screen.text_center("Trig " .. idx)
+-- The Trig's recent history: every chance with its time, 1 fired, 0 skipped by Probability.
+-- The rack shows the last eight.
+function trigs.scope_live(idx)
+  local sc = trigs.scope[idx]
+  return sc and sc.n > 0 and params:get("trig"..idx.."_enable") == 2
 end
+
+function trigs.scope_reset(idx) scope.reset(trigs.scope[idx]) end
+
 
 function trigs.init(deps)
   looper           = deps.looper
@@ -168,6 +183,7 @@ function trigs.init(deps)
 
   trigs.TARGETS = deps.targets
 
+  -- grouped like the continuous targets: the label "Device: Action" yields both
   trigs.DEVICES, trigs.DEVICE_PARAMS = (function()
     local devices = { "-" }
     local dparams = { [1] = { { label = "-", global_idx = 1 } } }
@@ -202,6 +218,7 @@ function trigs.init(deps)
   end
 
   binding = {
+    set              = function(i, g) trigs.fn.set_target(i, g) end,
     num              = trigs.N,
     prefix           = function(i) return "trig" .. i end,
     owner            = trigs.target_owner,
@@ -226,5 +243,7 @@ function trigs.init(deps)
     end,
   }
 end
+
+function trigs.binding() return binding end
 
 return trigs

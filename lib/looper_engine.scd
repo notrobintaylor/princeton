@@ -1,3 +1,6 @@
+// looper_engine is the Looper in the engine, one synth per medium, because a loop always lives on a
+// medium. Several loopers can load, sharing a link bus on which the first sets length and the
+// others follow.
 { |engine, ctx|
     var mediaNames  = ctx[\mediaNames];
     var mediumBlend = ctx[\mediumBlend];
@@ -6,10 +9,12 @@
     var looperInBus = ctx[\looperInBus], looperOutBus = ctx[\looperOutBus], loopBuf = ctx[\loopBuf];
     var imprint_in_bus, imprint_out_bus, looper_synth, imprint_synth;
     var imp_amt_v = 50, imp_bbd_tone_v = 0, imp_medium_v = 3;
-    var idx, cname, linkBus, own_link_bus, linkState, link_follow_v = 0;
+    var idx, cname, linkBus, own_link_bus, linkState, link_follow_v = 0, snapBufs, curBuf;
 
     idx = ctx[\idx] ? 1;
     own_link_bus = if(ctx[\linkBus].isNil) { Bus.control(server, 3) } { nil };
+    snapBufs = Array.fill(2, { Buffer.alloc(server, loopBuf.numFrames, 2) });
+    curBuf = loopBuf;
     linkBus = ctx[\linkBus] ? own_link_bus;
     linkState = ctx[\linkState] ? ();
     cname = { |base|
@@ -23,7 +28,7 @@
     imprint_in_bus  = Bus.audio(server, 2);
     imprint_out_bus = Bus.audio(server, 2);
 
-        // ── Imprint sub-synths ───────────────────────────────────────
+        // ── Imprint synths ─────────────────────────────────────────────
         mediaNames.do { |med|
         SynthDef(("princeton_imprint_" ++ med).asSymbol, {
             arg in_bus = 0, out_bus = 0, gate = 1, fade = 0.025,
@@ -38,11 +43,11 @@
         }).add;
         };
 
-        // ── Looper sub-synths ────────────────────────────────────────
+        // ── Looper synths ──────────────────────────────────────────────
         mediaNames.do { |med|
         SynthDef(("princeton_looper_" ++ med).asSymbol, {
             arg looper_in_bus = 0, looper_out_bus = 0,
-                imprint_in_bus_num = 0, imprint_out_bus_num = 0, loop_buf_num = 0,
+                imprint_in_bus_num = 0, imprint_out_bus_num = 0, loop_buf_num = 0, loop_duck = 1,
                 loop_rec = 0, loop_dub = 0, loop_play = 0,
                 loop_frames = 2880000, loop_level = 0.75, loop_dub_level = 0.75, loop_fade = 0.75,
                 loop_direction = 0, loop_speed = 1, loop_dub_style = 0,
@@ -212,7 +217,7 @@
                 loop_out = loop_out + (vinyl_noise_sig * loop_level * out_gate);
             });
 
-            ReplaceOut.ar(looper_out_bus, loop_out);
+            ReplaceOut.ar(looper_out_bus, loop_out * Lag.kr(loop_duck, 0.005));
         }).add;
         };
 
@@ -222,7 +227,7 @@
             Line.kr(0, 0, 0.02, doneAction: 2);
         }).add;
 
-// ── Looper param commands ────────────────────────────────────
+// ── Looper param commands ──────────────────────────────────
         [
             ["loop_rec",             \loop_rec],
             ["loop_dub",             \loop_dub],
@@ -250,7 +255,7 @@
             if(looper_synth.notNil) { looper_synth.set(\link_follow, msg[1]) };
         });
 
-// ── Looper on-demand ─────────────────────────────────────────
+// ── Looper on demand ───────────────────────────────────────────
         engine.addCommand(cname.value("looper_on"), "", {
             if(looper_synth.isNil) {
                 var medName = mediaNames.clipAt(imp_medium_v.asInteger);
@@ -260,7 +265,7 @@
                     \looper_out_bus,      looperOutBus.index,
                     \imprint_in_bus_num,  imprint_in_bus.index,
                     \imprint_out_bus_num, imprint_out_bus.index,
-                    \loop_buf_num,        loopBuf.bufnum,
+                    \loop_buf_num,        curBuf.bufnum,
                     \link_bus,            linkBus.index,
                     \link_lead,           (idx == 1).asInteger,
                     \link_follow,         link_follow_v
@@ -268,17 +273,26 @@
                 if(idx == 1) { linkState[\lead] = looper_synth };
             };
         });
+        // The Looper leaves like a musician leaving the stage: it fades first (loop_duck, 5 ms), then vanishes, since a
+        // hard free mid-loop would click. If it is called again within those 20 ms, the new one is already standing there and no silence may cut in.
         engine.addCommand(cname.value("looper_off"), "", {
             if(looper_synth.notNil) {
-                looper_synth.free;
+                var leaving = looper_synth;
                 looper_synth = nil;
                 if(idx == 1) { linkState[\lead] = nil };
-                Synth.after(mainSynth.value, \princeton_looper_silence,
-                    [\out_bus, looperOutBus.index]);
+                leaving.set(\loop_duck, 0);
+                SystemClock.sched(0.02, {
+                    leaving.free;
+                    if(looper_synth.isNil) {
+                        Synth.after(mainSynth.value, \princeton_looper_silence,
+                            [\out_bus, looperOutBus.index]);
+                    };
+                    nil
+                });
             };
         });
 
-        // ── Imprint on-demand ────────────────────────────────────────
+        // ── Imprint on demand ──────────────────────────────────────────
         engine.addCommand(cname.value("imprint_on"), "", {
             if(imprint_synth.isNil and: { looper_synth.notNil }) {
                 var medName = mediaNames.clipAt(imp_medium_v.asInteger);
@@ -314,8 +328,24 @@
         engine.addCommand(cname.value("looper_vinyl_noise"), "f", { |msg| if(looper_synth.notNil) { looper_synth.set(\loop_vinyl_noise, msg[1]) } });
 
 engine.addCommand(cname.value("loop_clear"), "", {
-            loopBuf.zero;
+            curBuf.zero;
             if(looper_synth.notNil) { looper_synth.set(\loop_rec, 0, \loop_dub, 0, \loop_play, 0) };
+        });
+        engine.addCommand(cname.value("loop_snapshot"), "i", { |msg| curBuf.copyData(snapBufs[msg[1].asInteger.clip(0, 1)]) });
+        engine.addCommand(cname.value("loop_undo"), "i", { |msg|
+            var i = msg[1].asInteger.clip(0, 1), old = curBuf, syn = looper_synth, now = snapBufs[i];
+            curBuf = now;
+            snapBufs[i] = old;
+            if(syn.notNil) {
+                syn.set(\loop_duck, 0);
+                SystemClock.sched(0.01, {
+                    syn.set(\loop_buf_num, now.bufnum);
+                    SystemClock.sched(0.005, { syn.set(\loop_duck, 1); now.copyData(old); nil });
+                    nil
+                });
+            } {
+                now.copyData(old);
+            };
         });
 
         (free: {
@@ -324,5 +354,6 @@ engine.addCommand(cname.value("loop_clear"), "", {
             imprint_in_bus.free;
             imprint_out_bus.free;
             if(own_link_bus.notNil) { own_link_bus.free };
+            ([curBuf] ++ snapBufs).reject { |b| b === loopBuf }.do(_.free);
         })
 }

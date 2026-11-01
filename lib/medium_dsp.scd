@@ -1,3 +1,6 @@
+// medium_dsp: how a medium sounds. Each of the six media a loop can live on has a writing side
+// (mediumChain, blended under the dry signal by mediumBlend at amt 0..100 %) and a reading side (mediumRead),
+// where Cassette, Tape and Vinyl add wow, offset per channel for width and flatter the faster the loop runs.
 {
     var mediumChain, mediumRead, mediumBlend;
 

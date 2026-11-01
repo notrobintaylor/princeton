@@ -1,5 +1,9 @@
 local sync = include("lib/sync")
 
+-- looper_params: the controls each looper built by looper.new gets in the PARAMS menu:
+-- transport, level, speed, the medium and its quirks (the "M:" entries), quantize and three
+-- mappable triggers. A host script can restrict the media (deps.media); the list then shows
+-- only those, while the engine still gets their fixed numbers (to_engine).
 local looper_params = {}
 
 looper_params.DIR_NAMES = { "Forward", "Reverse", "Pendulum", "Random" }
@@ -21,7 +25,7 @@ function looper_params.setup(deps)
     return function(v) E("looper_" .. suffix)(db_to_lin(v)); re() end
   end
 
-  -- ── medium subset ────────────────────────────────────────────
+  -- ── Media selection ────────────────────────────────────────────
   local labels, to_engine = {}, {}
   for _, want in ipairs(deps.media or MEDIA_ALL) do
     for i, name in ipairs(MEDIA_ALL) do
@@ -36,7 +40,7 @@ function looper_params.setup(deps)
     if name == (deps.medium_default or "Chip") then medium_default = i end
   end
 
-  if deps.embedded then params:add_group(deps.group_label or "LOOPER", 26) end
+  if deps.embedded then params:add_group(deps.group_label or "LOOPER", 27) end
   params:add_separator(P("sep_control"), "─── Control ───")
   params:add_option(P("transport"), "Step Order", {"Rec·Play·Dub", "Rec·Dub·Play"}, 1)
   params:add_option(P("play_from"), "Play From", {"Start", "Cue"}, 1)
@@ -52,6 +56,8 @@ function looper_params.setup(deps)
   params:add_control(P("fade_level"), "Fade Level", controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
   params:set_action(P("fade_level"), db_action("fade_level"))
   params:add{type="number", id=P("speed"), name="Speed", min=-100, max=100, default=0, formatter=function(p) return p:get() .. "%" end, action=function(v)
+    -- in Steps, Speed knows only half, normal and double: any move snaps to the next stage in
+    -- its direction
     if params:get(P("speed_control")) == 1 then
       local snapped
       if     v > speed_steps_prev then snapped = v > 0 and 100 or 0
@@ -100,6 +106,7 @@ function looper_params.setup(deps)
   params:set_action(P("quant_feel"), function(_) looper.quant_led_restart(); re() end)
 
   params:add_separator(P("sep_trigger"), "─── Trigger ───")
+  -- trigger params also fire when init or a PSET sets them; there they should do nothing
   local function fired()
     return not (is_initing() or params.pset_loading)
   end
@@ -107,6 +114,8 @@ function looper_params.setup(deps)
   params:set_action(P("rec_play"), function() if fired() then looper.step() end end)
   params:add_binary(P("stop_clear"), "Stop/Clear", "trigger", 0)
   params:set_action(P("stop_clear"), function() if fired() then looper.stop_clear() end end)
+  params:add_binary(P("undo"), "Undo", "trigger", 0)
+  params:set_action(P("undo"), function() if fired() then looper.undo() end end)
 end
 
 return looper_params

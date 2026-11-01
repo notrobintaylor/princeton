@@ -1,3 +1,6 @@
+-- sync: rates and times from the clock; a division and its Feel turn the tempo into a frequency that
+-- each device converts to its own unit (PARAM_MAP), skipping divisions that fall outside its range.
+-- Older PSETs lack the three long divisions and count three places short, so migrate_div shifts them (SCHEME marks the numbering).
 local sync = {}
 
 local MED  = 5
@@ -120,6 +123,8 @@ function sync.fmt(p_id, clock_running)
   return s
 end
 
+-- Sends each device its value: from the clock while a division is set, otherwise its own
+-- control (or that control's base, m.base).
 function sync.push_all(initing, clock_running, override)
   if initing then return end
   local bpm = clock.get_tempo()
@@ -128,11 +133,12 @@ function sync.push_all(initing, clock_running, override)
     if clock_running and div > 1 then
       engine[id](m.value_fn(sync.hz_df(bpm, div, (override and override[m.feel]) or params:get(m.feel))))
     else
-      engine[id](params:get(id))
+      engine[id](m.base and m.base() or params:get(id))
     end
   end
 end
 
+-- A MIDI clock locks whatever ran free to quarter notes (DIV_DEFAULT).
 function sync.activate_defaults()
   local d = sync.DIV_DEFAULT
   if params:get("tremolo_sync_div") <= 1 then params:set("tremolo_sync_div", d) end

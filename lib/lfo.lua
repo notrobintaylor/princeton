@@ -1,7 +1,10 @@
 local sync      = include("lib/sync")
-local sprites   = include("lib/sprites")
 local modtarget = include("lib/modtarget")
+local scope     = include("lib/scope")
 
+-- lfo: eight hands on eight knobs, each swaying a parameter around its base in one of six shapes
+-- (Stepped Random is a Turing Machine-style shift register). They tick in Lua at a rate matched to
+-- the target's step size (2-30 Hz), and modulating another LFO, Count or Trig writes overlays, never params.
 local lfo = {}
 
 local MED  = 5
@@ -28,6 +31,19 @@ lfo.mod = {
 }
 lfo.count         = { level = nil, length = nil, root = nil, register = nil, div = nil }
 lfo.sync_override = {}
+
+-- Cached LFO param ids: PID[idx].rate is "lfo"..idx.."_rate" built once, then looked up.
+-- An LFO ticks up to 30 times a second, and concatenating on every tick would feed the garbage collector.
+local PID = setmetatable({}, { __index = function(t, idx)
+  local names = setmetatable({}, { __index = function(n, field)
+    local id = "lfo" .. idx .. "_" .. field
+    rawset(n, field, id)
+    return id
+  end })
+  rawset(t, idx, names)
+  return names
+end })
+
 lfo.random        = { suspend_count = {}, suspended = {} }
 
 lfo.state                = {}
@@ -36,16 +52,26 @@ lfo.target_base          = {}
 lfo.target_owner         = {}
 lfo.orig_name            = {}
 lfo.last_global          = {}
+lfo.last_sent            = {}
 lfo.target_device_filter = {}
 lfo.target_param_filter  = {}
+
+-- ── Scope ──────────────────────────────────────────────────────
+-- The sprite shows what an LFO means to do; the scope shows what it does. Every value sent to the
+-- target is ring-buffered with a timestamp, normalised to the target's range, so clipping and tick steps show too.
+lfo.scope = {}
+
+local function scope_reset(idx) scope.reset(lfo.scope[idx]) end
+local function scope_push(idx, now, v, b) scope.push(lfo.scope[idx], now, v, b) end
+function lfo.scope_reset(idx) scope_reset(idx) end
 
 local TARGET_PARAMS, DEVICE_NAMES, DEVICE_PARAMS, TARGET_DEVICE_OF
 local is_clock_running, is_initing, on_sync_override_change, get_trigs_mod
 local on_target_change
 local binding
 
-function lfo.is_sync_active(idx) return params:get("lfo"..idx.."_sync_div")  > 1 end
-function lfo.is_step_random(idx) return params:get("lfo"..idx.."_waveform") == 6 end
+function lfo.is_sync_active(idx) return params:get(PID[idx].sync_div)  > 1 end
+function lfo.is_step_random(idx) return params:get(PID[idx].waveform) == 6 end
 
 lfo.STRIP = {
   {name="Waveform",  suf="_waveform",     typ="opt",  nmax=6, fmt=function(v,i) return WAVEFORMS[v] end},
@@ -113,7 +139,7 @@ local function tm_register_max(steps)
 end
 
 local function lfo_g(field, idx)
-  return lfo.mod[field][idx] or params:get("lfo"..idx.."_"..field)
+  return lfo.mod[field][idx] or params:get(PID[idx][field])
 end
 
 local LFO_TICK_MIN = 1/30
@@ -122,7 +148,7 @@ local LFO_TICK_MAX = 0.5
 local function lfo_adaptive_dt(idx, rate)
   local t = TARGET_PARAMS[lfo.last_global[idx] or 1]
   if not t or not t.st or not t.mn or not t.mx then return LFO_TICK_MIN end
-  local depth = lfo.mod.depth[idx] ~= nil and lfo.mod.depth[idx] or params:get("lfo"..idx.."_depth")
+  local depth = lfo.mod.depth[idx] ~= nil and lfo.mod.depth[idx] or params:get(PID[idx].depth)
   local span  = (t.mx - t.mn) * (depth / 100)
   if span <= 0 then return LFO_TICK_MAX end
   local dt = t.st / (math.max(0.05, rate) * span)
@@ -142,7 +168,7 @@ end
 
 local function compute_v_unsigned(idx)
   local s = lfo.state[idx]
-  local wf = params:get("lfo"..idx.."_waveform")
+  local wf = params:get(PID[idx].waveform)
   local p = (s.phase + lfo_phase_offset(idx)) % 1
   if wf == 1 then return (math.sin(p * 2 * math.pi) + 1) / 2
   elseif wf == 2 then return 1 - 2 * math.abs(p - 0.5)
@@ -157,6 +183,8 @@ local function compute_v_unsigned(idx)
   return 0
 end
 
+-- A modulated target wears an (M) before its name in the params menu.
+-- The original name is remembered so it returns on release.
 local function mark_modulated(target_id)
   if not target_id then return end
   local idx = params.lookup[target_id]
@@ -180,6 +208,8 @@ end
 lfo.mark_modulated   = mark_modulated
 lfo.unmark_modulated = unmark_modulated
 
+-- Targets that do nothing in their device's current setting stay off the list.
+-- A sync division shows only while sync is on, a free rate only while it is off.
 local function target_visible(target_id)
   if target_id == "tremolo_sync_div" or target_id == "tremolo_sync_feel" then return params:get("tremolo_sync_div") > 1 end
   if target_id == "warp_sync_div"    or target_id == "warp_sync_feel"    then return params:get("warp_sync_div")    > 1 end
@@ -232,7 +262,7 @@ end
 
 local function apply_to_target(idx)
   if is_initing() then return end
-  if params:get("lfo"..idx.."_enable") ~= 2 then return end
+  if params:get(PID[idx].enable) ~= 2 then return end
   local target_idx = lfo.last_global[idx] or 1
   if target_idx == 1 then return end
   local t = TARGET_PARAMS[target_idx]
@@ -242,8 +272,8 @@ local function apply_to_target(idx)
   local base = effective_base(t.id)
 
   local v_un = compute_v_unsigned(idx)
-  local depth = lfo.mod.depth[idx] ~= nil and lfo.mod.depth[idx] or params:get("lfo"..idx.."_depth")
-  local dir = params:get("lfo"..idx.."_dir")
+  local depth = lfo.mod.depth[idx] ~= nil and lfo.mod.depth[idx] or params:get(PID[idx].depth)
+  local dir = params:get(PID[idx].dir)
   local d = depth / 100
   local range = t.mx - t.mn
 
@@ -255,9 +285,17 @@ local function apply_to_target(idx)
 
   local val = util.clamp(base + off, t.mn, t.mx)
   val = math.floor(val / t.st + 0.5) * t.st
+  local now = util.time()
+  if range > 0 then scope_push(idx, now, (val - t.mn) / range, (base - t.mn) / range) end
+  -- A slow LFO often lands on the same step for many ticks, so repeats are skipped.
+  -- After half a second it resends anyway, in case something else has moved the target meanwhile.
+  local last = lfo.last_sent[idx]
+  if last and last.id == t.id and last.val == val and now - last.at < 0.5 then return end
+  lfo.last_sent[idx] = { id = t.id, val = val, at = now }
   t.send(val)
 end
 
+-- Drops a target's overlay once no source drives it, so its own param applies again.
 function lfo.clear_override(target_id)
   local n = target_id:match("^lfo(%d+)_rate$")
   if n then
@@ -297,8 +335,9 @@ end
 function lfo.start_clock(idx)
   lfo.clock_gen[idx] = (lfo.clock_gen[idx] or 0) + 1
   local my = lfo.clock_gen[idx]
+  scope_reset(idx)
   if is_initing() then return end
-  if params:get("lfo"..idx.."_enable") ~= 2 then
+  if params:get(PID[idx].enable) ~= 2 then
     local ti = lfo.last_global[idx] or 1
     if ti > 1 and TARGET_PARAMS[ti] and TARGET_PARAMS[ti].id then
       lfo.clear_override(TARGET_PARAMS[ti].id)
@@ -315,7 +354,7 @@ function lfo.start_clock(idx)
       if lfo.clock_gen[idx] ~= my then return end
       local cur_target = lfo.last_global[idx] or 1
       if cur_target == 1 then break end
-      local wf = params:get("lfo"..idx.."_waveform")
+      local wf = params:get(PID[idx].waveform)
 
       if wf == 6 then
         if lfo.random.suspended[idx] then
@@ -326,7 +365,7 @@ function lfo.start_clock(idx)
             local beats = sync.DIV_BEATS[sync_div_opt] * sync.FEEL_MULT[lfo_g("sync_feel", idx)]
             clock.sync(beats)
           else
-            local target_rate = lfo.mod.rate[idx] ~= nil and lfo.mod.rate[idx] or params:get("lfo"..idx.."_rate")
+            local target_rate = lfo.mod.rate[idx] ~= nil and lfo.mod.rate[idx] or params:get(PID[idx].rate)
             local slew = lfo_g("rate_slew", idx)
             local rate
             if slew > 0 and lfo.mod.rate[idx] ~= nil then
@@ -365,7 +404,7 @@ function lfo.start_clock(idx)
           rate = clock.get_tempo() / (60 * beats)
           lfo.mod.rate_slewed[idx] = nil
         else
-          target_rate = lfo.mod.rate[idx] ~= nil and lfo.mod.rate[idx] or params:get("lfo"..idx.."_rate")
+          target_rate = lfo.mod.rate[idx] ~= nil and lfo.mod.rate[idx] or params:get(PID[idx].rate)
           slew = lfo_g("rate_slew", idx)
           if slew > 0 and lfo.mod.rate[idx] ~= nil then
             if lfo.mod.rate_slewed[idx] == nil then lfo.mod.rate_slewed[idx] = target_rate end
@@ -400,8 +439,14 @@ function lfo.start_clock(idx)
   end)
 end
 
+-- K2 in the rack: restart the cycle (phase 0, plus the LFO's Phase offset).
+function lfo.reset(idx)
+  lfo.state[idx].phase = 0
+  apply_to_target(idx)
+end
+
 function lfo.is_enabled(idx)
-  return params:get("lfo"..idx.."_enable") == 2
+  return params:get(PID[idx].enable) == 2
 end
 
 function lfo.set_target(idx, new_global_idx)
@@ -434,7 +479,7 @@ end
 
 function lfo.tm_randomize(idx)
   local s = lfo.state[idx]
-  local m = tm_register_max(params:get("lfo"..idx.."_steps"))
+  local m = tm_register_max(params:get(PID[idx].steps))
   if m == 0 then return end
   s.tm_register = math.random(0, m)
   apply_to_target(idx)
@@ -442,17 +487,32 @@ end
 
 function lfo.tm_register_max(steps) return tm_register_max(steps) end
 
-function lfo.draw_half(ox, oy, idx, focused)
-  local cx      = ox + 16
-  local mid     = oy + 28
-  local enabled = params:get("lfo" .. idx .. "_enable") == 2
-  local wf      = params:get("lfo" .. idx .. "_waveform")
-  local icon_lv = enabled and FULL or MED
-  sprites.draw_waveform_icon(cx, mid, wf, icon_lv)
-  screen.font_size(8); screen.font_face(0)
-  screen.level(icon_lv)
-  screen.move(cx, oy + 56); screen.text_center("LFO " .. idx)
+-- Scope window: two periods so the shape reads as a shape, sixteen steps for the register.
+-- It follows the rate actually running (slewed, modulated or clocked), so rate modulation shows as squeeze and stretch.
+
+local function scope_window(idx)
+  local rate
+  local sync_div_opt = lfo_g("sync_div", idx)
+  if sync_div_opt > 1 and is_clock_running() then
+    rate = clock.get_tempo() / (60 * sync.DIV_BEATS[sync_div_opt] * sync.FEEL_MULT[lfo_g("sync_feel", idx)])
+  else
+    rate = lfo.mod.rate_slewed[idx] or lfo.mod.rate[idx] or params:get(PID[idx].rate)
+  end
+  local cycles = params:get(PID[idx].waveform) == 6 and 16 or 2
+  return util.clamp(cycles / math.max(0.05, rate), 0.2, 12)
 end
+
+function lfo.scope_live(idx)
+  local sc = lfo.scope[idx]
+  return sc and sc.n > 0 and params:get(PID[idx].enable) == 2 and (lfo.last_global[idx] or 1) > 1
+end
+
+-- Drawing lives in lib/scope; w and h set the window (also used small, in the rack list).
+-- lv is the curve's brightness.
+function lfo.draw_scope(ox, top, idx, w, h_px, lv)
+  scope.draw(lfo.scope[idx], ox, top, w, h_px, scope_window(idx), lv)
+end
+
 
 function lfo.init(deps)
   TARGET_PARAMS    = deps.TARGET_PARAMS
@@ -469,6 +529,7 @@ function lfo.init(deps)
     lfo.random.suspend_count[i] = 0
     lfo.random.suspended[i] = false
     lfo.state[i] = { phase = 0, smooth_rand_v = 0.5, smooth_rand_target = 0.5, tm_register = 0 }
+    lfo.scope[i] = scope.new()
     lfo.last_global[i] = 1
     lfo.target_device_filter[i] = {}
     for di = 1, #DEVICE_NAMES do lfo.target_device_filter[i][di] = di end
@@ -479,6 +540,7 @@ function lfo.init(deps)
   end
 
   binding = {
+    set              = function(i, g) lfo.set_target(i, g) end,
     num              = NUM_LFOS,
     none_option      = true,
     prefix           = function(i) return "lfo" .. i end,
@@ -512,5 +574,7 @@ function lfo.init(deps)
     end,
   }
 end
+
+function lfo.binding() return binding end
 
 return lfo
