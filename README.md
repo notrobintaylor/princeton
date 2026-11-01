@@ -318,7 +318,7 @@ A gate at the front of the signal chain, before Push, bypassed by default. The d
 | **Tone** | 10 | 0–10 |
 | **Volume** | 5.0 | 0–10 |
 
-A deliberately unstable fuzz in the Fuzz Factory tradition, sitting between Cut and Push and bypassed by default. Where Push is a clean boost and Distort a straight overdrive, Fray is the third kind: a starved circuit that spits, chokes and, pushed far enough, sings on its own.
+A deliberately unstable fuzz in the Fuzz Factory tradition, sitting between Cut and Push and bypassed by default. Where Push is a compressed overdrive and Distort a hard clipper, Fray is the third kind: a starved circuit that spits, chokes and, pushed far enough, sings on its own.
 
 **Drive** is the fuzz gain, from a rough edge up to a fully saturated square. **Comp** starves the operating point, and does it dynamically: the bias drifts further off centre as the note dies away, so the tail chokes and spits instead of decaying evenly. That is the velcro splutter, and it lives in the decay rather than the attack.
 
@@ -344,7 +344,7 @@ Being bypassed by default it costs nothing until engaged: like Push and Distort 
 | **Level** | 5.0 | 0–10 |
 | **Comp** | 5.0 | 0–10 |
 
-Overdrive with asymmetric diode clipping. Tone tilts the voice around 700 Hz, from warm and full to tight and cutting. Comp sets how hard Push squeezes the signal before it saturates: low values let the pick attack through, high values even out the dynamics into a steady sustain. The gain reduction follows the envelope of your playing, not every single wave. At the default Level of 5.0 Push sits about 0.5 to 1 dB above the clean amp, a slight lift rather than a jump.
+A compressor and an overdrive in one: the signal is squeezed, then driven into a soft saturation. Tone tilts the voice around 700 Hz, from warm and full to tight and cutting. Comp sets how hard Push squeezes the signal before it saturates: low values let the pick attack through, high values even out the dynamics into a steady sustain. The gain reduction follows the envelope of your playing, not every single wave. At the default Level of 5.0 Push sits about 0.5 to 1 dB above the clean amp, a slight lift rather than a jump.
 
 ### Distort
 
@@ -966,4 +966,4 @@ git clone https://github.com/notrobintaylor/princeton
 - The spring reverb's Drip uses a cascade of allpass filters for the dispersive chirp of a real spring, the idea behind Välimäki, Parker and Abel, "Parametric Spring Reverberation Effect" (JAES, 2010).
 - The LFOs' Stepped Random is a shift register in the spirit of Tom Whitwell's Turing Machine (Music Thing Modular).
 
-**Instruments that set the tone.** The amp, its bias tremolo and spring tank follow the Fender Princeton Reverb, the cabinet a Jensen 10" speaker. Fray leans on the Z.Vex Fuzz Factory, Push on the Ibanez Tube Screamer, Distort on the Pro Co RAT, Repeat on the Malekko Echo 600. The looper draws on the Line 6 DL4, the Gibson Echoplex Digital Pro, the Torso S4 and the Glou Glou Loupé. None of them are affiliated with princeton; the names only say where the ears were pointed.
+**Instruments that set the tone.** The amp, its bias tremolo and spring tank follow the Fender Princeton Reverb, the cabinet a Jensen 10" speaker. Fray leans on the Z.Vex Fuzz Factory, Distort on the Pro Co RAT, Repeat on the Malekko Echo 600. The looper draws on the Line 6 DL4, the Gibson Echoplex Digital Pro, the Torso S4 and the Glou Glou Loupé. None of them are affiliated with princeton; the names only say where the ears were pointed.
