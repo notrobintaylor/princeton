@@ -50,4 +50,19 @@ function sprite.rects(pts, ox, oy)
   for _, q in ipairs(runs(pts)) do screen.rect(ox + q[1], oy + q[2], q[3], 1) end
 end
 
+-- A dashed line of 5 px dashes and 4 px gaps, centred so both ends keep the same margin. With an
+-- odd leftover one dash fewer is drawn, since an even one splits evenly.
+sprite.DASH, sprite.GAP = 5, 4
+
+function sprite.dashes(x, y, len, vertical)
+  local d, g = sprite.DASH, sprite.GAP
+  local n = math.floor((len + g) / (d + g))
+  if (len - (n * d + (n - 1) * g)) % 2 == 1 then n = n - 1 end
+  local o = (len - (n * d + (n - 1) * g)) / 2
+  for k = 0, n - 1 do
+    local p = o + k * (d + g)
+    if vertical then screen.rect(x, y + p, 1, d) else screen.rect(x + p, y, d, 1) end
+  end
+end
+
 return sprite

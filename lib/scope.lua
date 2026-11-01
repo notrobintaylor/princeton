@@ -2,6 +2,7 @@
 -- in the target's range, base), drawn right (now) to left so the editor shows what the source really does.
 -- A Trig stores events instead (1 fired, 0 skipped by Probability), read back with scope.recent.
 
+local sprite = include("lib/sprite")
 local scope = {}
 
 local N, FULL = 384, 15
@@ -19,14 +20,14 @@ function scope.push(sc, now, v, b)
 end
 
 -- Each column takes the newest value sent by its time (sample & hold, as at the target) and joins its
--- neighbour vertically, so jumps stay jumps and curves stay round. The dotted line is the base.
+-- neighbour vertically, so jumps stay jumps and curves stay round. The dashed line is the base.
 function scope.draw(sc, ox, top, w, h_px, win, lv)
   local now  = util.time()
   local span = h_px - 1
   if sc.base then
     local by = top + math.floor((1 - util.clamp(sc.base, 0, 1)) * span + 0.5)
     screen.level(2)
-    for x = 0, w - 1, 2 do screen.rect(ox + x, by, 1, 1) end
+    sprite.dashes(ox, by, w)
     screen.fill()
   end
   screen.level(lv or FULL)
@@ -81,7 +82,7 @@ end
 function scope.draw_idle(ox, top, w, h_px)
   screen.level(2)
   local y = top + math.floor((h_px - 1) / 2)
-  for x = 0, w - 1, 2 do screen.rect(ox + x, y, 1, 1) end
+  sprite.dashes(ox, y, w)
   screen.fill()
 end
 

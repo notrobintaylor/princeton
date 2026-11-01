@@ -4,6 +4,8 @@
 
 local sprites_mod = {}
 
+local sprite = include("lib/sprite")
+
 local FULL, DIM = 15, 3
 local TAU = 2 * math.pi
 
@@ -14,7 +16,7 @@ local function dim_of(lv) return lv > 2 and DIM or 1 end
 
 local function midline(x, w, y, lv)
   screen.level(lv > 2 and 2 or 1)
-  for i = 0, w - 1, 2 do screen.rect(x + i, y, 1, 1) end
+  sprite.dashes(x, y, w)
   screen.fill()
 end
 

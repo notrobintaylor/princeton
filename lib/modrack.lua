@@ -130,11 +130,11 @@ function modrack.draw_empty()
 end
 
 -- ── One source, full size (editor) ────────────────────────────
--- The editor shows one source full size where a device would stand, unframed, the chooser's picture
--- now running live. Its target sits in one text line below.
+-- The editor shows one source over the whole area a device would fill, unframed, the chooser's
+-- picture now running live. Its target sits in one text line below.
 local function frame_box()
   local CAB, top = cabinet.CAB, cabinet.TOP
-  return CAB.x + 3, top + 3, CAB.w - 6, 44, CAB.x + math.floor(CAB.w / 2), top + 57
+  return CAB.x, top, CAB.w, 49, CAB.x + math.floor(CAB.w / 2), top + 57
 end
 
 function modrack.draw_source(kind, idx, sel_step, label)
@@ -265,8 +265,6 @@ function modrack.draw_chooser()
   end
   local lbl = o.label
   screen.level(o.idx and FULL or MED); screen.move(cx, base); screen.text_center(lbl)
-  local lx = cx - math.floor(screen.text_extents(lbl) / 2)
-  screen.level(FULL); screen.rect(lx - 2, base - 5, 1, 1); screen.fill()
   screen.update()
 end
 
