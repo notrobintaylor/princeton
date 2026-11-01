@@ -96,7 +96,6 @@ function sprites_mod.walk(x, y, w, h, steps, n, cur, sel, lv)
   local hh  = math.floor((h - 7) / 2)
   local mid = y + hh
   local dim = dim_of(lv)
-  midline(x0, n * cw - 1, mid, lv)
   for k = 1, total do
     local bx = x0 + (k - 1) * cw
     local v  = math.max(1, math.floor(math.abs(steps[k]) * hh + 0.5))
