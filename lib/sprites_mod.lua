@@ -4,8 +4,6 @@
 
 local sprites_mod = {}
 
-local sprite = include("lib/sprite")
-
 local FULL, DIM = 15, 3
 local TAU = 2 * math.pi
 
@@ -13,12 +11,6 @@ sprites_mod.SENSE_WIN = 3.2   -- seconds of history the Sense picture spans
 sprites_mod.TRIG_SLOTS = 8    -- chances the Trigger picture shows
 
 local function dim_of(lv) return lv > 2 and DIM or 1 end
-
-local function midline(x, w, y, lv)
-  screen.level(lv > 2 and 2 or 1)
-  sprite.dashes(x, y, w)
-  screen.fill()
-end
 
 -- A scope-style line: each column joins its neighbour with a vertical stroke. ys[i] is the
 -- height in column i, nil leaves a gap.
@@ -38,7 +30,6 @@ end
 
 -- ── Modulate ───────────────────────────────────────────────────
 local function demo_lfo(x, y, w, h, now, lv)
-  midline(x, w, y + math.floor((h - 1) / 2), lv)
   local win, ys = 2.5, {}
   for i = 0, w - 1 do
     local v = 0.5 + 0.5 * math.sin(TAU * (now - win * (w - 1 - i) / (w - 1)) / 1.25)
@@ -54,7 +45,6 @@ end
 function sprites_mod.sense(x, y, w, h, env, lv)
   local mid = y + math.floor((h - 1) / 2)
   local hh  = math.floor((h - 1) / 2)
-  midline(x, w, mid, lv)
   local top, bot = {}, {}
   for i = 0, w - 1 do
     local e = env[i]

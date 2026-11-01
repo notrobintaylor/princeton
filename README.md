@@ -480,7 +480,7 @@ Set **Sync** to a division to lock Speed to the Norns clock. The encoder strip t
 
 ### Hold
 
-![Both Holds engaged and full of grains, Hold 2 in focus](docs/img/hold.png)
+![Hold 1 engaged and in focus, its grains drifting over the frozen waveform; Hold 2 bypassed](docs/img/hold.png)
 
 Two independent granular freezes, **Hold 1** and **Hold 2**, running in parallel between Tremolo and Loop so they capture the fully amped, post-tremolo signal. The held pads go into the looper's input along with the live signal, so a loop recorded or overdubbed while a pad is held keeps it, while a loop that is only playing leaves it untouched. The Hold recorder itself listens to the live signal alone, so a new freeze never captures the pad that is still sounding. Engaging a Hold grabs the last ~1.2 seconds you played and sustains it as a granular pad; the live signal always passes through underneath, so you can play over the held sound. Because the pad is built from grains reading a frozen snapshot, it never loops audibly and can be transposed without running out. A single rolling recorder feeds both instances, so the second one costs only its own grain playback.
 

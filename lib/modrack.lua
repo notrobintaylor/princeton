@@ -153,16 +153,12 @@ function modrack.draw_source(kind, idx, sel_step, label)
     local win = sprites_mod.SENSE_WIN
     if env.scope_live(idx) then
       sprites_mod.sense(x, y, w, h, scope.sample(env.scope[idx], now, win, w), lv)
-    else
-      scope.draw_idle(x, y, w, h)
     end
   elseif kind == "trig" then
     local slots = trigs.scope_live(idx) and scope.recent(trigs.scope[idx], sprites_mod.TRIG_SLOTS) or {}
     sprites_mod.trig(x, y, w, h, slots, now, lv)
   elseif lfo.scope_live(idx) then
     lfo.draw_scope(x, y, idx, w, h, lv)
-  else
-    scope.draw_idle(x, y, w, h)
   end
   screen.font_size(8); screen.font_face(0)
   screen.level(lv)

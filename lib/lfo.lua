@@ -62,7 +62,7 @@ lfo.target_param_filter  = {}
 lfo.scope = {}
 
 local function scope_reset(idx) scope.reset(lfo.scope[idx]) end
-local function scope_push(idx, now, v, b) scope.push(lfo.scope[idx], now, v, b) end
+local function scope_push(idx, now, v) scope.push(lfo.scope[idx], now, v) end
 function lfo.scope_reset(idx) scope_reset(idx) end
 
 local TARGET_PARAMS, DEVICE_NAMES, DEVICE_PARAMS, TARGET_DEVICE_OF
@@ -286,7 +286,10 @@ local function apply_to_target(idx)
   local val = util.clamp(base + off, t.mn, t.mx)
   val = math.floor(val / t.st + 0.5) * t.st
   local now = util.time()
-  if range > 0 then scope_push(idx, now, (val - t.mn) / range, (base - t.mn) / range) end
+  -- The scope draws the swing around the base, -1 to 1 of the widest swing Depth and Direction allow,
+  -- so a clamped target shows as a flattened curve.
+  local swing = (dir == 3 and 0.5 or 1) * d * range
+  if range > 0 then scope_push(idx, now, swing > 0 and util.clamp((val - base) / swing, -1, 1) or 0) end
   -- A slow LFO often lands on the same step for many ticks, so repeats are skipped.
   -- After half a second it resends anyway, in case something else has moved the target meanwhile.
   local last = lfo.last_sent[idx]

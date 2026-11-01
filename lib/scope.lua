@@ -1,8 +1,7 @@
--- scope: a modulation source's memory, a ring buffer of what it sent its target (time, value 0-1
--- in the target's range, base), drawn right (now) to left so the editor shows what the source really does.
+-- scope: a modulation source's memory, a ring buffer of what it sent (time, value), drawn right
+-- (now) to left so the editor shows what the source really does.
 -- A Trig stores events instead (1 fired, 0 skipped by Probability), read back with scope.recent.
 
-local sprite = include("lib/sprite")
 local scope = {}
 
 local N, FULL = 384, 15
@@ -10,26 +9,20 @@ local N, FULL = 384, 15
 function scope.new() return { t = {}, v = {}, head = 0, n = 0 } end
 
 function scope.reset(sc)
-  if sc then sc.head, sc.n, sc.base = 0, 0, nil end
+  if sc then sc.head, sc.n = 0, 0 end
 end
 
-function scope.push(sc, now, v, b)
+function scope.push(sc, now, v)
   local h = sc.head % N + 1
-  sc.head, sc.t[h], sc.v[h], sc.base = h, now, v, b
+  sc.head, sc.t[h], sc.v[h] = h, now, v
   if sc.n < N then sc.n = sc.n + 1 end
 end
 
--- Each column takes the newest value sent by its time (sample & hold, as at the target) and joins its
--- neighbour vertically, so jumps stay jumps and curves stay round. The dashed line is the base.
+-- Each column takes the newest swing sent by its time (sample & hold, as at the target) and joins its
+-- neighbour vertically, so jumps stay jumps and curves stay round. The middle is the base, -1 to 1 fills the height.
 function scope.draw(sc, ox, top, w, h_px, win, lv)
   local now  = util.time()
   local span = h_px - 1
-  if sc.base then
-    local by = top + math.floor((1 - util.clamp(sc.base, 0, 1)) * span + 0.5)
-    screen.level(2)
-    sprite.dashes(ox, by, w)
-    screen.fill()
-  end
   screen.level(lv or FULL)
   local h, left, prev_y = sc.head, sc.n, nil
   for x = w - 1, 0, -1 do
@@ -39,7 +32,7 @@ function scope.draw(sc, ox, top, w, h_px, win, lv)
       left = left - 1
     end
     if left == 0 then break end
-    local y = top + math.floor((1 - util.clamp(sc.v[h], 0, 1)) * span + 0.5)
+    local y = top + math.floor((1 - util.clamp(sc.v[h], -1, 1)) * span / 2 + 0.5)
     if prev_y then
       local y0 = math.min(y, prev_y)
       screen.rect(ox + x, y0, 1, math.abs(y - prev_y) + 1)
@@ -76,14 +69,6 @@ function scope.recent(sc, n)
     h = (h - 2) % N + 1
   end
   return out
-end
-
--- Empty scope: just the centre line until the source sends something.
-function scope.draw_idle(ox, top, w, h_px)
-  screen.level(2)
-  local y = top + math.floor((h_px - 1) / 2)
-  sprite.dashes(ox, y, w)
-  screen.fill()
 end
 
 return scope
