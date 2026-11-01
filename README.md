@@ -955,3 +955,15 @@ git clone https://github.com/notrobintaylor/princeton
 **NAM (optional).** princeton ships the NamAmp plugin in `lib/nam/`. On the first start it copies the plugin into `~/.local/share/SuperCollider/Extensions/princeton/`; restart norns once (SYSTEM > RESTART) so SuperCollider loads it. Put your `.nam` captures in `dust/data/princeton/nam/`. The same restart is needed after an update that changes the plugin. See [NAM](#nam).
 
 **Voices (optional).** A voice mod goes into `~/dust/code/`, is enabled in **SYSTEM > MODS**, and needs one norns restart before it appears in Route. See [Voices](#voices).
+
+## Credits
+
+**Neural Amp Modeler.** The NAM mode of the Amp runs on [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) by Steven Atkinson (MIT), with [Eigen](https://gitlab.com/libeigen/eigen) (MPL 2.0) and [nlohmann/json](https://github.com/nlohmann/json) by Niels Lohmann (MIT). The license texts ship with the plugin in `lib/nam/THIRD_PARTY_LICENSES.md`. Captures for every kind of amp are shared on [TONE3000](https://www.tone3000.com).
+
+**Ideas borrowed from research.**
+- Mesmerize's tank follows the plate reverberator in Jon Dattorro, "Effect Design, Part 1: Reverberator and Other Filters" (JAES, 1997).
+- Fray and Distort clip without aliasing through antiderivative anti-aliasing, after Parker, Zavalishin and Le Bivic, "Reducing the Aliasing of Nonlinear Waveshaping Using Continuous-Time Convolution" (DAFx-16, 2016).
+- The spring reverb's Drip uses a cascade of allpass filters for the dispersive chirp of a real spring, the idea behind Välimäki, Parker and Abel, "Parametric Spring Reverberation Effect" (JAES, 2010).
+- The LFOs' Stepped Random is a shift register in the spirit of Tom Whitwell's Turing Machine (Music Thing Modular).
+
+**Instruments that set the tone.** The amp, its bias tremolo and spring tank follow the Fender Princeton Reverb, the cabinet a Jensen 10" speaker. Fray leans on the Z.Vex Fuzz Factory, Push on the Ibanez Tube Screamer, Distort on the Pro Co RAT, Repeat on the Malekko Echo 600. The looper draws on the Line 6 DL4, the Gibson Echoplex Digital Pro, the Torso S4 and the Glou Glou Loupé. None of them are affiliated with princeton; the names only say where the ears were pointed.
