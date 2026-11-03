@@ -2560,7 +2560,7 @@ function init()
   end
 
   local function setup_reverb()
-    params:add_group("REVERB", 9)
+    params:add_group("princeton_reverb", "REVERB", 9)
     params:add_separator("reverb_sep_control", "─── Control ───")
     params:add_option("reverb_enable", "Engage", {"Off", "On"}, 2)
     params:set_action("reverb_enable", function(v) engine.reverb_mute(v == 2 and 0 or 1); re() end)

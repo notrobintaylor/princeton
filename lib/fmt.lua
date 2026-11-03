@@ -5,7 +5,7 @@ local fmt = {}
 
 -- Whatever already sits in PARAMS at load belongs to the system (LEVELS, REVERB, COMPRESSOR,
 -- …), since norns builds it before the script. Those controls keep their own formatting.
-local SYSTEM_COUNT = params.count
+local SYSTEM_COUNT = params and params.count or 0
 
 -- How many decimals a step needs (0.5 -> 1, 0.01 -> 2).
 local function decimals(step)
