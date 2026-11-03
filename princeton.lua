@@ -204,11 +204,11 @@ local BLD_BLOCKS   = { 2.512, 6.31, 15.85, 39.81, 100, 251.2, 631, 1585, 3981, 1
 -- sending.
 local TARGET_PARAMS = {
   {label="Off"},
-  {label="Cut: Threshold",    id="cut_thresh",       send=function(v) engine.cut_thresh(v) end},
+  {label="Cut: Threshold",    id="cut_thresh",       send=function(v) engine.cut_thresh(control.db(v)) end},
   {label="Cut: Attack",       id="cut_attack",       send=function(v) engine.cut_attack(v) end},
   {label="Cut: Hold",         id="cut_hold",         send=function(v) engine.cut_hold(math.floor(v)) end},
   {label="Cut: Release",      id="cut_release",      send=function(v) engine.cut_release(v) end},
-  {label="Cut: Range",        id="cut_range",        send=function(v) engine.cut_range(v) end},
+  {label="Cut: Range",        id="cut_range",        send=function(v) engine.cut_range(control.db(v)) end},
   {label="Cut: Margin",       id="cut_hyst",         send=function(v) engine.cut_hyst(v) end},
   {label="Fray: Drive",       id="fray_drive",       send=function(v) engine.fray_drive(v) end},
   {label="Fray: Comp",        id="fray_comp",        send=function(v) engine.fray_comp(v * 0.1) end},
@@ -2743,13 +2743,13 @@ function init()
     params:add_separator("cut_sep_control", "─── Control ───")
     params:add_option("cut_enable", "Engage", {"Off", "On"}, 1)
     params:set_action("cut_enable", function(v) if v == 2 then engine.cut_on() else engine.cut_off() end; re() end)
-    params:add_control("cut_thresh", "Threshold", control.spec("level", -75, 0, -50))
-    params:set_action("cut_thresh", function(v) engine.cut_thresh(v); re() end)
+    params:add_control("cut_thresh", "Threshold", control.spec("level", nil, 0, -50), function(p) return control.level_str(p:get()) end)
+    params:set_action("cut_thresh", function(v) engine.cut_thresh(control.db(v)); re() end)
     control.add("cut_attack",  "Attack",  "ms", 1,   eng("cut_attack"),  0.1, 2500)
     control.add("cut_hold",    "Hold",    "ms", 20,  eng("cut_hold"),    1,   2500)
     control.add("cut_release", "Release", "ms", 100, eng("cut_release"), 1,   2500)
-    params:add_control("cut_range", "Range", control.spec("level", -75, 0, -75))
-    params:set_action("cut_range", function(v) engine.cut_range(v); re() end)
+    params:add_control("cut_range", "Range", control.spec("level", nil, 0, -75), function(p) return control.level_str(p:get()) end)
+    params:set_action("cut_range", function(v) engine.cut_range(control.db(v)); re() end)
     control.add("cut_hyst", "Margin", "steps", 0, eng("cut_hyst"), 0, 25, 0.5, "dB")
     params:add_option("cut_detect", "Detection", {"Peak", "RMS"}, 1)
     params:set_action("cut_detect", function(v) engine.cut_detect(v - 1); re() end)

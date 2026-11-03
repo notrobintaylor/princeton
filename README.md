@@ -1,182 +1,106 @@
+![princeton: the amp sprite beside the name. Amp sim based on a combo. Tuner, effects and looper.](docs/img/logo.png)
+
 # princeton
 
 ### A guitar amp simulator, pedalboard and looper for Monome Norns
 
 [![princeton – Norns Script Demo](https://img.youtube.com/vi/VqkFejb8owY/maxresdefault.jpg)](https://www.youtube.com/watch?v=VqkFejb8owY)
 
-princeton is a guitar amp, pedalboard, and looper for Monome Norns. The amp sits in the middle: a small American combo from the early 1960s, recreated in code. Around it, four pedals before the input, bias tremolo and spring reverb after, and a 60-second stereo looper riding between them. What you loop washes through the same reverb as the live signal.
+princeton is a guitar rig for Monome Norns. The amp sits in the middle: a small American combo from the early 1960s, recreated in code, with its bias tremolo and spring reverb. Six pedals come before it. After it, a 60-second stereo looper sits in front of the spring, so whatever you loop washes through the same reverb as the live string. Tape, a digital delay and a large reverb close the chain.
 
 Plug a guitar into the left input. No preamp or interface required.
 
-The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape, Vinyl) colour the loop. Imprint sets how much of that colour gets baked in the moment you record; Wear sets how much further the loop erodes on every pass. Four playback modes (Overdub, Overwrite, Sample, Resample) and four direction modes (Forward, Reverse, Pendulum, Random) sit underneath. Tremolo and reverb stay on. The amp stays clean unless you push it past Volume 5.5. For harder distortion, reach for Push or Distort up the chain.
+The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape, Vinyl) colour the loop: Imprint sets how much of that colour is baked in as you record, Wear how much further the loop erodes on every pass. The amp stays clean below Volume 3.5 and breaks up past 5.5; for harder distortion, reach for Fray, Push or Distort.
 
-## What it does
+## Signal chain
 
-**Loop.** A 60-second stereo buffer between tremolo and reverb, so anything you record sits in the same spring tank as the live string. Medium picks the storage type the loop pretends to be: BBD darkens and saturates, Cassette wobbles and crinkles, CD plays clean until it skips and stutters, Chip quantises and aliases like an early sampler, Tape softens and drifts, Vinyl crackles and wobbles over a gentle high-frequency rolloff. Imprint controls how strongly the medium colours the signal as it lands in the buffer (the first repeat already sounds like the medium). Wear controls how much further the medium erodes the loop on every subsequent pass; at 0 the loop is stable, at higher values it ages over time. Direction can run forward, reverse, pendulum, or random. Mode covers Overdub (layer), Overwrite (replace), Sample (one-shot, K2 retriggers), and Resample (record the loop output back into the buffer, including its own ageing). Speed transposes by an octave in either direction in Steps mode, or sweeps continuously in Smooth mode. **Undo** takes back the last overdub: hold K2 for two seconds on Amp or Loop and the loop returns to how it sounded before that dub. One level deep; a second Undo without a new dub does nothing, and Undo during a running dub ends it and restores the state before it. The switch back is sample-exact and covered by a fade of a few milliseconds, so it does not click. The recording itself is taken back with Clear. The looper keeps running while you open the tuner or pedalboard.
+![The signal chain: Route through the pedals into the amp slot, then stereo through Tremolo, the two Holds, Loop, Reverb, Cab & Mic, Tape, Build and Mesmerize](docs/img/signal_flow.png)
 
-**Route.** The first device of the chain decides what goes in: the guitar in Mono, both inputs in Stereo, or a voice. It also sets Input Trim and the two fx sends.
+Before the amp the chain is mono, or stereo with Route on Stereo or a voice; from the amp on it is stereo. The amp slot holds the combo, a NAM capture or the Strip, and with the Strip, Tremolo and Cab & Mic leave the chain. Tune and Count stand beside it: Tune listens to the raw input, Count makes its own click. The send taps mark where Send A and B can listen.
 
-**Voices.** princeton can be its own sound source. Any installed voice appears in Route's input list; pick one and it replaces the guitar and runs through the whole chain, pedals, amp, loop and all, played from any MIDI keyboard. **Keys** sits between the keyboard and the voice: Hold latches a chord, Retrig restrikes it on the clock, Octaves climbs an octave per strike.
+| Device | In short |
+|---|---|
+| [Route](#route) | What goes in (guitar, stereo line, a voice), Input Trim, two fx sends |
+| [Tune](#tune) | Strobe tuner with a mute |
+| [Count](#count) | Click track that can also play a small line in a scale |
+| [Cut](#cut) | Noise gate; also swells and chops |
+| [Fray](#fray) | Unstable fuzz that spits, chokes and sings |
+| [Push](#push) | Compressor and overdrive in one |
+| [Distort](#distort) | Hard clipper |
+| [Warp](#warp) | Pitch vibrato, into chorus |
+| [Repeat](#repeat) | Analog-style delay |
+| [Amp](#amp) | The combo, a [NAM](#nam) capture, or the [Strip](#strip), a stereo pair of studio preamps |
+| [Tremolo](#tremolo) | Bias tremolo, ping-ponging left and right |
+| [Hold](#hold) | Two granular freezes in parallel |
+| [Loop](#loop) | 60-second stereo looper with six media |
+| [Reverb](#reverb) | Spring reverb over live signal and loop together |
+| [Cab & Mic](#cab--mic) | 10" cabinet with three mic positions |
+| [Tape](#tape) | Tape machine over the whole mix |
+| [Build](#build) | Two digital delay lines in a ratio, one may run backwards |
+| [Mesmerize](#mesmerize) | Large, slowly moving reverb tank |
 
-**Cut.** An optional noise gate at the very front of the chain, before the pedals, bypassed by default. Classic noise suppression between notes, but the wide parameter ranges also make it a creative tool: a long Attack turns it into a slow-gear swell that fades in every note, a fast Attack and Release with a short Hold give percussive chopping, and a partial Range ducks quiet passages instead of silencing them. Because every gate parameter is a modulation target, an LFO on Threshold synced to the clock turns it into a rhythmic, tremolo-style gate. Detection runs in Peak mode for a snappy response or RMS for a smoother contour, and Margin (a hysteresis control) sets how far the signal has to fall back below Threshold before the gate closes.
+Every device switches on and off on its own; Amp, Reverb, Cab & Mic and Tape are on by default, the rest off. The [Mod Rack](#mod-rack) adds eight LFOs, two envelope followers (Sense), two step sequencers (Walk) and four Triggers that can move almost any of these controls.
 
-**Pedalboard.** Four effects sit between the input and the amp, paired by character: Push and Distort handle gain, Warp and Repeat handle modulation. Each is independently bypassable. Open the pedalboard view from any other view with K2 (gain pair) or K3 (modulation pair) held; the pedal you are working on shows its lit knob, and its name stands in the strip on the left.
-
-**Amp.** A small American combo from the early 1960s. Volume below 3.5 stays clean; past 5.5 it begins to break up, so single-coils clip lightly at the default when you dig in. At their default of 50 % Bass and Treble give the open Fender voice; turned down they cut. The mid-scoop in the tone stack is fixed. With NamAmp installed, the Amp can instead run a Neural Amp Modeler capture (`.nam` file) of any amp you like, with Mid and Mid Freq added to its tone controls. For synths and DI'd sources the slot also holds the Strip, a linked pair of clean studio preamps (see [Strip](#strip)).
-
-**Tremolo.** Bias-style amplitude modulation at the output of the amp, off by default; switch it on and turn up Intensity. Up to 15 % the dry signal fades while the tremolo blends in; past 15 % it's pure tremolo with rising depth. Peaks stay at full amplitude. Speed defaults to 2.5 Hz and can sync to the Norns clock. While the Strip stands in for the amp, the tremolo steps out of the chain.
-
-**Hold.** Two granular momentary freezes in parallel, sitting between Tremolo and Loop and capturing the fully amped, post-tremolo tone. The pads feed the looper as well, so recording or overdubbing while a pad is held prints it into the loop; a loop that is only playing leaves it out. Switch one to Active and it grabs the last second or so you played and sustains it as a granular pad while the live signal keeps passing through underneath, so you can play over the held sound. Gain drives the pad into a soft saturation for body, Level sets its place in the mix, Size sets grain length, Density how thickly the grains overlap, Spread scatters their onsets in time, and Shape swaps the grain window for a softer, swelling, plucked or flatter character. Pitch transposes the pad by up to two octaves either way, and Pitch Mix decides how much of it is shifted. The pad fades in over Rise and out over Fall; re-engaging during a Fall crossfades the old freeze into the new one, and Recapture grabs a fresh freeze without letting go first. Movement lets Size, Density and Spread drift slowly around their settings so a long pad keeps breathing. Run both instances at once, with different Size, Shape or Pitch, to layer two complementary freezes.
-
-**Spring reverb.** Applied to the full stereo mix, live signal and loop together. Amount sets both send level and decay; Length adjusts decay independently if you want longer wash without more signal in the tank. Low Shelf and High Shelf colour the wet path. Dwell and Drip give it the character of a Fender tank. At the default 10 % Amount the spring tank sits behind the signal; turn it up for the long shimmer.
-
-**Cab & Mic.** A 10" Jensen-style cabinet model with three mic positions (Center, Middle, Edge). Or bypass cabinet processing entirely for a raw DI tone or to feed an external cab.
-
-**Tape.** A tape machine as the last stage, after the cabinet: tape speed, saturation, bias, hiss, wow and flutter, magnetic density, head azimuth, and a tape stop and start on K2. Active by default and level-matched, so it colours the whole mix without making it louder.
-
-**Build.** After the tape, a stereo pair of digital delay lines whose lengths stand in a ratio, the second one optionally reversed. Long times run at lower sample rate and bit depth, like an early digital delay; repeats can jump an octave, smear into a haze, or freeze into a loop. Bypassed by default.
-
-**Mesmerize.** The very last stage: a large, slowly moving reverb tank for washes far beyond the spring. Freeze holds the tail indefinitely. Bypassed by default.
-
-**Output.** Stereo throughout the post-amp section. Tremolo alternates between L and R (the classic bias-trem ping-pong). The spring reverb outputs a stereo pair via its allpass diffuser. Both Norns sends carry the full stereo signal, so princeton works as a stereo source in any fx_mod slot.
-
-**On and off.** Every stage switches on and off independently: cut, pedals, amp, tremolo, hold 1, hold 2, loop, reverb, cabinet, tape, build, mesmerize. The amp bypass also dims the panel lamp on screen; the others are toggled from PARAMS or via MIDI.
-
-**Count.** A click track running independently of the signal path. Tempo, level, click length and chromatic pitch (Root plus Register) are set from PARAMS, and a Scale, Chords and Scale Play turn it into a small playable voice that climbs, harmonises and sequences off the same clock. Division locks the click to the Norns clock. BPM is a real tempo knob: with the internal clock it sets the Norns tempo itself, with MIDI clock it shows the incoming tempo and becomes the free-running tempo when the clock stops.
-
-**Mod Rack.** Eight LFOs with six shapes (Sine, Triangle, Saw, Square, Smooth Random, Stepped Random) that modulate any continuous parameter in the signal chain. Rate runs from 0.1 to 25 Hz with optional sync to the Norns clock. Each LFO has its own Depth, Direction (positive, negative, or bipolar), Rate Slew, Sync division and Sync Feel. Stepped Random is a shift-register pattern generator: Steps sets the register length (1–16 bits) and Stability controls the chance of feeding back the MSB versus its complement, producing anything from a regular clock to dense noise. LFOs can target other LFO rates and depths, creating compound motion. Modulation targets span Cut, all pedal parameters, amp, tremolo speed and sync, hold 1 and hold 2, reverb, tape, build, mesmerize, looper levels, looper speed, looper quantization division, the metronome voice (division, root, register, scale, chords and scale-play mode), and other LFO rates and depths. Each target can be owned by at most one modulation source at a time; the ownership model prevents interference between sources on the same target, and is shared with Sense. Modulation is added where it is needed: hold K1 and K3 on a parameter for two seconds and choose LFO, Walk, Sense or Trig; the next free slot is patched, switched on and opened. The Mod Rack (K1 held two seconds) opens straight into the first patched source; the same chooser removes a source again. Tune and Count are not part of the rack; they sit at the head of the signal chain.
-
-**Walk.** Two sixteen-step sequencers alongside the LFOs. Each steps through up to sixteen values (2–16 selectable) at its own Rate or locked to the Norns clock, driving any continuous parameter. Every step is a bipolar amount from −100 % to +100 % relative to the target's base value: 0 % is no change, +100 % reaches the parameter's maximum, −100 % its minimum. Rate Slew glides between steps, Randomize rolls fresh values, and the pane shows a running light on the playing step. Walks share the same ownership pool as the LFOs and Sense modules and can modulate each other.
-
-**Sense.** Two envelope followers that track the amplitude of the raw input signal (pre-pedals) and modulate a chosen continuous parameter in proportion. Depth scales the contribution, Direction picks upward or downward modulation, Slew sets the attack and release time of the detector. The ownership pool is shared with the Mod Rack: a parameter can be claimed by an LFO or by a Sense module, never both at once. Each Sense pane shows a live amplitude visualizer with a horizontal centerline; a bar fills upward or downward depending on Direction. Useful for input-driven dynamics: a soft attack opens up Distort Tone, a louder pick attack pulls down Reverb Amount, and so on.
-
-**Triggers.** Four event triggers ride alongside the LFOs in the Mod Rack. Each fires at a chosen rate (free in Hz or synced to the Norns clock) with a Chance gate, and dispatches a single action per fire. Targets cover device bypass toggles (Cut, Fray, Push, Distort, Warp, Repeat, Amp, Tremolo, Hold 1, Hold 2, Reverb, Tape, Build, Mesmerize), a Recapture for each Hold, the tape stop and start, Freeze for Build and Mesmerize, per-LFO randomize triggers (active when the destination LFO is in Stepped Random), and three looper transport actions (Rec walks K3 order, Clear empties the buffer, Undo takes back the last overdub). Every trigger ships with no target (`-`) and disabled, so nothing fires until you pick an action and enable one with K3.
-
-## Signal flow
-
-```
-                    mono through pedals and amp (stereo with Stereo input or a voice)
-                    ─────────────────────────────────────────────────────────────────
-
-  IN ─► Route ──► Cut ──► Fray ──► Push ──► Distort ──► Warp ──► Repeat
-                                                          │
-                                                          ▼
-                                                         Amp
-                                                          │
-                                     ───────────── stereo from here ─────────────
-                                                          │
-                                                          ▼
-                                                       Tremolo
-                                                          │
-                                                          ▼
-                                                     Hold 1 + 2
-                                                          │
-                                                          ▼
-                                                        Loop
-                                                          │
-                                                          ▼
-                                                    Spring reverb
-                                                          │
-                                                          ▼
-                                                      Cab & Mic
-                                                          │
-                                                          ▼
-                                                     Master gain
-                                                          │
-                                                          ▼
-                                                        Tape
-                                                          │
-                                                          ▼
-                                                        Build
-                                                          │
-                                                          ▼
-                                                      Mesmerize
-                                                          │
-                                                          ▼
-                                                        OUT L/R
-
-  The amp slot holds the combo, a NAM capture or the Strip. With the Strip, Tremolo and
-  Cab & Mic drop out and its own Level replaces Master gain.
-
-  Route picks what enters the chain:
-    Mono    guitar at IN L, instrument level
-    Stereo  IN L and IN R, line level, stereo through pedals and amp
-    voice   an installed voice played over MIDI; the hardware inputs are muted
-
-  Send A and Send B each tap one of three points, scaled by its own level:
-    Input   the post-pedal signal feeding the amp (after Cut, Fray, Push, Distort)
-    Loop    the looper output on its own
-    Output  the full stereo mix at OUT L/R
-```
-
-## GUI modes
-
-![Stage view: the chain as three-letter devices, the selected one marked](docs/img/stage.png)
-
-The **GUI** parameter (first in PARAMS, in the GUI group; see [GUI](#gui)) sets how the screen behaves; it changes nothing in the audio path.
-
-- **Studio** (default) is the full interface described in this section: each device is drawn as its own pedal, cabinet or rack unit, and E1 walks the signal chain from end to end. Opens on the Amp. Every view uses the same frame on the right, so the outer edges never move as you walk the chain: a device on its own fills it, two share it side by side or stacked. Devices carry no captions; the strip on the left names the device in focus, and in a pair the focused one shows its lit knob (or, for Hold, Tune and Count, a bright outline). The loop transport icon appears in the strip only on the Loop view.
-- **Stage** is a single-screen performance overview. The right side shows the whole chain as centred lines of three-letter abbreviations joined by arrows, with a divider between the two parallel Holds. A device's letters are bright while it is active and dim while bypassed, and a dot above the first letter marks the selected one. The left strip is the readout used everywhere (device, parameter, value). Opens on Tune.
-- **Off** blanks the screen and ignores the keys and encoders, for playing in the dark. Switch back from PARAMS or MIDI.
-
-## Controls
-
-Studio and Stage share the same four controls. E1 always walks the signal chain, E2 always picks a parameter of the focused device, E3 always changes it.
+## Playing it
 
 | Control | Function |
 |---------|----------|
-| **E1** | Move through the signal chain, device by device |
+| **E1** | Move through the chain, device by device |
 | **E2** | Select a parameter of the focused device |
 | **E3** | Change its value |
-| **K1 hold 2s** | Mod Rack on / off, from either view |
-| **K1 + K3 hold 2s** | Add modulation to the focused parameter |
-| **K2** | Second function of the focused device: tap tempo (Warp, Repeat, Tremolo, Count), Freeze (Reverb, Build, Mesmerize), Recapture (Hold), stop / start (Tape), Combo → NAM → Strip (Amp), reference to 440 Hz (Tune), mute while held (Cut), next mic position (Cab & Mic); Loop: stop → clear, held for two seconds: undo the last overdub. Nothing on Fray, Push, Distort and Route |
-| **K3** | Toggle the focused device on or off; on Loop, step the transport the moment it goes down; nothing on Route |
+| **K3** | Switch the focused device on or off (Loop: step the transport) |
+| **K2** | The focused device's second function, see below |
+| **K1 held 2 s** | Open or close the Mod Rack |
+| **K1 + K3 held 2 s** | Add modulation to the focused parameter |
 
-**E1** runs through every device in signal order: Route, Tune, Count, Cut, Fray, Push, Distort, Warp, Repeat, Amp, Tremolo, Hold 1, Hold 2, Loop, Reverb, Cab & Mic, Tape, Build, Mesmerize. The views are only the frame around them, which is why the cabinet is entered twice: once for Amp and Tremolo, and again after Hold and Loop for Reverb and Cab & Mic. Route opens the chain on a view of its own. Devices that share a view appear together: Tune beside Count, Cut beside Fray, the pedals in pairs, Hold 1 beside Hold 2, and Build above Mesmerize in a rack; Tape fills a view of its own. When a NAM capture brings its own cabinet, Cab & Mic drops out of the chain (see [NAM](#nam)); with the [Strip](#strip) in the amp's place, Tremolo and Cab & Mic both drop out. Entering a device lands on its first parameter, or on the one you left it on. **E2 reaches every parameter a device owns**, including those the cabinet has no knob for: Tremolo's Sync and Feel, Reverb's Low and High Shelf, and Cab Level. Those show in the left readout while the panel highlight stays on the device's last real knob.
+**E1** runs through every device in chain order: Route, Tune, Count, Cut, Fray, Push, Distort, Warp, Repeat, Amp, Tremolo, Hold 1, Hold 2, Loop, Reverb, Cab & Mic, Tape, Build, Mesmerize. Some share a view: Tune with Count, Cut with Fray, the pedals in pairs, the two Holds, Build above Mesmerize in a rack. Amp, Tremolo, Reverb and Cab & Mic all live in the cabinet, which is why E1 enters it twice, once before and once after Hold and Loop. Entering a device lands on the parameter you left it on.
 
-When a source in the Mod Rack (or a Hold's Movement) is moving the focused parameter, the readout shows the live, modulated value with a dim **M** in front of it. Turn the knob and for two seconds it shows the base value you are setting instead, dimmed, with a **B**; then it returns to the live value. A source that is switched off leaves no mark, even while its target stays assigned.
+**E2 reaches every parameter a device owns**, including those the panel has no knob for (Tremolo's Division and Feel, Reverb's shelves, Cab & Mic's Level). They show in the readout on the left while the panel highlight stays on the last real knob. When a modulation source moves the focused parameter, the readout shows the live value with a dim **M**; turn the knob and for two seconds it shows the base value you are setting, with a **B**.
 
-The Stage chain shows the same order minus Route and Count: Route holds settings rather than an effect, and Count produces no sound of its own and sits outside the audio path.
+**K2** by device:
 
-**K3** toggles whatever is focused, so a bypass is always one press away; **K2** works the focused device's second function. **Loop is the exception**: there K3 steps the transport through record → play → dub as soon as it is pressed, not on release, and K2 stops then clears; holding K2 for two seconds undoes the last overdub. On Tune, K3 switches the mute and K2 sets the reference back to 440 Hz. On **Warp, Repeat and Tremolo**, K2 taps the tempo (see [Tap tempo](#tap-tempo)); on **Count** it taps the BPM, one tap per beat. On the **Amp**, K2 steps Combo → NAM → Strip (NAM only when it is available). On **Hold 1** and **Hold 2**, a short K2 recaptures the freeze; on **Tape**, it stops or restarts the tape; on **Reverb**, **Build** and **Mesmerize**, it switches Freeze. On **Cut**, K2 mutes the output for as long as it is held, a kill switch. On **Cab & Mic**, K2 steps the mic position. The drives (Fray, Push, Distort) leave K2 free. **Route** is a place for settings rather than an effect, so K2 and K3 do nothing there; E3 changes the input.
+| Device | K2 |
+|---|---|
+| Tune | Reference back to 440 Hz |
+| Count, Warp, Repeat, Tremolo | Tap tempo (see [Tap tempo](#tap-tempo)) |
+| Cut | Mute while held, a kill switch |
+| Amp | Combo → NAM → Strip (NAM only when available) |
+| Hold 1, Hold 2 | Recapture the freeze |
+| Loop | Stop, then clear; held 2 s: undo the last overdub |
+| Reverb, Build, Mesmerize | Freeze on / off |
+| Cab & Mic | Next mic position |
+| Tape | Stop / start the tape |
+| Route, Fray, Push, Distort | Nothing |
 
-**K1 held for two seconds** opens the Mod Rack over either view and closes it again. The rack shows only what is patched and opens straight into the first source, in the order Sense, LFO, Walk, Trigger. With nothing patched it says **Empty**. To remove a source, hold K1 and K3 on its parameter (for a Trigger, on its device) and choose **Remove**: the source lets go of its target, switches off and returns to its factory settings, so the next one starts fresh.
+On Route, K3 does nothing either: Route holds settings, not an effect.
 
-A source fills the screen: the parameter strip on the left, the source itself on the right in the same frame every device uses, with its target on the line at the bottom of the frame. Each kind of source has one picture, the same in the chooser (with example values) and in the rack (with what the source really does). An LFO draws its live output, the last two cycles (sixteen steps in Stepped Random), so Depth, Direction, Rate Slew, rate modulation and clipping at the range ends all show as they happen. The line is antialiased and drawn from the shape itself, so a fast triangle stays a triangle even when a coarse target only takes a few steps per cycle. A Sense draws the envelope it hears over the last three seconds, around a centre line, the way an envelope traces the peaks of an audio signal. A Walk shows all sixteen steps as bars above and below a centre line with a running light underneath; steps beyond its step count stay as faint ghosts of their stored values. A Trigger shows its last eight rolls: a filled bar for each fire, an empty frame where Chance let one pass. **E1** steps to the previous or next patched source, **E2** scrolls the strip, **E3** changes the value. A short **K3** switches the source on and off. A short **K2** works its second function: an LFO restarts its cycle from phase 0, a Sense freezes its modulation (or releases it), a Walk jumps back to step 1, a Trigger fires once by hand. **K2** held randomises a Stepped Random register or a Walk's steps. **K1** held leaves the rack again. Tune and Count are not in the rack; they sit at the head of the signal chain instead.
+### GUI modes
 
-**K1 and K3 held together for two seconds** start from the other end: from the parameter in focus. A chooser takes over the device area and asks how to move it. **E2** or **E3** picks **Modulate** (an LFO), **Sense**, **Walk** or **Trigger**, each shown with its picture running on example values. **K3** takes it: the next free slot of that kind is patched to the parameter (a Trigger to the device itself, starting with its first free action such as Toggle), switched on, and opened in the rack for setting up. If every slot of that kind is taken, the picture dims and reads *full*. If a source already drives the parameter, the chooser offers **Edit** (open it in the rack) and **Remove** instead, and the same for every Trigger already on the device. **K2** closes the chooser without changes.
+![Stage view: the chain as three-letter devices, the selected one marked](docs/img/stage.png)
 
-![Chooser on Amp: Volume, here offering Edit because a Sense already drives it](docs/img/mod_chooser.png)
+The **GUI** parameter sets how the screen behaves; it changes nothing in the audio path.
 
+- **Studio** (default) draws each device as its own pedal, cabinet or rack unit and opens on the Amp. Every view uses the same frame on the right, so the outer edges never move as you walk. Devices carry no captions: the strip on the left names the one in focus, and in a pair the focused one shows its lit knob or a bright outline.
+- **Stage** shows the whole chain on one screen as three-letter abbreviations joined by arrows, bright while on, dim while off, with a dot over the selected one. Route and Count are left out, since neither is an effect in the audio path. Opens on Tune.
+- **Off** blanks the screen and ignores keys and encoders, for playing in the dark. Switch back from PARAMS or MIDI.
 
-## Tune
+## One system for every control
 
-![Tune and Count sharing a pane](docs/img/tune_count.png)
+Every knob in princeton, and in its voices, is one of five kinds, and each kind behaves the same wherever it appears:
 
-Tune sits at the head of the signal chain: walk E1 to the far left of the chain and it occupies the left half of the pane, beside Count. The note name and octave appear at large size, with a strobe band underneath: it drifts one way while you are flat and the other way while you are sharp, and stands still once you are in tune, when the small lamp below the window lights up as well. With no note to hear, the window reads PLAY. Press K3 to mute the output while tuning. The mute is a real parameter now, so it stays engaged until you press K3 again, and the Tune block stays lit as the reminder. The looper keeps playing under the mute, so a tuning pause doesn't break the loop.
+- **Level**: anything that sets how loud something is, including the gate's Threshold and Range. It runs like a console fader from −75 to +10 dB (Threshold and Range to 0 dB), 1 dB a tick below −20 dB and 0.5 dB above; one tick below −75 dB is −inf, silence. 0 dB is always the device at its default loudness.
+- **Drive**: the knobs that colour by pushing harder (Amp Volume, Push and Distort Gain, Fray Drive, Hold Gain, Tape Drive, Strip Drive), 0–10 in steps of 0.1.
+- **Amount**: tone, mix, depth, feedback, size and their kin, 0–100 % (−100 to +100 % where they swing both ways) in steps of 1 %.
+- **Rate, Frequency, Time**: round-number ladders that coarsen as the value grows. Rates go 0.1 Hz at a time up to 2 Hz, then 0.5 Hz to 10 Hz, then 1 Hz; filters go 5 Hz at a time to 100 Hz, then 25, 50, 250, 500 and 1000 Hz; times climb the same kind of ladder in milliseconds.
+- **Steps**: choices, counts, semitones, BPM, the tuner's reference in whole hertz, Build's Time in semitones.
 
-Turn E3 while the tuner is open to adjust the reference pitch (420 to 460 Hz). The setting is saved with your PSET.
-
-princeton's tuner runs its own pitch detector inside the engine on a boosted, band-limited copy of the input. Passive electric guitars sit too low for the Norns built-in pitch poll to track reliably; the in-engine version stays locked through string decay.
+A control moves the same way wherever you turn it: the encoder in PARAMS, E3 on princeton's screens, a knob on lcx and a mapped MIDI CC all walk its own grid, and the readout shows exactly what PARAMS shows. A rate under a sync division steps through the divisions instead.
 
 ## Parameters
 
-Parameters are listed in PARAMS menu order.
-
-**One system for every control.** Each knob in princeton, and in its voices, is one of five kinds, and each kind behaves the same wherever it appears:
-
-- **Level**: anything that sets how loud something is, from Input Trim and the sends through the pedal levels, Hold, Loop, Master and Cab & Mic to the voices, and the gate's Threshold and Range. It runs from −75 to +10 dB (Threshold and Range to 0 dB) like a console fader: 1 dB a tick below −20 dB, 0.5 dB above, and silence at the very bottom, shown as −inf. 0 dB is always the device at its default loudness.
-- **Drive**: the knobs that colour by pushing harder (Amp Volume, Push and Distort Gain, Fray Drive, Hold Gain, Tape Drive, Strip Drive), 0–10 in steps of 0.1.
-- **Amount**: tone, mix, depth, feedback, size and their kin, 0–100 % (or −100 to +100 % where they swing both ways) in steps of 1 %.
-- **Rate, Frequency, Time**: these step on round numbers that grow with the value, so a tick is fine where the ear is fine and coarse where it isn't. Rates go 0.1 Hz at a time up to 2 Hz, then 0.5 Hz to 10 Hz, then 1 Hz; filters go 5 Hz at a time to 100 Hz, then 25, 50, 250, 500 and 1000 Hz; times walk the same kind of ladder in milliseconds.
-- **Steps**: choices, counts, semitones, BPM, the tuner's reference in whole hertz, and Build's Time in semitones up to its Block.
-
-A control moves the same way wherever you turn it: the encoder in PARAMS, E3 on princeton's own screens, a knob on lcx, and a mapped MIDI CC all walk the control's own grid, and the screen reads the value exactly as PARAMS does. The only place that steps differently on purpose is a rate under a sync division, which steps through the divisions.
+The sections follow the PARAMS menu, which follows the chain.
 
 ### GUI
-
-How princeton meets your hands and your MIDI controller. Nothing here touches the sound; it decides where the screen looks and how a knob takes hold of a value.
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
@@ -185,46 +109,36 @@ How princeton meets your hands and your MIDI controller. Nothing here touches th
 | **MIDI Pickup** | On | Off / On |
 | **Initialize** | trigger | PARAMS and MAP |
 
-**GUI** picks the screen mode (see [GUI modes](#gui-modes)).
+**Follow Focus** lets the screen follow your controller: when a mapped MIDI control moves a parameter, the view jumps to it, and when a device is switched or the looper changes state from MIDI or PARAMS, the view moves to that device. Actions fired by Triggers never move the view.
 
-**Follow Focus** lets the screen follow your controller. When a mapped MIDI control moves a parameter, the view jumps to its device and selects that parameter; when a single device is switched on or off, or the looper changes state, from outside the screen (MIDI, PARAMS), the view moves to that device. Actions fired by the Mod Rack's Triggers never move the view.
+**MIDI Pickup** is soft takeover for mapped CCs: a knob that doesn't match the current value does nothing until it reaches it, then takes over without a jump. **Initialize** sets every parameter back to its default; MIDI mappings stay.
 
-**MIDI Pickup** is soft takeover for mapped CCs: a knob whose position does not match the parameter's current value has no effect until it reaches or passes that value, then takes over without a jump. Relative (accumulating) mappings are not affected. Off applies every CC immediately.
-
-**Initialize** sets every parameter back to its default in one go. MIDI mappings stay as they are.
-
-### Signal Flow
+### Route
 
 ![Route: the input on the left, the sends on the right, both read from top to bottom](docs/img/route.png)
 
-![Route with a voice as input: the small keyboard at the top](docs/img/route_voice.png)
-
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Input** | Mono | Mono / Stereo / one entry per installed voice, by name |
-| **Input Trim** | 0 dB | −75 to +10 dB, fader taper |
+| **Input** | Mono | Mono / Stereo / one entry per installed voice |
+| **Input Trim** | 0 dB | Level |
 | **Send A Source** | Output | Input / Loop / Output |
-| **Send A Level** | 0 dB | −75 to +10 dB, fader taper |
+| **Send A Level** | 0 dB | Level |
 | **Send B Source** | Output | Input / Loop / Output |
-| **Send B Level** | 0 dB | −75 to +10 dB, fader taper |
+| **Send B Level** | 0 dB | Level |
 
-**Mono** uses the left input only at instrument level. This is the default, designed for a guitar plugged into the L jack. **Stereo** opens both inputs at line level (about 10 dB lower) and routes a symmetric stereo path through Push, Distort, Warp, Repeat, and the amp. The tremolo's left/right pingpong, the looper's stereo buffer, and the reverb stay unchanged in either mode. Choosing a **voice** (one entry per installed voice mod, listed by name in alphabetical order) mutes the hardware inputs and feeds the chain in stereo from that voice instead, played over MIDI through [Keys](#keys) (see [Voices](#voices)); the Sense envelope followers then track the voice. Only one voice sounds at a time, and switching away silences it. With no voice mod installed the list ends at Stereo.
+**Mono** takes the left input at instrument level, for a guitar in the L jack. **Stereo** opens both inputs at line level (about 10 dB lower) and keeps the pedals and amp in stereo. A **voice** mutes the hardware inputs and feeds the chain in stereo from an instrument played over MIDI (see [Voices](#voices)). Turning the input to Stereo or a voice puts the [Strip](#strip) in the amp slot, and turning it back to Mono returns the amp you had; K3 on Route steps through the inputs.
 
-**Input Trim** scales the signal as it enters the chain, before every pedal and the amp. It sits at instrument level by default (0 dB) and runs from −75 dB, where it is off, to +10 dB. Being a plain control, it maps to a MIDI CC in the usual PARAMS way, so a MIDI expression pedal on Input Trim becomes a volume pedal in front of the whole chain. The tuner reads the raw input ahead of the trim, so tuning still works with the trim pulled all the way down; the Sense envelope followers and the metronome click are unaffected for the same reason. Input Trim acts on the hardware inputs only; a voice sets its own level in its PARAMS group.
+**Input Trim** scales the signal before every pedal, so a MIDI expression pedal mapped to it is a volume pedal for the whole chain. The tuner and the Sense followers read the input ahead of the trim. A voice sets its own level in its PARAMS group.
 
-The two pixels on the amp panel reflect the active inputs. The left pixel always lights; the right pixel lights only in Stereo.
+**Send A** and **Send B** feed the two Norns send buses, which an fx mod reads in its send a or send b slot. Each taps one point: **Input** (the pedals' output, where it enters the amp), **Loop** (the looper alone) or **Output** (the full mix). The fx mod is optional; if one of its send buses lands on the Norns input or output, princeton gives that send a bus of its own while it runs, and the SuperCollider log in maiden says what it found.
 
-**Send A** and **Send B** route to the two Norns send buses, which a compatible fx mod can read in its send a or send b slot. Each send picks its source independently: **Input** is the post-pedal signal feeding the amp, **Loop** is the looper output on its own, and **Output** is the full mix at OUT L/R. **Level** scales the send from −75 dB (off) up to +10 dB. With both sends at their defaults (Output, 0 dB) each carries the full output at unity.
+On screen, Route is a white panel that draws the routing instead of knobs, both halves read from top to bottom. The left half shows the input: one jack splitting to L and R for Mono, two jacks for Stereo, a small module with a keyboard for a voice. The right half shows the sends: three taps, ∨ (Input), ∞ (Loop) and ∧ (Output), with a line from each chosen tap down to A and B; an unused tap is greyed out.
 
-**fx mod.** The sends reach an fx mod through its send buses `~sendA` and `~sendB`. The mod is optional, and princeton adapts to whichever version is installed, no patch needed. Without the mod both sends simply rest while everything else works as usual. If a send bus of the mod lands on the Norns input or output (some versions of the mod put `~sendA` on the input bus), princeton gives that send a free bus of its own and points the mod's plugins there while princeton runs; on exit it hands the mod its original bus back. What princeton found is written to the SuperCollider log in maiden at every start, one line per send.
-
-**Route** (RTE) is the first device of the Studio chain and holds all six parameters; they are also in PARAMS and MAP. Route is drawn as a white panel, which sets it apart from the effects as a place for settings, and it shows the routing rather than knobs; the values appear in the readout on the left. Both halves read from top to bottom, the way the signal flows, with straight lines and right angles only. The left half shows the input at the top: a jack that splits halfway down to L and R for Mono, two jacks running straight down for Stereo, a small module for any voice. The right half shows the sends: three taps at the top, ∨ (Input), ∞ (Loop) and ∧ (Output), with a line from the chosen tap down to A and to B, bending halfway. A tap that neither send uses is greyed out; when both sends take the same tap, its line splits. Where the two send lines would cross, the horizontal one leaves a small gap so you can follow each. **K3** steps the input through Mono, Stereo and each installed voice, then back to Mono. Route is not part of the Stage chain.
-
-The chosen voice is also stored by name in the PSET, so a PSET still finds its voice after another voice mod has been added or removed and the list has shifted. If the voice mod is missing, the input falls back to Mono, and the name is kept for the next save.
+![Route with a voice as input: the small keyboard at the top](docs/img/route_voice.png)
 
 ### Keys
 
-The hands between the keyboard and the voice. Keys can hold a chord after you let go, restrike it on the clock like a mandolin tremolo, and lift every strike an octave higher, a staircase that folds back on itself. Keys only acts while Route's input is a voice; in Mono and Stereo incoming notes are ignored.
+The hands between the MIDI keyboard and a voice: Keys can hold a chord, restrike it on the clock like a mandolin tremolo, and lift every strike an octave higher. It only acts while Route's input is a voice.
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
@@ -236,69 +150,54 @@ The hands between the keyboard and the voice. Keys can hold a chord after you le
 | **Retrig Gate** | 50 % | 10–100 % |
 | **Octaves** | 1 | 1 / 2 / 3 / 4 |
 | **Octave Reset** | Off | Off / 1–64 strikes |
-| **MIDI Device** | All | All / each connected MIDI port |
+| **MIDI Device** | All | All / each connected port |
 | **MIDI Channel** | Omni | Omni / 1–16 |
 
-**Hold** keeps the chord sounding after the keys are released. Keys struck within 100 ms of each other join the held chord; the next chord struck after all keys are up replaces it.
+**Hold** keeps the chord after you let go; keys struck within 100 ms of each other join it, and the next chord replaces it. **Retrig** strikes the held keys again on every step of a clock grid; Swing delays every second step, Gate sets how long a strike sounds. The Retrig settings show only while Retrig is On.
 
-**Retrig** strikes the held keys (or the Hold chord) again together on every step of a grid locked to the Norns clock. **Retrig Division** and **Retrig Feel** set the step, **Retrig Swing** delays every second step (50 % is straight), **Retrig Gate** sets how long each strike sounds as a share of the step. The four Retrig settings appear only while Retrig is On.
-
-**Octaves** moves every new strike, or every Retrig hit, one octave further up and starts over after that many octaves; at 1 nothing moves. Keys struck together share one octave. **Octave Reset** returns to the original octave after that many strikes; it appears only while Octaves is above 1.
-
-**MIDI Device** listens to all ports by default, which suits controllers that show up as more than one port; pick a single port to keep other devices out. **MIDI Channel** is Omni by default. Notes with velocity, polyphonic and channel aftertouch, pitch bend (±2 semitones) and the sustain pedal (CC 64) are passed on to the voice. All notes are released when the device or channel changes, when the voice changes, and when the script stops.
-
-**CCs.** On the same device and channel, five CCs set Keys directly: **69** Hold and **70** Retrig (value ≥ 64 is On), **71** Retrig Division and **72** Octaves (0–31, 32–63, 64–95, 96–127 select the four options), **73** Octave Reset (the value is the number of strikes, 0 is Off).
+**Octaves** moves every new strike one octave further up and folds back after that many; **Octave Reset** returns to the start after that many strikes. Velocity, aftertouch, pitch bend (±2 semitones) and the sustain pedal pass on to the voice. On the same port and channel, CCs **69** (Hold) and **70** (Retrig) switch at ≥ 64, **71** (Retrig Division) and **72** (Octaves) pick one of four options in quarters of the CC range, and **73** sets Octave Reset in strikes.
 
 ### Voices
 
-A voice is a small instrument that lives outside princeton and plays through it. Voices come as norns mods, so princeton stays a guitar rig until you invite one in; once chosen in Route, it stands where the guitar stood and every pedal, the amp, the loop and the reverbs take it in.
+A voice is a small instrument that lives outside princeton and plays through it. Voices come as norns mods, so princeton stays a guitar rig until you invite one in; chosen in Route, a voice stands where the guitar stood and runs through every pedal, the amp, the loop and the reverbs.
 
-**Bringing one in.** Copy the voice mod's folder to `~/dust/code/`, enable it in **SYSTEM > MODS** and restart norns, because its SuperCollider part only loads when SuperCollider starts (the same restart is needed after an update). From then on the voice appears by name in Route's **Input** list, after Mono and Stereo; choose it there or step to it with **K3** on Route. Play it from any MIDI keyboard set up under [Keys](#keys); the voice's own parameters appear as a PARAMS group of their own, mappable to MIDI like everything else.
-
-A voice chosen in Route but missing in SuperCollider stays silent, and princeton reports it in the log (maiden) with a hint to restart.
+Copy the voice mod's folder to `~/dust/code/`, enable it in **SYSTEM > MODS** and restart norns, because its SuperCollider part only loads when SuperCollider starts. The voice then appears by name in Route's Input list, after Mono and Stereo, and its parameters get a PARAMS group of their own. A PSET stores the voice by name; if that voice is missing, the input falls back to Mono and the name is kept for the next save.
 
 ### Tune
+
+![Tune and Count sharing a pane](docs/img/tune_count.png)
 
 | Parameter | Default | Range |
 |-----------|---------|-------|
 | **Mute** | Off | Off / On |
-| **Reference** | 440 Hz | 420–460 Hz, 1 Hz steps |
+| **Reference** | 440 Hz | 420–460 Hz |
 
-**Mute** silences the output while On so you can tune quietly; Off lets the guitar through. It behaves like the footswitch on a tuner pedal, so it stays where you put it when you move to another device, and the Tune block lights up while it is engaged. Being a plain parameter it maps to a MIDI CC in the usual PARAMS way, which turns a footswitch into a mute. K3 toggles the same switch while Tune is in focus.
+A strobe tuner: the note and octave in large type, a band below that drifts one way while you are flat and the other way while you are sharp, and stands still, with the lamp lit, once you are in tune. It runs its own pitch detector on a boosted copy of the raw input, because a passive guitar sits too low for the Norns pitch poll to track through the decay.
 
-**Reference** is adjustable with E3 while the tuner is open. Saved with your PSET.
+**Mute** silences the output like the footswitch on a tuner pedal; K3 switches it, and the Tune block stays lit as a reminder while it's on. The looper keeps playing under the mute.
 
 ### Count
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Engage** | Off | Off / On |
-| **BPM** | 120 | 20–300 |
+| **BPM** | Norns tempo | 20–300 |
 | **Division** | 1/4 | 1/1 / 1/2 / 1/4 / 1/8 / 1/16 |
-| **Level** | 0 dB | −75 to +10 dB, fader taper |
-| **Root** | C | C / C# / D / D# / E / F / F# / G / G# / A / A# / B |
-| **Register** | 3 | 0 / 1 / 2 / 3 / 4 / 5 / 6 / 7 |
-| **Length** | 50 ms | 1–500 ms |
+| **Root** | C | C … B |
+| **Register** | 3 | 0–7 |
 | **Scale** | Off | Off / Chromatic / Major / Minor / Dorian / Pent Maj / Pent Min / Blues |
-| **Chords** | Off | Off / Octaves / Power Chords / Triads |
+| **Scale Degree** | 1 | 1–15 |
 | **Scale Play** | Off | Off / Forward / Reverse / 3rds / 4ths / 5ths / 7ths / Random |
+| **Chords** | Off | Off / Octaves / Power Chords / Triads |
+| **Level** | 0 dB | Level |
+| **Length** | 50 ms | 1–500 ms |
 | **Position** | Parallel | Parallel / Inline |
 
-The click fires as a short sine-wave burst; pitch shifts relative to A4 (440 Hz) in semitones. **Root** picks the chromatic note name and **Register** the octave (0 to 7), together covering C0 to B7; the defaults give C3. **Level** and **Length** set the click's loudness and decay, short values giving a tight transient and longer ones a tone burst. All entries live in the PARAMS menu and are MIDI-mappable.
+A click that can become a small voice. Each click is a short sine burst at **Root** and **Register** (C3 by default); **Length** runs from a tight tick to a tone. **Position** decides where it enters: **Parallel** goes straight to the output, **Inline** runs through the whole chain, so a click during a recording lands in the loop.
 
-**Position** controls where the click enters the signal chain. **Parallel** sends it straight to the output, bypassing all engine processing. **Inline** routes it through the full chain (Pedals, Amp, Tremolo, Looper, Reverb, Cab), so the click takes on whatever is dialled in; a click that fires during a looper recording lands in the buffer.
+**BPM** is a real tempo knob: with the internal clock it sets the Norns tempo, and every synced device follows; with MIDI clock it shows the incoming tempo and takes over when the clock stops. **Division** sets the click against that tempo.
 
-The next three parameters turn the metro from a click into a small voice. They build on each other and all run off the same clock.
-
-**Scale** picks the scale the voice uses. At **Off** (the default) only the Root note plays, exactly like a plain metronome. Any other scale (Chromatic, Major, Minor, Dorian, Pentatonic Major or Minor, Blues) is rooted at the current Root and becomes the pool for Chords and Scale Play. Scale also snaps Mod Rack root-note modulation: an LFO targeting Count: Root lands on scale tones rather than chromatic steps. Direct edits to Root and Register are never quantised.
-
-**Chords** stacks harmony on every note the metro plays. **Octaves** adds the note one octave up; **Power Chords** add the fifth; **Triads** add the third and the fifth. With a Scale selected the third and fifth are diatonic, so the chord follows the scale (a Minor scale gives minor triads, the leading tone gives a diminished triad); with Scale = Off they fall back to a fixed major third and perfect fifth. Each chord tone is its own click, so chords work in both Parallel and Inline positions.
-
-**Scale Play** sequences the metro through the scale, one step per click, so it plays a line instead of repeating one note. **Forward** climbs from the Root and wraps after the octave; **Reverse** descends from the octave back to the Root. The **Interval** modes climb in thirds, fourths, fifths, or sevenths and wrap after the second octave. **Random** picks a random scale tone within the Register on each click. Scale Play needs a scale, so it is hidden while Scale = Off. When Chords is also on, every sequenced note gets its chord, for a harmonised line.
-
-Because Root, Register, Level, Length, Scale, Chords, and Scale Play are all Mod Rack targets, Count becomes a playable voice: an LFO on Count: Root transposes the whole line, one on Count: Register shifts its octave, and slow LFOs on Scale, Chords, or Scale Play evolve the pattern over time. Stack it on the loop and the rest of the rack and Count is a built-in practice partner.
-
-When the Norns clock is running, **Division** sets the click subdivision relative to the clock; the metro stays in lockstep with any synced effect. With the clock stopped it free-runs at **BPM**. BPM sits first in the Count strip (E3). With the internal clock, turning it sets the Norns tempo, so every synced effect follows; with MIDI clock it follows the incoming tempo and only takes over while the clock is stopped.
+**Scale** turns the click into a note pool rooted at Root; at Off only the Root sounds. **Scale Degree** picks the step of the scale the click plays. **Scale Play** walks through the scale one step per click (up, down, in thirds to sevenths, or at random) and hides while Scale is Off. **Chords** stacks an octave, a fifth or a triad on every note, diatonic when a scale is set. All of it is a Mod Rack target, so an LFO on Root transposes the line and a slow one on Scale Play reshapes it.
 
 ### Cut
 
@@ -306,22 +205,24 @@ When the Norns clock is running, **Division** sets the click subdivision relativ
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Cut Engage** | Off | Off / On |
-| **Threshold** | −50 dB | −75 to 0 dB, fader |
-| **Attack** | 1 ms | 0.1–2500 ms |
-| **Hold** | 20 ms | 1–2500 ms |
-| **Release** | 100 ms | 1–2500 ms |
-| **Range** | −75 dB | −75 to 0 dB, fader |
+| **Engage** | Off | Off / On |
+| **Threshold** | −50 dB | Level, to 0 dB |
+| **Attack** | 1 ms | 0.1 ms–2.5 s |
+| **Hold** | 20 ms | 1 ms–2.5 s |
+| **Release** | 100 ms | 1 ms–2.5 s |
+| **Range** | −75 dB | Level, to 0 dB |
 | **Margin** | 0 dB | 0–25 dB in 0.5 dB steps |
 | **Detection** | Peak | Peak / RMS |
 
-A gate at the front of the signal chain, before Push, bypassed by default. The detector reads `(L + R) × 0.5`. Threshold sets the level the signal must exceed to open the gate; Range sets how far the signal is attenuated when the gate is closed (−75 dB is near silence, a smaller value like −12 dB ducks rather than mutes). Attack and Release are the open and close ramp times, both reaching up to 2.5 s: a long Attack gives slow-gear volume swells, a fast Attack with short Hold and Release gives percussive chopping. Hold keeps the gate open for a set time after the signal drops, preventing chatter and sustaining tails. Margin sets the gate's hysteresis: it widens the gap between the open and close thresholds, from none up to 25 dB. Detection picks a fast Peak follower or a smoother RMS follower. All six continuous parameters are Mod Rack and Sense targets, so an LFO on Threshold synced to the clock produces rhythmic gating. Attack, Hold and Release use an exponential taper, so small values step finely and large values step coarsely. A **Cut: Toggle** trigger switches the gate in and out. Cut shares a Studio pane with Fray, and appears in the Stage chain as CUT.
+A noise gate in front of the pedals. The signal must rise above **Threshold** to open it; **Range** is how far it drops when closed, so −inf mutes and −12 dB only ducks. **Hold** keeps it open a moment after the signal falls, **Margin** sets how far the signal must fall back below Threshold before it closes, and **Detection** picks a snappy Peak or a smoother RMS follower.
+
+The wide ranges make it an instrument too: a long Attack is a slow-gear swell on every note, fast Attack and Release with a short Hold chop percussively, and an LFO on Threshold synced to the clock gates in rhythm.
 
 ### Fray
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Fray Engage** | Off | Off / On |
+| **Engage** | Off | Off / On |
 | **Drive** | 7.5 | 0–10 |
 | **Comp** | 50 % | 0–100 % |
 | **Stab** | 0 % | 0–100 % |
@@ -329,21 +230,13 @@ A gate at the front of the signal chain, before Push, bypassed by default. The d
 | **Oct Mode** | Up | Down / Up / Both |
 | **Gate** | 0 % | 0–100 % |
 | **Tone** | 100 % | 0–100 % |
-| **Level** | 0 dB | −75 to +10 dB, fader |
+| **Level** | 0 dB | Level |
 
-A deliberately unstable fuzz in the Fuzz Factory tradition, sitting between Cut and Push and bypassed by default. Where Push is a compressed overdrive and Distort a hard clipper, Fray is the third kind: a starved circuit that spits, chokes and, pushed far enough, sings on its own.
+A deliberately unstable fuzz. Where Push compresses and Distort clips, Fray is a starved circuit that spits, chokes and, pushed far enough, sings on its own.
 
-**Drive** is the fuzz gain, from a rough edge up to a fully saturated square. **Comp** starves the operating point, and does it dynamically: the bias drifts further off centre as the note dies away, so the tail chokes and spits instead of decaying evenly. That is the velcro splutter, and it lives in the decay rather than the attack.
+**Drive** is the fuzz gain, from a rough edge to a full square. **Comp** starves the bias, more so as a note dies away, so the tail splutters instead of fading evenly. **Stab** collapses the supply and feeds the stage back into itself: a sag and bloom at low settings, a resonance that rings on after you stop near the top.
 
-**Stab** collapses the supply under load and feeds the stage back into itself. Low settings add a sag and a bloom on hard notes; towards the top the feedback path narrows into a resonance and the circuit sings on its own after you stop playing. The whole range is usable, because the feedback is injected after the input stage has been brought to a fixed level, so its loop gain does not ride on Drive.
-
-**Octave** sets how much of an added octave is blended in, and **Oct Mode** picks which one. **Up** rectifies the signal to double its frequency, the classic octave fuzz; it speaks clearest at moderate Drive, because a fully squared signal has little left to rectify, so back Drive off if the octave gets lost. **Down** clocks a flip-flop divider off the zero crossings for a sub-octave, as in an analogue octave pedal, and follows your dynamics rather than sitting at a fixed level. **Both** mixes the two for a wide, slightly unhinged stack. At Octave 0 the switch does nothing.
-
-**Gate** chokes the decay rather than letting it fizzle out, and reads the input rather than the fuzz, so it cuts note tails instead of strangling the distortion. **Tone** is a low-pass after the fuzz, fully open by default and reaching down to 750 Hz; its top sits at 7.5 kHz because the input stage already band-limits the whole chain there, so there is nothing above that to keep. **Level** sets the output level. At 0 dB Fray sits about 1 dB above the clean amp with its default settings, so switching it on adds a slight lift rather than a jump; pull Level down as Drive goes up.
-
-Gate and Stab are the two worth handing to the [Mod Rack](#mod-rack): an LFO on Gate gives rhythmic stutter, and one on Stab makes the circuit wander in and out of oscillation. All seven continuous parameters are Mod Rack and Sense targets, Oct Mode being a plain switch, and a **Fray: Toggle** trigger can switch the whole pedal in and out.
-
-Being bypassed by default it costs nothing until engaged: like Push and Distort it runs as a spawned insert, so a bypassed Fray is not merely silent but absent from the graph.
+**Octave** blends in an added octave, and **Oct Mode** picks which: **Up** rectifies for the classic octave fuzz (clearest at moderate Drive), **Down** divides for a sub-octave that follows your dynamics, **Both** stacks the two. **Gate** chokes the decay, listening to the input rather than the fuzz. **Tone** is a low-pass from 7.5 kHz down to 750 Hz. An LFO on Gate stutters, one on Stab makes the circuit wander in and out of oscillation.
 
 ### Push
 
@@ -351,25 +244,27 @@ Being bypassed by default it costs nothing until engaged: like Push and Distort 
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Push Engage** | Off | Off / On |
+| **Engage** | Off | Off / On |
 | **Gain** | 5.0 | 0–10 |
 | **Tone** | 50 % | 0–100 % |
-| **Level** | 0 dB | −75 to +10 dB, fader taper |
+| **Level** | 0 dB | Level |
 | **Comp** | 50 % | 0–100 % |
 
-A compressor and an overdrive in one: the signal is squeezed, then driven into a soft saturation. Tone tilts the voice around 700 Hz, from warm and full to tight and cutting. Comp sets how hard Push squeezes the signal before it saturates: low values let the pick attack through, high values even out the dynamics into a steady sustain. The gain reduction follows the envelope of your playing, not every single wave. At the default Level of 0 dB Push sits about 0.5 to 1 dB above the clean amp, a slight lift rather than a jump.
+A compressor and an overdrive in one: the signal is squeezed, then driven into soft saturation. **Comp** sets how hard it squeezes, from letting the pick attack through to a steady sustain; the gain reduction follows the envelope of your playing, not each wave. **Tone** tilts the voice around 700 Hz, from warm to cutting.
 
 ### Distort
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Distort Engage** | Off | Off / On |
+| **Engage** | Off | Off / On |
 | **Gain** | 5.0 | 0–10 |
 | **Tone** | 75 % | 0–100 % |
-| **Level** | 0 dB | −75 to +10 dB, fader taper |
-| **Low Cut** | 20 Hz (off) | 20–1000 Hz |
+| **Level** | 0 dB | Level |
+| **Low Cut** | 20 Hz | 20–1000 Hz |
 
-Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, murky) to 5000 Hz (open, cutting). Low Cut applies a post-drive high-pass filter to remove accumulated sub-bass. At the default Level of 0 dB Distort sits about 0.5 to 1 dB above the clean amp.
+Hard clipping. **Tone** sweeps a low-pass from 300 Hz (murky) to 5 kHz (cutting), **Low Cut** clears the sub-bass that piles up after the drive.
+
+At their default Level, Fray, Push and Distort each sit about 1 dB above the clean amp, a slight lift rather than a jump; pull Level down as the gain goes up.
 
 ### Warp
 
@@ -377,62 +272,37 @@ Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, mu
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Warp Engage** | Off | Off / On |
+| **Engage** | Off | Off / On |
 | **Rate** | 2.5 Hz | 0.1–25 Hz |
 | **Depth** | 25 % | 0–100 % |
-| **Rise/Fall** | 2.5 s | 0.01–5 s |
+| **Rise/Fall** | 2.5 s | 10 ms–5 s |
 | **Mix** | 100 % | 0–100 % |
-| **Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Division** | Off | Off / 8/1 … 1/64 |
 | **Feel** | Note | Note / Dotted / Triplet |
-| **Tap Division** | 1/4 | 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Tap Division** | 1/4 | 8/1 … 1/64 |
 | **Tap Feel** | Note | Note / Dotted / Triplet |
 | **Tap** | trigger | PARAMS and MAP |
 
-Pitch vibrato via modulated delay. At 0 % Mix the effect is 100 % wet; increasing Mix blends in the dry signal, moving from pure vibrato toward a chorus character. Rise/Fall controls the onset time when bypass is lifted and the fade time when bypass is engaged.
-
-Set **Division** to lock Rate to the Norns clock. See [Synchronization](#synchronization) for the full model.
+Pitch vibrato from a modulated delay. At 100 % **Mix** it is pure vibrato; blending in the dry signal moves it toward chorus. **Rise/Fall** is how long the effect takes to swell in when engaged and to fade when bypassed.
 
 ### Repeat
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Repeat Engage** | Off | Off / On |
+| **Engage** | Off | Off / On |
 | **Time** | 500 ms | 1–1000 ms |
 | **Feedback** | 50 % | 0–100 % |
-| **Level** | 0 dB | −75 to +10 dB, fader taper |
+| **Level** | 0 dB | Level |
 | **Tone** | Bright | Bright / Dark |
 | **Mod Depth** | 10 % | 0–100 % |
 | **Mod Rate** | 2.5 Hz | 0.1–25 Hz |
-| **Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Division** | Off | Off / 8/1 … 1/64 |
 | **Feel** | Note | Note / Dotted / Triplet |
-| **Tap Division** | 1/4 | 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Tap Division** | 1/4 | 8/1 … 1/64 |
 | **Tap Feel** | Note | Note / Dotted / Triplet |
 | **Tap** | trigger | PARAMS and MAP |
 
-BBD-style analog delay with jitter and saturation in the feedback path. Color switches between a brighter and a darker feedback tone.
-
-Set **Division** to lock Time to the Norns clock. See [Synchronization](#synchronization) for the full model.
-
-### Tap tempo
-
-With Warp, Repeat or Tremolo focused, **K2** taps the tempo (on Count it taps the BPM directly, one tap per beat). The second tap sets the value, and every further tap refines it, averaged over the last four intervals. A pause longer than two seconds, or more than twice the running interval, starts a new series. The readout jumps to Rate or Time and blinks on every tap.
-
-A tap marks one beat. **Tap Div** and **Tap Feel** (PARAMS, under Synchronization) say what that beat means for the effect: at 1/4 Note the delay time equals the tap interval, at 1/8 Repeat runs twice as fast as you tap, at 1/4 Dotted one and a half times as slow. Changing Tap Div or Tap Feel recalculates from the last tapped tempo, there is no need to tap again. The calculation is the same one Sync uses, so a tapped 1/8 and a synced 1/8 at the same tempo land on the same value.
-
-Repeat Time ends at 1000 ms, so slow tempos clamp. A clamped tap stays dimmed in the readout until you change the value by hand. Where the clamp starts depends on Tap Div:
-
-| Tap Div | Repeat clamps below |
-|---|---|
-| 1/2 | 120 BPM |
-| 1/4 | 60 BPM |
-| 1/8 | 30 BPM |
-| 1/16 | 15 BPM |
-
-Warp covers 0.1 to 25 Hz, which takes any tempo a hand can tap.
-
-Tap tempo only works while Sync is Off. With Sync set and the clock running, K2 does nothing on Warp, Repeat and Tremolo, and switching Sync on or off forgets the tapped tempo. If a tap lands while an LFO modulates Rate or Time, it moves the centre of the modulation, as a manual change would.
-
-To tap from a footswitch, map the **Tap** entry of Warp or Repeat to a CC (see [MIDI](#midi)). If your other gear sends MIDI clock, that is the better route: set SYSTEM > CLOCK > source to MIDI and use Sync instead, which follows the external tempo exactly.
+An analog-style bucket-brigade delay with jitter and saturation in the feedback path. **Tone** picks a brighter or darker repeat; **Mod Depth** and **Mod Rate** wobble the delay time.
 
 ### Amp
 
@@ -441,62 +311,54 @@ To tap from a footswitch, map the **Tap** entry of Warp or Repeat to a CC (see [
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Engage** | On | Off / On |
-| **Amp** | Combo | Combo / NAM / Strip (see [NAM](#nam), [Strip](#strip)) |
-| **Model** | first capture | one entry per `.nam` file (NAM only) |
-| **Cab Sim** | Auto | Auto / On / Off (NAM only) |
-| **Volume** | 5.0 | 0–10 |
-| **Bass** | 50 % | 0–100 % (50 % is flat) |
-| **Mid** | 50 % | 0–100 % (NAM only) |
-| **Mid Freq** | 750 Hz | 250–4000 Hz (NAM only) |
-| **Treble** | 50 % | 0–100 % |
-| **Master** | 0 dB | −75 to +10 dB, fader (Combo and NAM) |
-| **Rectifier** | Tube 5U4 | Tube 5Y3 / Tube 5U4 / Silicon (Combo only) |
-| **Drive** | 5.0 | 0–10, −10 to +10 dB (Strip only) |
-| **Even Harmonics** | 0 % | 0–100 % (Strip only) |
-| **Odd Harmonics** | 50 % | 0–100 % (Strip only) |
-| **Low Cut** | 80 Hz | 20–1000 Hz (Strip only) |
-| **High Cut** | 12 kHz | 1–20 kHz (Strip only) |
-| **Level** | 0 dB | −75 to +10 dB, fader (Strip only) |
+| **Amp** | Combo | Combo / NAM / Strip |
+| **Model** | first capture | one entry per `.nam` file (NAM) |
+| **Cab Sim** | Auto | Auto / On / Off (NAM) |
+| **Volume** | 5.0 | 0–10 (Combo, NAM) |
+| **Bass** | 50 % | 0–100 % (Combo, NAM) |
+| **Mid** | 50 % | 0–100 % (NAM) |
+| **Mid Freq** | 750 Hz | 250–4000 Hz (NAM) |
+| **Treble** | 50 % | 0–100 % (Combo, NAM) |
+| **Master** | 0 dB | Level (Combo, NAM) |
+| **Rectifier** | Tube 5U4 | Tube 5Y3 / Tube 5U4 / Silicon (Combo) |
+| **Drive** | 5.0 | 0–10, −10 to +10 dB (Strip) |
+| **Even Harmonics** | 0 % | 0–100 % (Strip) |
+| **Odd Harmonics** | 50 % | 0–100 % (Strip) |
+| **Low Cut** | 80 Hz | 20–1000 Hz (Strip) |
+| **High Cut** | 12 kHz | 1–20 kHz (Strip) |
+| **Level** | 0 dB | Level (Strip) |
 
-Volume, Bass, Treble and Master belong to the combo and step back while the Strip plays.
+A small American combo. Volume below 3.5 stays clean; past 5.5 it breaks up, so single coils clip lightly at the default when you dig in. **Bass** and **Treble** give the open Fender voice at 50 % and cut when turned down; the mid scoop is fixed. Switching the amp off also dims the panel lamp.
 
-A dedicated **Engage** toggle (AMP group) lives in the PARAMS menu for MIDI mapping. Same behaviour as Reverb and Tremolo bypass.
-
-**Rectifier** picks the rectifier in the amp's power supply, which sets how far the supply voltage sags when you dig in and how quickly it recovers. **Tube 5Y3** is the stock Princeton: the deepest and slowest sag, the least headroom, an earlier break-up and a looser low end. **Tube 5U4** is the Princeton Reverb's rectifier and the amp as it always sounded. **Silicon** barely sags and recovers fast, for more headroom, a tighter attack and a firm low end, the direction of the early Princeton-based Boogie conversions with their bigger power stage. The three settings are level-matched at medium drive, so switching changes the feel, not the volume. Rectifier is set in the PARAMS menu only and is a Mod Rack target (Amp: Rectifier).
+**Rectifier** sets how far the supply sags when you dig in. **Tube 5Y3** sags deepest and slowest, with the least headroom and the earliest break-up; **Tube 5U4** is the default; **Silicon** barely sags, for a tighter attack and a firm low end. The three are level-matched, so switching changes the feel, not the volume.
 
 #### Strip
 
 ![Strip: two rack channels, left above right, each with its meter](docs/img/amp_strip.png)
 
-The combo can also step aside for a studio channel strip, the way a synth or a DI'd guitar goes straight to the desk. Two slim preamp units take its place, the left channel above the right, linked like a stereo pair: one Drive, Even and Odd Harmonics, Low Cut, High Cut and Level drive both. Each unit shows its output on a fine LED bar, whose top segment also lights once Drive pushes the console stage into rounding off, the Drive as digits, in the dB it adds, five knobs, and the engage LED on the right. The cuts sweep without steps, 12 dB per octave.
+The combo can step aside for a studio channel strip, the way a synth or a DI'd guitar goes straight to the desk. Two slim preamp units take its place, the left channel above the right, linked like a stereo pair: one set of controls drives both. Each unit shows its output on an LED bar, whose top segment lights once the stage starts rounding off, and its Drive in the dB it adds.
 
-**Odd Harmonics** sets how early the stage bends its peaks symmetrically, the bright, glassy grain of a console; quiet playing keeps its level, only the peaks give. **Even Harmonics** leans the curve to one side and adds the second harmonic, the warmer, rounder colour of a transformer. Both sit before the cuts, so Low and High Cut shape the result without changing how hard the stage is driven.
+**Odd Harmonics** sets how early the stage rounds its peaks symmetrically, the bright, glassy grain of a console. **Even Harmonics** leans the curve to one side for the warmer second harmonic of a transformer. Both come before the cuts, which sweep without steps at 12 dB per octave.
 
-Route makes the choice for you: turning its input to Stereo or to a voice puts the Strip in the amp slot, and turning it back to Mono returns the amp you had before. A Strip chosen by hand stays.
-
-At 0 dB the strip is as loud as the amp at its default knobs, measured with the same plucked test signal. Playing much harder comes out a little hotter than through the amp, because the strip does not compress the way a small combo does.
-
-The strip carries no tremolo and no speaker, so Tremolo and Cab & Mic leave the chain while it plays and return with the amp. Reverb keeps its place and turns into a spring tank: its four knobs and the Freeze LED in a row on top, the pan below with two springs between their transducers that swing with the reverb and glow while Freeze keeps them ringing.
+At 0 dB the Strip is as loud as the combo at its default knobs; played much harder it comes out a little hotter, because it doesn't compress the way a small combo does. The Strip has no tremolo and no speaker, so Tremolo and Cab & Mic leave the chain while it plays, and the Reverb turns into a spring tank: its knobs and the Freeze LED on top, two springs below that swing with the reverb.
 
 ![Reverb with the Strip: a spring tank under its control plate](docs/img/reverb_tank.png)
 
 #### NAM
 
-The combo can lend its chair to another amp. A Neural Amp Modeler capture is a snapshot of a real amp, pedal or full rig, learned from recordings of it; princeton plays it in place of its own preamp and power stage, and keeps its tone controls wrapped around it.
+A Neural Amp Modeler capture is a snapshot of a real amp, pedal or rig, learned from recordings of it. princeton plays it in place of its own preamp and power stage and keeps its tone controls around it.
 
 | Step | |
 |---|---|
 | **Captures** | Put `.nam` files in `dust/data/princeton/nam/` (created on the first start). |
-| **Install** | On every start princeton checks that its NamAmp plugin (`lib/nam/NamAmp.so`) is installed in `~/.local/share/SuperCollider/Extensions/princeton/` and copies it there if it is missing or has changed. After a copy, restart norns (SYSTEM > RESTART) so SuperCollider loads it. |
-| **Check** | At every start the SuperCollider log in maiden reads `princeton: NAM available` or `not available`. |
+| **Install** | On every start princeton checks its NamAmp plugin in `~/.local/share/SuperCollider/Extensions/princeton/` and copies it there if it is missing or has changed. After a copy, restart norns once (SYSTEM > RESTART). |
+| **Check** | The SuperCollider log in maiden reads `princeton: NAM available` or `not available`. |
 
-**Amp** switches between **Combo**, the built-in amp, **NAM** and **Strip**. NAM is offered only when the plugin is loaded and at least one `.nam` file is present; otherwise the list shows Internal alone. With NAM selected, the entry below it is the **Model** list: the capture file names, with a prefix common to all of them left off. Model is also the first parameter on the Amp itself, so E2 to the left end and E3 flips through the captures; a capture loads once the knob has rested for a quarter of a second. Capture names are usually longer than the strip can show, so the strip shows the capture's place in the list (3/9); the full names are in PARAMS. **Rectifier** hides, and **Mid** and **Mid Freq** appear.
+NAM appears in the **Amp** list only when the plugin is loaded and at least one capture is present. **Model** then lists the capture files, without the prefix they all share; it is also the first parameter on the Amp, so E3 flips through captures, each loading once the knob rests for a quarter second. The strip shows the capture's place in the list (3/9); the full names are in PARAMS.
 
 ![NAM: Model selected, the strip shows the capture's place in the list](docs/img/amp_nam.png)
 
-**Volume** drives the capture's input, from −12 dB to +12 dB across its range. **Bass** and **Treble** are shelves at 250 Hz and 2.5 kHz, **Mid** a bell at **Mid Freq**; at 50 % all three are flat. In NAM mode the cabinet knob row reads Volume, Bass, Mid, Treble, Master. Amp: Mid and Amp: Mid Freq are Mod Rack targets.
-
-**Cab Sim** decides whether Cab & Mic stays in the chain. **Auto** reads the capture's metadata and removes Cab & Mic when the capture is a full rig or already includes a cabinet, and keeps it for an amp-only capture. **On** always keeps it, **Off** always removes it. A removed Cab & Mic disappears from the Studio and Stage chains and its parameters hide.
+**Volume** drives the capture's input from −12 to +12 dB. **Bass** and **Treble** are shelves at 250 Hz and 2.5 kHz, **Mid** a bell at **Mid Freq**, all flat at 50 %. **Cab Sim** decides whether Cab & Mic stays in the chain: **Auto** removes it when the capture already includes a cabinet, **On** always keeps it, **Off** always removes it.
 
 ### Tremolo
 
@@ -505,54 +367,47 @@ The combo can lend its chair to another amp. A Neural Amp Modeler capture is a s
 | **Engage** | Off | Off / On |
 | **Speed** | 2.5 Hz | 0.1–25 Hz |
 | **Intensity** | 0 % | 0–100 % |
-| **Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Division** | Off | Off / 8/1 … 1/64 |
 | **Feel** | Note | Note / Dotted / Triplet |
-| **Tap Division** | 1/4 | 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Tap Division** | 1/4 | 8/1 … 1/64 |
 | **Tap Feel** | Note | Note / Dotted / Triplet |
 | **Tap** | trigger | PARAMS and MAP |
 
-On the device, turn Intensity to 0 to silence the tremolo. A dedicated **Engage** toggle (TREMOLO group) lives in the PARAMS menu for MIDI mapping, same rationale as the reverb's.
-
-Set **Division** to lock Speed to the Norns clock. The encoder strip then displays the division name (e.g. `1/8`, `1/4.`) instead of Hz. See [Synchronization](#synchronization) for the full model.
+Bias tremolo at the amp's output, alternating between left and right. Switch it on and turn up **Intensity**: up to 15 % the dry signal fades as the tremolo blends in, past that it's pure tremolo with rising depth, peaks always at full level. With a **Division** set, the strip shows the division (`1/8`, `1/4.`) instead of Hz.
 
 ### Hold
 
 ![Hold 1 engaged and in focus, its grains drifting over the frozen waveform; Hold 2 bypassed](docs/img/hold.png)
 
-Two independent granular freezes, **Hold 1** and **Hold 2**, running in parallel between Tremolo and Loop so they capture the fully amped, post-tremolo signal. The held pads go into the looper's input along with the live signal, so a loop recorded or overdubbed while a pad is held keeps it, while a loop that is only playing leaves it untouched. The Hold recorder itself listens to the live signal alone, so a new freeze never captures the pad that is still sounding. Engaging a Hold grabs the last ~1.2 seconds you played and sustains it as a granular pad; the live signal always passes through underneath, so you can play over the held sound. Because the pad is built from grains reading a frozen snapshot, it never loops audibly and can be transposed without running out. A single rolling recorder feeds both instances, so the second one costs only its own grain playback.
+Two granular freezes, **Hold 1** and **Hold 2**, in parallel after the Tremolo. Engaging one grabs the last 1.2 seconds or so you played and sustains it as a pad of grains while the live signal keeps passing underneath. Because the grains read a frozen snapshot, the pad never loops audibly and can be transposed without running out.
 
-Both instances share the same parameter set, in the PARAMS groups **HOLD 1** and **HOLD 2**. They are set up to differ out of the box: Hold 2 starts with Size, Density and Spread at 7.5, and the two are pitched opposite ways, Hold 1 an octave down and Hold 2 an octave up, each mixed in lightly at 10 %.
+The pads go into the looper with the live signal, so recording or overdubbing while one sounds prints it into the loop; a loop that only plays leaves it out. The Hold recorder hears only the live signal, so a new freeze never captures the pad still sounding.
 
-| Parameter | Default | Range / Options |
+| Parameter | Default (Hold 1 / Hold 2) | Range / Options |
 |-----------|---------|-----------------|
 | **Engage** | Off | Off / On |
-| **Size** | 50 % (Hold 1) / 75 % (Hold 2) | 0–100 % |
+| **Recapture** | trigger | PARAMS and MAP |
+| **Size** | 50 % / 75 % | 0–100 % |
 | **Density** | 45 % / 70 % | 0–100 % |
 | **Spread** | 50 % / 75 % | 0–100 % |
 | **Movement** | 25 % | 0–100 % |
-| **Pitch** | −12 st (Hold 1) / +12 st (Hold 2) | −24 to +24 st |
+| **Pitch** | −12 st / +12 st | −24 to +24 st |
 | **Pitch Mix** | 10 % | 0–100 % |
 | **Reverse Mix** | 0 % | 0–100 % |
 | **Shape** | Smooth | Smooth / Soft / Swell / Pluck / Plateau |
 | **Resolution** | Fine | Coarse / Fine |
-| **Gain** | 5 | 0–10 |
-| **Level** | 0 dB | −75 to +10 dB, fader taper |
-| **Rise** | 0.25 s | 0.01–5 s |
-| **Fall** | 2.5 s | 0.01–5 s |
+| **Gain** | 5.0 | 0–10 |
+| **Level** | 0 dB | Level |
+| **Rise** | 250 ms | 10 ms–5 s |
+| **Fall** | 2.5 s | 10 ms–5 s |
 
-**Engage** is the freeze itself: switch it On to grab and hold, Off to release. The pad fades in over **Rise** and out over **Fall**, so a long Fall lets the held chord bloom away after you release. Re-engaging while a previous Fall is still running spills the old pad over the new one for a smooth crossfade. **Recapture** does the same in one step while the Hold stays engaged: it grabs what you just played as a new freeze, fades it in over Rise and lets the old pad fade out over Fall, with no gap in between. It is a trigger in PARAMS for MIDI and a Mod Rack trigger target, so a trigger on 1/1 refreshes the pad on every bar; while the Hold is bypassed it does nothing.
+The pad fades in over **Rise** and out over **Fall**; engaging again during a Fall crossfades the old pad into the new one. **Recapture** does the same while the Hold stays on: it grabs a fresh freeze and fades the old one out, with no gap.
 
-**Gain** drives the pad into a soft saturation for thickness and character; **Level** is its output level in the mix, and the two are independent. **Size** sets the grain length, longer toward 10 for a smoother, more sustained pad. **Density** sets how thickly the grains overlap. **Spread** scatters the grain onsets in time, from a tight, regular texture at 0 to a diffuse cloud at 10.
+**Size** is the grain length, **Density** how thickly grains overlap, **Spread** how widely their onsets scatter. **Movement** lets those three drift on slow random curves around your settings, by up to a quarter of their range at 100 %; the readout shows the moving value with an **M**. **Gain** drives the pad into soft saturation, **Level** places it in the mix.
 
-**Movement** lets Size, Density and Spread drift on their own: each follows its own slow random curve (one gentle move every six to eight seconds), positive and negative around the value you set. At 10 they swing up to ±2.5, at the default of 2.5 by ±0.6, and at 0 the pad stands still. Near the end of a range the drift turns back instead of sticking to the limit. The value you set stays the base for PARAMS, presets and the Mod Rack; Movement only rides on top of it. While Movement is active, the readout shows the moving value with an **M** (see [Controls](#controls)), and the grain view follows it.
+**Pitch** transposes in semitones, and **Pitch Mix** sets how many grains are transposed, so the default sprinkles a few octave grains over the pad. **Reverse Mix** does the same for grains played backwards. **Shape** is the grain window: Smooth is neutral, Soft gentler, Swell rises and cuts off like reverse tape, Pluck attacks and tails off, Plateau is nearly flat for the densest pad. **Resolution** Coarse saves CPU and only sounds grainier when Pitch is in use.
 
-**Pitch** transposes the pad in semitones (−12 is one octave down, +12 one octave up). **Pitch Mix** sets how many grains get that transposition: at 100 % the whole pad is shifted, at lower values only a fraction is, so the default of 10 % sprinkles a few octave grains over an otherwise untransposed pad.
-
-**Reverse Mix** sets how many grains play backwards, decided per grain like Pitch Mix. At 0 % everything runs forwards; small amounts add a soft, swelling shimmer against the forward grains, and at 100 % the whole pad runs in reverse. It combines with Pitch, so a grain can be both transposed and reversed.
-
-**Shape** sets the grain window and with it the character of every grain: Smooth is the neutral bell, Soft is gentler still, Swell rises slowly then cuts off (a reverse-tape feel), Pluck attacks fast and tails off (articulated, almost rhythmic), and Plateau is nearly flat for the densest, most present pad. Plateau does not fall to silence at the grain edges, so it can add a faint edge to the texture. **Resolution** trades CPU against pitch quality: Fine is cleanest, Coarse is cheaper and only sounds grainier when Pitch is in use, so an untransposed instance can run Coarse to save headroom.
-
-Each Hold is a full [Mod Rack](#mod-rack) target (Size, Density, Spread, Pitch, Pitch Mix, Reverse Mix, Gain, Level, Movement per instance). **Hold 1: Toggle** and **Hold 2: Toggle** triggers switch either freeze on and off rhythmically, **Hold 1: Recapture** and **Hold 2: Recapture** refresh a running freeze. In the Stage chain both appear, joined by a divider to show they run in parallel.
+The two Holds start out different (Hold 2 larger, denser and pitched up where Hold 1 is pitched down), so running both layers two complementary freezes.
 
 ### Loop
 
@@ -564,23 +419,23 @@ Each Hold is a full [Mod Rack](#mod-rack) target (Size, Density, Spread, Pitch, 
 | **Play From** | Start | Start / Cue |
 | **Mode** | Overdub | Overdub / Overwrite / Sample / Resample |
 | **Direction** | Forward | Forward / Reverse / Pendulum / Random |
-| **Rec Level** | −2.5 dB | −75 to +10 dB, fader taper |
-| **Play Level** | −2.5 dB | −75 to +10 dB, fader taper |
-| **Fade Level** | −2.5 dB | −75 to +10 dB, fader taper |
+| **Rec Level** | −2.5 dB | Level |
+| **Play Level** | −2.5 dB | Level |
+| **Fade Level** | −2.5 dB | Level |
 | **Speed** | 0 % | −100 to +100 % |
 | **Speed Mode** | Octaves | Octaves / Free |
 
-**Step Order** picks which K2 sequence the looper follows: `Rec → Play → Dub → Play …` (default) or `Rec → Dub → Play …`. K3 is unaffected.
+A 60-second stereo buffer after the Holds and before the spring, so anything you record sits in the same reverb as the live string.
 
-**Play From** controls what happens when playback resumes after a stop. **Start** always returns to the beginning of the loop. **Cue** resumes from the position where the loop was stopped.
+**K3** steps the transport the moment it goes down, so a take starts and ends where your finger lands. **Step Order** picks the sequence after the first take: record → play → dub → play … or record → dub → play …. **K2** stops, and a second K2 clears. **K2 held for two seconds** undoes the last overdub, sample-exact and without a click; it is one level deep, and an undo during a running dub ends that dub. The loop keeps running while you visit other devices.
 
-**Mode** selects how dub passes interact with the buffer. **Overdub** layers new material over existing. **Overwrite** replaces it. **Sample** stops after one playback pass; K2 retriggers from the **Play From** position. **Resample** records the loop output back into the buffer including the medium's degradation chain.
+![Looper transport: K3 records, plays and dubs; K2 stops, clears or discards](docs/img/loop_transport.png)
 
-**Direction** sets the loop playback direction. **Forward** is conventional. **Reverse** plays the buffer backwards. **Pendulum** alternates forward and reverse at each loop boundary. **Random** flips direction unpredictably at each boundary for generative texture.
+The strip shows the state at the bottom left: **●** recording, **●+** overdubbing, **▶** playing, **■** stopped.
 
-**Rec Level** and **Play Level** control recording gain (initial pass and overdub) and playback gain independently. **Fade Level** sets the gain curve at the loop boundary fade.
+**Play From** decides where playback resumes after a stop: the **Start** of the loop, or the **Cue** where it stopped. **Mode** sets what a dub does: **Overdub** layers, **Overwrite** replaces, **Sample** plays once per K3 from the Play From position, **Resample** records the loop's own output back in, ageing and all. **Direction** runs forward, backward, back and forth (**Pendulum**) or flips at random at each boundary.
 
-**Speed** is bipolar. In **Steps** mode it snaps to −100 % (half speed, octave down), 0 % (normal), or +100 % (double speed, octave up). In **Smooth** mode it moves continuously across the full range, exponentially mapped (`2 ^ (Speed/100)`). Speed affects both record and replay.
+**Rec Level** sets the recording gain, **Play Level** the playback, **Fade Level** the gain across the crossfade at the loop's seam. **Speed** affects recording and playback alike: in **Octaves** it snaps to half speed, normal and double; in **Free** it moves continuously.
 
 #### Medium
 
@@ -596,39 +451,29 @@ Each Hold is a full [Mod Rack](#mod-rack) target (Size, Density, Spread, Pitch, 
 | **Tape Wow** | 5 % | 0–100 % |
 | **Vinyl Noise** | 10 % | 0–100 % |
 
-**Medium** picks the storage type the loop pretends to be, and it works in two layers. **Imprint** and **Wear** are destructive: they bake the medium's base character (its filtering and saturation) into the buffer. **Imprint** controls how strongly that base character colours the signal at the moment of recording: at 0 % the buffer captures your input clean, at 100 % the first repeat already has the medium's full character. **Wear** controls how much it degrades the loop on each subsequent pass: at 0 % the loop holds its captured state indefinitely, at higher values it erodes a little more every cycle. The **M:** parameters are the second layer: medium-specific effects that live on the playback side, non-destructive and reversible in real time. They colour the loop on the way out without ever touching the buffer, so you can dial them while a loop plays and they read back instantly. Because each medium is its own internal looper, **the Medium is fixed for the life of a loop**: choose it before you record. Changing Medium while a loop exists clears that loop and returns the looper to idle; the new medium then applies to your next recording. The six media, with their characteristic flavour:
+**Medium** is the storage the loop pretends to be, and it works in two layers. The base character (filtering and saturation) is written into the buffer: **Imprint** sets how strongly it colours a take as it lands, **Wear** how much further each pass erodes it. Each medium's own control colours only the playback, so it changes a loop recorded minutes ago and can be turned back. With Imprint and Wear at 0, the buffer holds your playing clean.
 
-- **BBD.** Bandwidth-limited LPF, op-amp bias, tanh saturation, baked in by Imprint and Wear. **BBD Tone** sets the bandwidth (Bright or Dark, the same two cutoffs as the Repeat pedal's Color). It is the one M: parameter that acts on both sides: it bakes the bandwidth as you record and also filters on playback, so you can darken a recorded loop live down to its baked limit, but not brighten past it.
-- **Cassette.** Bandpass with misbias saturation, amplitude crinkle, and a subtle FM artefact, baked in. **Cassette Wow** adds wow and flutter on the playback side, independent of Imprint and Wear.
-- **CD.** The clean medium of the roster: the recording lands almost pristine and only develops a gentle high-frequency rolloff over passes (the CD ageing in the sun). Its character lives entirely on the playback side: skips that jump the read head to a new buffer position, stutters that lock the head on a 100 ms region for several repetitions, and brief dropouts that mute the loop. **CD Errors** scales the rate of all three together; the rest of the time the loop plays clean.
-- **Chip.** Bit-depth and sample-rate reduction baked in, with the aliasing that comes for free; low-resolution sample-playback in the spirit of ISD voice chips, vintage DAC hardware, and early samplers like the SP-1200. **Chip Crush** is an additional live bitcrusher on the playback side, perceptually curved so it bites from roughly a third of the way up.
-- **Tape.** Wide LPF, misbias saturation, compander LPF, and short print-through, baked in. **Tape Wow** adds wow and flutter on the playback side.
-- **Vinyl.** Gentle high-frequency rolloff baked in, plus a pronounced slow read-side pitch wobble (a warped-record warble). **Vinyl Noise** adds live surface noise on the playback side: fine high-frequency crackle over a continuous low dust haze, sparse at low values, dense when turned up.
+Each medium is its own looper, so the Medium is fixed for the life of a loop: changing it clears the loop.
 
-The two layers sit on different paths. Imprint and Wear are destructive: Imprint colours the input as it enters the buffer (a one-shot at record time), Wear reprocesses the buffer's existing content on every loop pass and folds it back in (accumulating over time). Both bake only the medium's base character. The **M:** parameters never write to the buffer; they are read-path effects applied to the loop on its way out, reversible and live even on a loop recorded minutes ago. The one exception is **BBD Tone**, which sets a bandwidth used on both sides. With Imprint at 0 and Wear at 0, the buffer captures your input clean and holds it indefinitely, and only the selected medium's M: effects colour the playback.
+- **BBD** limits the bandwidth and saturates. **BBD Tone** is the one control on both sides: it sets the bandwidth baked in and also filters playback, so a loop can be darkened live but not brightened past what was baked.
+- **Cassette** is band-passed with misbias saturation and crinkle; **Cassette Wow** adds wow and flutter.
+- **CD** records almost pristine and only dulls slowly over passes. **CD Errors** sets how often playback skips, stutters on a short region or drops out.
+- **Chip** reduces bit depth and sample rate, aliasing included, like an early sampler; **Chip Crush** adds a live bitcrusher.
+- **Tape** softens, saturates and prints through; **Tape Wow** adds wow and flutter.
+- **Vinyl** rolls off the highs and warbles like a warped record; **Vinyl Noise** adds crackle over a low dust haze.
 
-```
-Destructive write paths (base medium character, scaled by Imprint / Wear)
-
-  input  ──► base character (scaled by Imprint) ──► BufWr ──► buffer      (one-shot at record)
-  buffer ──BufRd──► base character (scaled by Wear) ──► BufWr ──► buffer  (accumulates per pass)
-                                                                    ↺
-
-Non-destructive read path (medium effects, reversible, never write back)
-
-  buffer ──BufRd──► wow / crackle / crush / CD errors / BBD tone ──► output → Tremolo → Spring reverb → ...
-```
+![Medium: Imprint and Wear write into the buffer, each medium's own control acts on playback only](docs/img/loop_medium.png)
 
 #### Quantization
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
-| **Quantize Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Quantize Division** | Off | Off / 8/1 … 1/64 |
 | **Quantize Feel** | Note | Note / Dotted / Triplet |
 
-When the Norns clock is running and **Quantize** is set to a division, every K2 transition (record start, record end, play→dub, dub→play, stop) waits for the next beat boundary. **Off** is free-running. See [Synchronization](#synchronization) for how the division and feel combine.
+With the Norns clock running and a division set, every transport step waits for the next boundary of that grid. Off is free-running.
 
-### Spring Reverb
+### Reverb
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
@@ -641,30 +486,27 @@ When the Norns clock is running and **Quantize** is set to a division, every K2 
 | **Drip** | 50 % | 0–100 % |
 | **Freeze** | Off | Off / On |
 
-On the device, turn Amount to 0 to silence the reverb. A dedicated **Engage** toggle (SPRING REVERB group) lives in the PARAMS menu for MIDI mapping. Useful when you want to kill the reverb instantly from a footswitch and restore it to the same Amount with a second press.
+A spring tank over the live signal and the loop together, in stereo through an allpass diffuser. **Amount** sets send and decay together, and the default 10 % sits it behind the guitar; **Length** stretches the decay on its own, for a long ring without more signal in the tank. The shelves at 250 Hz and 3.5 kHz colour the wet path.
 
-**Freeze** closes the input and lets the springs ring on without end; K2 on the focused Reverb switches it, and so does the Trigger action Reverb: Freeze.
+**Dwell** is how hard the springs are driven: more grows denser and saturates gently. **Drip** is the dispersive chirp a spring makes when a hard attack hits it, the wet surf "boing". **Freeze** closes the input and lets the springs ring on.
 
-**Length** sets the spring tank decay independently of Amount, so you can keep the send level low and still get a long ring. **Low Shelf** at 250 Hz and **High Shelf** at 3500 Hz colour the wet path. Pull the high shelf down for a darker bloom; lift it for a brighter shimmer.
+### Cab & Mic
 
-**Dwell** sets how hard the springs are driven. Higher values push more signal into the tank, which saturates gently and grows denser and louder; lower values keep the tank light and sparse. **Drip** adds the dispersive chirp a real spring makes when a hard attack hits it, the wet "boing" of surf guitar. Both sit in the PARAMS menu only and are Mod Rack targets (Reverb: Dwell, Reverb: Drip).
-
-### Cab & Mic Simulation
-
-| Parameter | Default | Options |
+| Parameter | Default | Range / Options |
 |-----------|---------|---------|
 | **Engage** | On | Off / On |
-| **Mic Position** | Middle | Center / Middle / Edge |
+| **Position** | Middle | Center / Middle / Edge |
+| **Level** | 0 dB | Level |
 
-**Engage** switches the cabinet processing. **Off** removes all cabinet colour, useful for a raw DI tone or for feeding an external powered cab. **On** runs the built-in Jensen 10" model at the **Mic Position** you set: Center is brightest and most present, Middle is balanced, Edge is darker and rounder. While Mic Position is selected, the grill shows the speaker from the front, with an X where the mic stands.
+A 10" Jensen-style cabinet with a mic at three **Positions**: Center is brightest, Middle balanced, Edge darker and rounder. While Position is selected, the grill shows the speaker from the front with an X where the mic stands. Switch it off for a raw DI tone or to feed a real cabinet.
 
-![Cab & Mic: Mic Position selected, the mic at Middle](docs/img/cab_mic.png)
+![Cab & Mic: Position selected, the mic at Middle](docs/img/cab_mic.png)
 
 ### Tape
 
 ![Tape: the reels and the transport](docs/img/tape.png)
 
-The whole mix passes over a tape head on its way out. Tape is less an effect than a material: it rounds the transients, thickens the low end, breathes a little hiss and never quite holds still. Stop it, and the music winds down with the reels.
+The whole mix passes over a tape head. Tape is less an effect than a material: it rounds transients, thickens the low end, breathes a little hiss and never quite holds still. Stop it, and the music winds down with the reels.
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
@@ -677,18 +519,18 @@ The whole mix passes over a tape head on its way out. Tape is less an effect tha
 | **Wow** | 25 % | 0–100 % |
 | **Magnetism** | 25 % | 0–100 % |
 | **Azimuth** | 25 % | 0–100 % |
-| **Spin Down** | 2.5 s | 0.1–5 s |
-| **Spin Up** | 1 s | 0.1–5 s |
+| **Spin Down** | 2.5 s | 100 ms–5 s |
+| **Spin Up** | 1 s | 100 ms–5 s |
 
-**Speed** sets the tape speed: slower tape has a lower, stronger head bump, an earlier treble rolloff, more wow and more hiss; 30 ips is the cleanest. **Drive** sets how hard the signal hits the tape. **Bias** under-biased is brighter and breaks up earlier and less symmetrically, over-biased darker and cleaner. **Hiss** sets the noise floor, **Wow** the slow pitch drift and fast flutter. **Magnetism** is the density of the magnetic layer: more saturation, more low-end bump, and treble that compresses as the level rises. **Azimuth** tilts the playback head, offsetting left against right in time for a slightly smeared, phasey stereo image.
+Slower tape has a stronger head bump, earlier treble loss, more wow and more hiss; 30 ips is the cleanest. **Drive** is how hard the signal hits the tape. Under-**Bias** is brighter and breaks up earlier, over-bias darker and cleaner. **Hiss** is the noise floor, **Wow** slow drift and fast flutter, **Magnetism** the density of the coating: more saturation and low end, treble that compresses as the level rises. **Azimuth** tilts the head, smearing left against right.
 
-**Stop/Start** stops the transport: the tape slows to a halt over **Spin Down**, the pitch falling with it, and comes back up to speed over **Spin Up**. K2 on the focused Tape does the same, and so does the Trigger action Tape: Stop/Start. Engaged and level-matched by default, so Tape colours the mix without making it louder. Speed, Drive, Bias, Hiss, Wow, Magnetism and Azimuth are Mod Rack targets; Tape: Toggle switches it in and out.
+**Stop/Start** brings the reels to a halt over **Spin Down**, the pitch falling with them, and back up over **Spin Up**. Tape is level-matched, so it colours the mix without making it louder.
 
 ### Build
 
 ![Build above Mesmerize in the rack](docs/img/build.png)
 
-Two delay lines, side by side, whose lengths keep a fixed proportion, the second one free to run backwards. They remember in the way early digital delays did: the longer they reach, the fewer bits and the lower the sample rate they can spend. Feed them back into each other, let a repeat jump an octave now and then, and a single phrase builds into a slowly shifting architecture.
+Two delay lines side by side whose lengths keep a fixed proportion, the second free to run backwards. They remember the way early digital delays did: the further they reach, the fewer bits and the lower the sample rate they can spend. Feed them into each other, let a repeat jump an octave now and then, and a phrase builds into a slowly shifting architecture.
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
@@ -697,7 +539,7 @@ Two delay lines, side by side, whose lengths keep a fixed proportion, the second
 | **Spillover** | Off | Off / On |
 | **Ratio** | 4:-1 | 1:1 / 1:2 / 2:1 / 2:3 / 3:2 / 3:4 / 4:3 / 1:-1 / 1:-2 / 2:-1 / 4:-1 |
 | **Block** | 10 | 1–10 |
-| **Time** | 10 s | 1 ms up to the Block's limit, in semitone steps |
+| **Time** | 10 s | 1 ms up to the Block's limit, in semitones |
 | **Feedback** | 50 % | 0–100 % |
 | **Octave** | 10 % | 0–100 % |
 | **Smear** | 10 % | 0–100 % |
@@ -706,24 +548,20 @@ Two delay lines, side by side, whose lengths keep a fixed proportion, the second
 | **Spread** | 50 % | 0–100 % |
 | **Low Cut** | 40 Hz | 20–1000 Hz |
 | **High Cut** | 15 kHz | 1–20 kHz |
-| **Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Division** | Off | Off / 8/1 … 1/64 |
 | **Feel** | Note | Note / Dotted / Triplet |
 
-**Ratio** sets the lengths of line A and line B relative to each other; **Time** is the length of the longer one. A negative second number plays line B's repeats in reverse. **Spread** pans A to the left and B to the right.
+**Ratio** sets the lengths of line A and line B against each other, and **Time** is the longer one; a negative second number plays B backwards. **Spread** pans A left and B right.
 
-**Block** is the memory the lines run in. Each block caps Time: about 2.5, 6.3, 16, 40, 100, 250, 630 ms, 1.6, 4 and 10 s for blocks 1 to 10. Blocks 1 to 4 run at full sample rate and 16 bit; from block 5 the bit depth starts to fall and from block 6 the sample rate, down to 8 bit and a quarter of the rate at block 10, so long delays sound grainy and dark. **Time** steps in semitones up to the block's limit; changing Block keeps the time where it fits. Below 40 ms the lines turn into a pitched comb filter that rings with Feedback.
+**Block** is the memory the lines run in, and it caps Time: about 2.5, 6.3, 16, 40, 100, 250, 630 ms, 1.6, 4 and 10 s for blocks 1 to 10. Up to block 4 they run at full rate and 16 bit; from there bits and then sample rate fall, to 8 bit at a quarter rate in block 10, so long delays sound grainy and dark. Below 40 ms the lines become a pitched comb that rings with Feedback. **Division** locks Time to the clock, still within the Block.
 
-**Feedback** sets how long the repeats last. **Octave** is the chance, on each pass, that a repeat jumps an octave up or down. **Smear** diffuses and softly saturates the repeats inside the loop, so they blur as they recede. **Crossfeed** feeds each line partly from the other. **Mix** is an equal-power blend of dry and wet. **Low Cut** and **High Cut** filter the wet signal only.
+**Octave** is the chance that a repeat jumps an octave, **Smear** blurs and softly saturates the repeats as they recede, **Crossfeed** feeds each line from the other. The cuts filter the wet signal only.
 
-**Division** locks Time to the Norns clock (see [Synchronization](#synchronization)), still limited by the Block.
-
-**Freeze** closes the input and keeps the lines cycling what they hold, an endless loop of the last repeats. **Spillover** decides what bypass does. With Spillover On, bypassing closes the input and lets the repeats ring out, and a frozen loop keeps playing until Freeze is released. With Spillover Off, bypass cuts the wet signal at once, Freeze stops acting, and re-engaging starts with empty lines.
-
-K2 on the focused Build switches Freeze. Block, Ratio, Time, Feedback, Octave, Smear, Crossfeed, Mix, Spread, Low Cut and High Cut are Mod Rack targets; Build: Toggle and Build: Freeze are Trigger actions.
+**Freeze** closes the input and keeps the lines cycling what they hold. **Spillover** decides what switching off does: On lets the repeats ring out (a frozen loop keeps playing until Freeze is released), Off cuts them at once and starts empty next time.
 
 ### Mesmerize
 
-The last room in the chain, and the largest. Where the spring is a box of wire in the amp, Mesmerize is a figure-eight of slowly drifting echoes that can swell to a hall and beyond. Freeze it, and a chord hangs in the air while you play over it.
+The last device and the largest room. Where the spring is a box of wire in the amp, Mesmerize is a figure-eight of slowly drifting echoes that swells to a hall and beyond. Freeze it, and a chord hangs in the air while you play over it.
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
@@ -734,7 +572,7 @@ The last room in the chain, and the largest. Where the spring is a box of wire i
 | **Pre-Delay** | 100 ms | 0–500 ms |
 | **Decay** | 75 % | 0–100 % |
 | **Damping** | 5 % | 0–100 % |
-| **Tilt** | 0 % | −100–+100 % |
+| **Tilt** | 0 % | −100 to +100 % |
 | **Mix** | 25 % | 0–100 % |
 | **Spread** | 50 % | 0–100 % |
 | **Diffusion** | 25 % | 0–100 % |
@@ -743,235 +581,163 @@ The last room in the chain, and the largest. Where the spring is a box of wire i
 | **Low Cut** | 60 Hz | 20–1000 Hz |
 | **Width** | 50 % | 0–100 % |
 
-**Size** scales the whole tank, from a small chamber to far beyond a hall. **Pre-Delay** holds the reverb back behind the dry note. **Decay** sets how long the tail lasts, **Damping** how quickly its highs die away. **Tilt** tips the tone of the wet signal around 1 kHz: negative darker, positive brighter. **Mix** is an equal-power blend of dry and wet.
+**Size** scales the tank from a small chamber to far beyond a hall, **Pre-Delay** holds the reverb back behind the note, **Decay** sets how long the tail lasts and **Damping** how fast its highs die. **Tilt** tips the wet tone around 1 kHz, darker below zero, brighter above.
 
-Under **Space**, **Spread** changes the proportions between the tank's delay lengths (100 % is the classic spacing) and **Diffusion** how densely the input is smeared before it enters the tank. Under **Tone & Stereo**, **Saturation** drives the feedback loop softly, **Bandwidth** low-passes the input (higher is brighter), **Low Cut** thins the wet low end, and **Width** sets the stereo width of the wet signal, from mono at 0 % to wider than the tank at 200 %.
-
-**Freeze** closes the input and holds the tank at infinite decay. **Spillover** decides what bypass does. With Spillover On, bypassing closes the input and lets the tail ring out, and a frozen tank keeps sounding until Freeze is released. With Spillover Off, bypass cuts the wet signal at once and Freeze stops acting; re-engaging then starts with a fresh, empty tank instead of the moment that was cut off.
-
-K2 on the focused Mesmerize switches Freeze. Size, Pre-Delay, Decay, Damping, Tilt, Mix, Spread, Saturation, Width and Low Cut are Mod Rack targets; Mesmerize: Toggle and Mesmerize: Freeze are Trigger actions.
-
-### Sense
-
-![Mod Rack: a Sense on Amp: Volume](docs/img/mod_sense.png)
-
-Two envelope followers (the **Sense** modules), each with the following parameters:
-
-| Parameter | Default | Range / Options |
-|-----------|---------|-----------------|
-| **Engage** | Off | Off / On |
-| **Depth** | 50 % | 0–100 % |
-| **Direction** | + | + / − |
-| **Slew** | 50 ms | 1–500 ms |
-| **Freeze** | Off | Off / On |
-| **Target Device** | - | device group |
-| **Target Param** | - | parameter within device |
-
-Each Sense module tracks the amplitude of the raw input signal, before the pedals. In Mono input mode the detector reads the left jack only; in Stereo input mode it reads `(L + R) × 0.5` so both channels drive the envelope together.
-
-**Freeze** holds the modulation where it is: the Sense keeps listening but sends nothing new to its target until Freeze is off again. Short-press **K2** on the Sense in the Mod Rack switches it.
-
-**Depth** scales the modulation contribution; at 100 % Sense can sweep the target across its full parameter range. **Direction** picks whether the modulation pushes the target upward from its base value (`+`) or downward (`−`). **Slew** sets the time constant of the amplitude detector itself, with the same value used for both attack and release: short Slew gives snappy, percussive tracking, long Slew gives a sluggish, smooth contour that ignores transients.
-
-**Target Device** and **Target Param** select what Sense modulates. The device list and parameter list are the same as the Mod Rack's, minus parameters already claimed by another source. The ownership pool is shared with the Mod Rack: a target can be claimed by at most one LFO or one Sense module at a time, and it is claimed the moment a source points at it, even before that source is enabled. The claimed target's PARAMS entry carries the `(M)` prefix whether or not the source is running; enabling the source is what starts the value moving. Both Sense modules ship with no target (`-`); pick a Device and the first free parameter is selected automatically, and setting the Device back to `-` releases the target.
-
-In the Mod Rack, a Sense shows the envelope it hears over the last three seconds, traced above and below a centre line, before Depth and Direction are applied. Short-press K3 on the pane to toggle Enable.
+**Spread** changes the proportions between the tank's delay lengths, with the classic spacing at 50 %, and **Diffusion** how densely the input is smeared before it enters. **Saturation** drives the feedback loop softly, **Bandwidth** low-passes the input, **Low Cut** thins the wet low end, and **Width** runs from mono at 0 % through the tank's own width at 50 % to wider still. **Freeze** and **Spillover** work as on Build.
 
 ### Mod Rack
 
 ![Mod Rack: an LFO on Repeat: Time](docs/img/mod_lfo.png)
 
-Eight LFOs, each with the following parameters:
+Modulation is added where it is needed. Hold **K1 and K3** together for two seconds on a parameter and a chooser asks how to move it: **Modulate** (an LFO), **Sense**, **Walk** or **Trigger**, each shown with its picture running. **K3** takes it: the next free slot of that kind is patched to the parameter (a Trigger to the device, starting with its first free action), switched on and opened in the rack. A kind with every slot taken reads *full*. If a source already drives the parameter, the chooser offers **Edit** and **Remove** instead; **K2** leaves without changes.
+
+![Chooser on Amp: Volume, here offering Edit because a Sense already drives it](docs/img/mod_chooser.png)
+
+**K1 held for two seconds** opens and closes the rack. It shows only what is patched, in the order Sense, LFO, Walk, Trigger, or **Empty**. Each source fills the screen with its picture, its target on the line beneath:
+
+- an **LFO** draws its live output over the last two cycles, so Depth, Direction, slew and clipping at the range ends all show;
+- a **Sense** draws the envelope it hears over the last three seconds;
+- a **Walk** shows its sixteen steps as bars with a running light, unused steps as faint ghosts;
+- a **Trigger** shows its last eight rolls, a filled bar for each fire, an empty frame where Chance let one pass.
+
+In the rack **E1** moves between sources, **E2** picks a parameter, **E3** changes it, and **K3** switches the source on and off. A short **K2** is its second function: an LFO restarts its cycle, a Sense freezes, a Walk returns to step 1, a Trigger fires by hand. **K2** held two seconds re-rolls a Stepped Random register or a Walk's steps. Removing a source returns it to its factory settings, so the next one starts fresh.
+
+**One owner per target.** An LFO, Sense or Walk claims its target as soon as it points at it, even while switched off, so two sources never fight over one parameter; the target lists only offer what is free. A claimed parameter carries **(M)** in PARAMS, and while its source is off it rests at its base value and takes manual edits. Triggers keep a pool of their own, so a Trigger can switch a pedal while an LFO moves a knob inside it. Every source stores its target by name in the PSET, so it finds it again however the lists have shifted.
+
+**What can be moved.** Almost every continuous control of the chain, Count's whole voice, and the sources themselves: an LFO can drive another LFO's Rate or Depth, or a Walk's Rate, for compound motion. The lists adapt to the destination: a Division or Feel is offered only once that device is synced, and modulation never switches a sync to Off. If a target goes away (a shape changes, a sync is switched off), the source moves to the next one still available.
+
+#### LFO
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Engage** | Off | Off / On |
 | **Shape** | Sine | Sine / Triangle / Saw / Square / Smooth Random / Stepped Random |
-| **Rate** | 1.0 Hz | 0.1–25 Hz (exp) |
+| **Rate** | 1 Hz | 0.1–25 Hz |
 | **Depth** | 50 % | 0–100 % |
 | **Direction** | +/- | + / - / +/- |
 | **Phase** | 0° | 0° / 90° / 180° / 270° |
-| **Steps** | 8 | 1–16 (Stepped Random only) |
-| **Stability** | 50 % | 0–100 % (Stepped Random only) |
-| **Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
-| **Feel** | Note | Note / Dotted / Triplet (when a Division is set) |
-| **Rate Slew** | 0 s | 0–5 s (non-Step-Random only) |
-| **Target Device** | - | device group |
-| **Target Param** | - | parameter within device |
-| **Randomize** | - | trigger (Stepped Random only, in PARAMS / MAP) |
+| **Steps** | 8 | 1–16 (Stepped Random) |
+| **Stability** | 50 % | 0–100 % (Stepped Random) |
+| **Rate Slew** | 0 ms | 0–5 s |
+| **Division** | Off | Off / 8/1 … 1/64 |
+| **Feel** | Note | Note / Dotted / Triplet |
+| **Target Device** | - | |
+| **Target Param** | - | |
+| **Randomize** | trigger | Stepped Random, PARAMS and MAP |
 
-**Engage** starts the LFO moving its target. Ownership is claimed earlier, the moment the LFO points at a target: the device and parameter dropdowns filter out parameters already claimed by another LFO or Sense module, so two sources can never share a target. A claimed target's PARAMS entry carries the `(M)` prefix whether or not its owner is enabled. While the owner is disabled the value sits at its base and still responds to manual edits; while the owner is enabled the modulation drives it. Every source ships with no target (`-`); pick a Device and the first free parameter is selected automatically, and setting the Device back to `-` releases the target.
+Eight LFOs. **Direction** sweeps from the base upward (+), downward (−) or around it (+/-), by **Depth**. **Rate Slew** smooths sudden rate changes, such as another LFO moving this one's Rate.
 
-**Shape** selects how the LFO moves. Sine, Triangle, Saw, and Square are the standard periodic shapes. **Smooth Random** generates a band-limited random signal that interpolates smoothly between values at each cycle boundary. **Stepped Random** is a shift-register pattern generator: each clock step shifts the register and inserts a new bit.
+**Smooth Random** glides between random values. **Stepped Random** is a shift register in the spirit of the Turing Machine: **Steps** is its length in bits, and **Stability** how often it feeds back its own top bit rather than its complement, so 100 % locks a pattern and 50 % is pure chance. **Randomize** seeds the register anew.
 
-**Rate** sets the LFO frequency. When **Division** is set, Rate is derived from the Norns clock (same formula as Tremolo and Warp; see [Synchronization](#synchronization)). While synced, the Rate parameter is hidden from the strip and replaced with the division name. **Sync Feel** applies the Note/Dotted/Triplet multiplier and is only visible when Sync is active.
+#### Sense
 
-**Rate Slew** smooths abrupt changes to the LFO rate (for example, when another LFO modulates this LFO's rate). The slew time is in seconds. Hidden for Stepped Random, which uses clock-based stepping.
+![Mod Rack: a Sense on Amp: Volume](docs/img/mod_sense.png)
 
-**Direction** controls how the LFO value maps to the target range. **+** sweeps from base to base + depth. **-** sweeps from base to base − depth. **+/-** sweeps symmetrically around the base.
+| Parameter | Default | Range / Options |
+|-----------|---------|-----------------|
+| **Engage** | Off | Off / On |
+| **Depth** | 50 % | 0–100 % |
+| **Direction** | + | + / - |
+| **Freeze** | Off | Off / On |
+| **Slew** | 50 ms | 1–500 ms |
+| **Target Device** | - | |
+| **Target Param** | - | |
 
-**Steps** (Stepped Random) sets the shift-register length in bits. A 1-bit register produces a coin-flip pattern; longer registers produce longer sequences before repeating. **Stability** controls how often the register feeds back its own most-significant bit (high Stability = more repetition) versus its complement (low Stability = more variation). At 50 % the output is uncorrelated. **Randomize** is a trigger in PARAMS and MAP that seeds the register with a random value; short-press K2 on the LFO's pane in the Mod Rack triggers the same action.
+Two envelope followers on the raw input, before the pedals (both jacks together in Stereo, the voice when one plays). The louder you play, the further the target moves, up or down by **Depth**: a soft touch can open Distort's Tone, a hard pick pull the reverb back. **Slew** sets the follower's attack and release, snappy when short, a smooth contour when long. **Freeze** holds the modulation where it is.
 
-**Target Device** and **Target Param** select what the LFO modulates. The device list groups targets by signal-chain stage (Cut, Fray, Push, Distort, Warp, Repeat, Amp, Tremolo, Hold 1, Hold 2, Loop, Reverb, Cab, Count, LFO 1–8, Walk, Trigger, Tape, Build, Mesmerize). The parameter list shows only the parameters available within the selected device. Tremolo, Warp, and Repeat each expose both their Sync Division and Sync Feel as separate targets, so an LFO can shift a synced effect between Note, Dotted, and Triplet feel in real time. Loop exposes its Quantize division as a target alongside the level and speed controls. Count exposes its whole voice (Root, Register, Level, Length, Division, Scale, Chords, and Scale Play), so an LFO can transpose the metronome line, shift its octave, harmonise it, or resequence its scale-play mode. LFOs can modulate Rate, Depth, Phase, Steps, Stability, Rate Slew, Sync Division, and Sync Feel of other LFOs; routing LFO A into LFO B's rate while LFO B modulates a pedal parameter creates compound motion.
-
-The target list adapts to the state of the destination. For another LFO, only the parameters relevant to its current shape appear: Phase and Rate Slew on the periodic and smooth-random shapes, Steps and Stability on Stepped Random. Rate is hidden once the destination is synced. Sync Division and Sync Feel are exposed as targets only when sync is already active on the destination, on Tremolo, Warp, Repeat, the looper, and other LFOs alike, so modulation reshapes a sync grid that you have already chosen rather than switching sync on or off. A Sync or Quant target can never be moved to **Off** by modulation; only a manual edit can. If a destination changes in a way that retires the current target (the waveform changes, sync turns off, the synced rate disappears), the LFO falls back to the first parameter still available.
-
-Every modulation source (LFO, Sense, Walk and Trigger) stores its target by name in the PSET, not by its position in the dropdown. The dropdowns only list free targets and so change order all the time; the name lets a PSET find the same target again on load.
-
-### Walk
+#### Walk
 
 ![Mod Rack: a Walk on Warp: Rate](docs/img/mod_walk.png)
-
-Two step sequencers (the **Walk** modules), each stepping through up to sixteen values and driving a chosen continuous parameter. Each has the following parameters:
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Engage** | Off | Off / On |
 | **Steps** | 16 | 2–16 |
-| **Step 1 … Step 16** | 0 % | −100 – +100 % |
-| **Rate** | 1.0 Hz | 0.1–25 Hz (exp) |
-| **Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
-| **Feel** | Note | Note / Dotted / Triplet (when a Division is set) |
-| **Rate Slew** | 0 s | 0–5 s |
-| **Target Device** | - | device group |
-| **Target Param** | - | parameter within device |
-| **Randomize** | - | trigger |
+| **Step 1 … Step 16** | 0 % | −100 to +100 % |
+| **Rate** | 1 Hz | 0.1–25 Hz |
+| **Rate Slew** | 0 ms | 0–5 s |
+| **Division** | Off | Off / 8/1 … 1/64 |
+| **Feel** | Note | Note / Dotted / Triplet |
+| **Target Device** | - | |
+| **Target Param** | - | |
+| **Randomize** | trigger | PARAMS and MAP |
 
-A Walk steps through its values in order at **Rate**, or locked to the Norns clock when **Division** is set, looping back to the first step after the last active one. **Steps** sets how many of the sixteen are used; the rest are skipped, and in the Mod Rack their knobs simply disappear while the used ones stay in place.
+Two sixteen-step sequencers. A Walk steps through its first **Steps** values at **Rate** or on the clock and starts over. Each step moves the target from its base: 0 % leaves it, +100 % reaches its maximum, −100 % its minimum, wherever the base sits. **Rate Slew** glides between steps; **Randomize** rolls new values. In the rack, E2 picks a step and E3 sets it.
 
-Each step is a bipolar amount from **−100 %** to **+100 %**, applied relative to the target parameter's current base value: **0 %** leaves the target untouched, **+100 %** drives it to its maximum, **−100 %** to its minimum. With a target of Amp Volume sitting at 2.5, a step at +100 % reaches 10, a step at −100 % reaches 0, and 0 % holds 2.5. The scaling is asymmetric by design, so ±100 % always lands exactly on the rail wherever the base sits.
-
-**Rate Slew** smooths the jump between consecutive step values, gliding instead of hard-stepping. **Randomize** rolls fresh random values into all active steps; it is a trigger in PARAMS and MAP, and **K2** held for two seconds on the Walk in the Mod Rack does the same.
-
-**Target Device** and **Target Param** pick what the Walk drives, from the same pool the LFOs and Sense modules use, minus parameters already claimed by another source. The ownership pool is shared: a target belongs to at most one LFO, Sense or Walk at a time. A Walk can also target another Walk's Rate, Steps, Rate Slew, Sync Division and Sync Feel; the two Walk modules appear in every source's device list as `Walk 1` and `Walk 2`, and triggers can fire `Walk N: Randomize`. As with every device, Sync Division and Sync Feel are modulation targets only once the Walk's own Sync is on.
-
-In the Mod Rack, the Walk shows all sixteen steps as bars above and below a centre line, with a running light underneath; steps beyond Steps stay as faint ghosts of their stored values, so you see what returns when you raise Steps. The playing step lights up; a small dot marks the step selected for editing (E2 scrolls to a step, E3 sets its value). Short-press **K3** toggles the Walk on or off, short-press **K2** sends it back to step 1.
-
-### Triggers
+#### Triggers
 
 ![Mod Rack: a Trigger switching Warp](docs/img/mod_trigger.png)
-
-Four event triggers, each with the following parameters:
 
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Engage** | Off | Off / On |
 | **Chance** | 100 % | 0–100 % |
-| **Rate** | 1.0 Hz | 0.1–25 Hz (exp) |
-| **Division** | Off | Off / 8/1 / 4/1 / 2/1 / 1/1 / 1/2 / 1/4 / 1/8 / 1/16 / 1/32 / 1/64 |
+| **Rate** | 1 Hz | 0.1–25 Hz |
+| **Division** | Off | Off / 8/1 … 1/64 |
 | **Feel** | Note | Note / Dotted / Triplet |
-| **Target Device** | Push (Trigger 1) ... Repeat (Trigger 4) | device group |
-| **Target Action** | Toggle | action within device |
+| **Target Device** | - | |
+| **Target Action** | - | |
 
-Triggers fire at a chosen rate and dispatch a single action per fire. **Chance** acts as a coin gate: 100 % fires every tick, 50 % fires roughly every other, 0 % is silent. **Engage** activates the trigger; while Off, no clock runs and no action fires.
+Four triggers that fire an action at **Rate** or on the clock, each fire passing **Chance**. The actions:
 
-**Rate** sets the firing frequency in free mode. When **Division** is set, Rate is hidden and the firing rhythm is derived from the Norns clock (same formula as Tremolo, Warp, and the LFOs; see [Synchronization](#synchronization)). Sync Feel applies the Note / Dotted / Triplet multiplier and stays visible alongside Sync Division.
+- **Toggle** switches Cut, a pedal, Amp, Tremolo, a Hold, Reverb, Tape, Build or Mesmerize on or off;
+- **Recapture** refreshes a Hold, **Stop/Start** works the Tape, **Freeze** switches Reverb, Build or Mesmerize;
+- **Rec** steps the looper as K3 does, **Clear** empties it, **Undo** takes back the last overdub;
+- **Randomize** re-rolls an LFO in Stepped Random (the LFO then steps only on the trigger) or a Walk.
 
-**Device** and **Target** select what the trigger fires. Devices are grouped by signal-chain stage in the same order as the LFO target list (Cut, Fray, Push, Distort, Warp, Repeat, Amp, Tremolo, Hold 1, Hold 2, Loop, Reverb, LFO 1–8, Walk, Tape, Build, Mesmerize). Each pedal and effect device exposes a **Toggle** target that flips the device's bypass state; Hold 1 and Hold 2 add **Recapture**, which refreshes a running freeze, Tape adds **Stop/Start**, and Build and Mesmerize add **Freeze**, which switches their Freeze on and off. Each LFO device exposes a single **Randomize** target, available only when the destination LFO is in Stepped Random; outside Stepped Random the target dropdown shows `-` and the trigger is a no-op. The Loop device exposes three targets: **Rec** advances the looper through its K3 transport order (idle → rec → play → dub → play …, with sample-mode retrig in play), **Clear** resets the loop unconditionally to idle and empties the buffer, and **Undo** takes back the last overdub.
+A trigger's Rate, Chance and (once synced) Division and Feel are targets for the other sources, so a modulated Division on Loop: Rec cuts loops of changing length that all land on the beat.
 
-Triggers guard their targets the same way the LFOs and Sense modules do, but in a pool of their own: no two triggers can fire the same action. Point one trigger at an action and it drops out of the other triggers' Device and Target dropdowns. The trigger pool is independent of the LFO and Sense pool, so a trigger can flip a pedal's bypass while an LFO modulates a parameter inside that same pedal. Each trigger ships with no target (`-`) and disabled by default; pick an action from the Device and Target dropdowns to assign one.
+## Clock
 
-When a trigger targets `LFO N: Randomize` and is enabled, that LFO's internal Stepped Random clock is suspended and the trigger becomes the only source of new random steps. Disabling the trigger or pointing it elsewhere returns the LFO to its own internal stepping.
+### Synchronization
 
-LFOs can modulate trigger Rate and Chance, and, while the trigger is synced, its Division and Feel; the trigger devices appear in the LFO target list as `Trigger 1` through `Trigger 4`. Modulating Sync walks a trigger through the clock divisions without leaving the grid: a trigger on Loop: Rec then cuts loops of changing length that all land on the beat. Changing Sync or Sync Feel by hand while a source modulates it moves the centre of the modulation; switching Sync off releases the target and the source falls back to the trigger's next free target.
+Every device with a **Division** (Warp, Repeat, Tremolo, Build, the LFOs, Walks and Triggers, Loop's Quantize, Keys' Retrig and Count) can lock to the Norns clock; Off is free-running. The division and its **Feel** give the length in beats, and the device follows the tempo:
 
-## Synchronization
+| Division | Beats | | Feel | × |
+|---|---|---|---|---|
+| `8/1` | 32 | | Note | 1 |
+| `4/1` | 16 | | Dotted | 1.5 |
+| `2/1` | 8 | | Triplet | 2/3 |
+| `1/1` | 4 | | | |
+| `1/2` | 2 | | | |
+| `1/4` | 1 | | | |
+| `1/8` | 0.5 | | | |
+| `1/16` | 0.25 | | | |
+| `1/32` | 0.125 | | | |
+| `1/64` | 0.0625 | | | |
 
-When the Norns clock is running and a stage's **Division** is set (anything except **Off**), the stage's rate parameter is derived from the BPM instead of its standalone value:
+At 120 BPM, `1/4` is 2 Hz, `1/4` Dotted 1.33 Hz, `1/4` Triplet 3 Hz. The encoder only offers divisions the device can reach at the current tempo, and a tempo change that pushes one out of range moves it to the nearest reachable one. Modulation on a synced rate centres on the clock's value.
 
-- Tremolo Speed → derived from BPM
-- Warp Rate → derived from BPM
-- Repeat Time → derived from BPM (`1000 / Hz` ms)
-- Looper Quantization → snaps K2 transitions to the next beat boundary
+When the clock source switches to MIDI (SYSTEM > CLOCK), Tremolo, Warp, Repeat and the Loop's Quantize lock to `1/4`; switching back to internal frees them again.
 
-The conversion is `beats = base_beats × feel_multiplier`, where:
+### Tap tempo
 
-| Division | base_beats |
-|---|---|
-| `8/1` | 32 |
-| `4/1` | 16 |
-| `2/1` | 8 |
-| `1/1` | 4 |
-| `1/2` | 2 |
-| `1/4` | 1 |
-| `1/8` | 0.5 |
-| `1/16` | 0.25 |
-| `1/32` | 0.125 |
-| `1/64` | 0.0625 |
+On Warp, Repeat or Tremolo, **K2** taps the tempo; on Count it taps the BPM. The second tap sets the value, every further one refines it over the last four intervals, and a pause of more than two seconds starts a new series. The readout jumps to the rate and blinks with each tap. Tapping only works while Division is Off.
 
-| Feel | feel_multiplier |
-|---|---|
-| Note | × 1.0 |
-| Dotted | × 1.5 |
-| Triplet | × 2/3 |
+A tap marks one beat, and **Tap Division** and **Tap Feel** say what that beat means: at `1/4` the delay equals the tap interval, at `1/8` it is half as long. Changing them recalculates from the last tapped tempo, and the result matches a synced division at the same tempo. Repeat ends at 1000 ms, so slow taps clamp (at `1/4` below 60 BPM) and stay dimmed until you change the value by hand.
 
-Resulting `Hz = BPM / (beats × 60)`. At 120 BPM: `1/4 Note` = 2 Hz, `1/4 Dotted` = 1.33 Hz, `1/4 Triplet` = 3 Hz.
-
-Each effect's range still applies (Tremolo 0.1–25 Hz, Warp 0.1–25 Hz, Repeat 1–1000 ms). The encoder only lands on divisions the current BPM can actually reach: unreachable ones are skipped as you scroll, and if a tempo change pushes the active division out of range it snaps to the nearest reachable one. So at any BPM the strip only shows a division the effect can produce. A division forced out of range by other means (for example from the PARAMS menu) still dims on the encoder strip to flag the clamp.
-
-When an LFO modulates the Time, Speed, or Rate of a synced effect, the modulation centres on the clock-derived value rather than the standalone parameter, so the wiggle tracks the synced time instead of collapsing toward the low manual base.
-
-When the Norns clock source switches to **MIDI** (PARAMS > CLOCK > SOURCE), all four sync defaults activate automatically (`1/4` for Tremolo, Warp, Repeat, and Looper Quantization). Switching back to internal clock deactivates them. Stopping the clock holds the last derived values.
-
-## Looper transport
-
-```
-idle ── K3 ──► rec ── K3 ──► play ── K3 ──► dub ── K3 ──► play …
-                │
-                └── K2 ──► idle (recording aborted, buffer cleared)
-
-play / dub ── K2 ──► stop ── K2 ──► idle (buffer cleared)
-stop ── K3 ──► play
-play / dub / stop ── K2 held 2 s ──► undo last overdub (a running dub ends)
-```
-
-The loop keeps running when you open the tuner or pedalboard. Transport keys (K2, K3) are inactive in those views; the loop is not affected.
-
-Transport icons at the bottom of the left display (framed in brackets when a looper parameter is selected):
-
-- **●** recording
-- **●+** overdubbing
-- **▶** playing
-- **■** stopped
+To tap from a footswitch, map **Tap** to a CC. If your gear sends MIDI clock, switch the Norns clock to MIDI and use Division instead.
 
 ## MIDI
 
-Every parameter, bypass toggle, and looper transport action is available in the PARAMS menu and can be mapped to any MIDI CC using Norns' built-in MIDI learn.
+Every parameter, switch and trigger maps to a CC through Norns' MIDI learn: open PARAMS > MAP, select the entry, press K3 and move the control. Mappings are saved per PSET.
 
-### How to map a control
+- **Continuous controls** walk their own grid across the CC range (see [One system for every control](#one-system-for-every-control)).
+- **Options and switches** split the CC range evenly, so an Off/On switch is On from 64. A footswitch must send both values; one that only ever sends 127 switches once.
+- **Triggers** fire on any value above 0, so a button that sends 127 on press and 0 on release fires once.
+- With **MIDI Pickup** on, a knob takes over only once it reaches the current value; with **Follow Focus** on, the screen jumps to whatever it moves (see [GUI](#gui)).
 
-1. Open the PARAMS menu (press K1 from the main screen, navigate to PARAMS)
-2. Scroll to the parameter or action you want to map
-3. Press K3 to enter MIDI learn mode (the entry flashes)
-4. Send a CC from your MIDI controller
-5. Norns assigns that CC to the parameter; the mapping is saved with your PSET
-
-### What can be mapped
-
-**Route, Keys, the PARAMS groups of installed voices, Cut, Fray, the pedals, Amp, Tremolo, Hold 1 and 2, Loop, Reverb, Cab & Mic, Tape, Build, Mesmerize, Count.** All continuous parameters respond to CC values scaled to their parameter range.
-
-**Enable toggles** (Amp, Reverb, Tremolo, Tape, Build, Mesmerize, Push, Distort, Warp, Repeat). CC ≥ 64 switches On, CC < 64 Off. **Cab & Mic Engage** is an Off / On option like the others; the CC value is scaled to the option range.
-
-**Synchronization.** Each stage's `Sync` (Tremolo / Warp / Repeat) and `Quantize` (Looper) is an option-type param mappable to a CC. Useful for tap-style division switching from a controller knob.
-
-**Looper transport.** Each action is a trigger entry visible in both PARAMS and MAP:
+The looper's transport triggers, in PARAMS under LOOP:
 
 | Entry | Action |
 |---|---|
-| Looper Rec/Play | Same as K3: idle → rec → play → dub → play … / stop → play |
-| Looper Stop/Clear | Same as K2: play/dub → stop → idle (buffer cleared) |
-| Looper Undo | Same as K2 held: undo the last overdub |
+| Rec/Play | As K3: record, play, dub … |
+| Stop/Clear | As K2: stop, then clear |
+| Undo | As K2 held: undo the last overdub |
+| Rec | Record or dub; from a stopped loop straight into a dub |
+| Play | Start or stop playback; ends a take straight into playback |
 
-**Tap tempo.** Warp and Repeat each have a **Tap** trigger, the same as K2 on the focused effect. MAP only listens to CCs; a switch that sends notes cannot tap.
-
-### Notes
-
-- MIDI mappings are stored per PSET; each preset can have its own mapping.
-- Triggers (looper Rec/Play, Stop/Clear and Undo, Tap, Hold Recapture, Tape Stop/Start, Randomize, Initialize) fire on any CC value above 0. A button that sends 127 on press and 0 on release fires once per press.
-- **Enable toggles** use CC ≥ 64 for On and CC < 64 for Off. Your controller must send both values (latch or bi-directional CC). A toggle that always sends CC 127 will set the param to Active forever.
-- **After upgrading** from a pre-release build (pre-0.3), delete `dust/data/princeton/princeton.pmap` and re-map your CCs. The param type change from `add_binary` to `add_option` breaks saved mappings silently.
-- CC mappings learn the channel along with the CC. Notes for a voice are a separate path: they are received on the port and channel set in KEYS > MIDI Device and MIDI Channel (default All and Omni), see [Keys](#keys).
-- With **MIDI Pickup** on (GUI group, default), a mapped knob takes over only once it reaches the parameter's current value; with **Follow Focus** on, the screen jumps to whatever a mapped control moves. See [GUI](#gui).
+Notes for a voice take a separate path: they arrive on the port and channel set under [Keys](#keys).
 
 ## Install
 
@@ -989,13 +755,13 @@ cd ~/dust/code
 git clone https://github.com/notrobintaylor/princeton
 ```
 
-**NAM (optional).** princeton ships the NamAmp plugin in `lib/nam/`. On the first start it copies the plugin into `~/.local/share/SuperCollider/Extensions/princeton/`; restart norns once (SYSTEM > RESTART) so SuperCollider loads it. Put your `.nam` captures in `dust/data/princeton/nam/`. The same restart is needed after an update that changes the plugin. See [NAM](#nam).
+**NAM (optional).** The NamAmp plugin ships in `lib/nam/`; on the first start princeton installs it, and one norns restart (SYSTEM > RESTART) lets SuperCollider load it. Put captures in `dust/data/princeton/nam/`. See [NAM](#nam).
 
-**Voices (optional).** A voice mod goes into `~/dust/code/`, is enabled in **SYSTEM > MODS**, and needs one norns restart before it appears in Route. See [Voices](#voices).
+**Voices (optional).** A voice mod goes into `~/dust/code/`, is enabled in SYSTEM > MODS and needs one norns restart before it appears in Route. See [Voices](#voices).
 
 ## Credits
 
-**Neural Amp Modeler.** The NAM mode of the Amp runs on [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) by Steven Atkinson (MIT), with [Eigen](https://gitlab.com/libeigen/eigen) (MPL 2.0) and [nlohmann/json](https://github.com/nlohmann/json) by Niels Lohmann (MIT). The license texts ship with the plugin in `lib/nam/THIRD_PARTY_LICENSES.md`. Captures for every kind of amp are shared on [TONE3000](https://www.tone3000.com).
+**Neural Amp Modeler.** The NAM mode runs on [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) by Steven Atkinson (MIT), with [Eigen](https://gitlab.com/libeigen/eigen) (MPL 2.0) and [nlohmann/json](https://github.com/nlohmann/json) by Niels Lohmann (MIT). The license texts ship with the plugin in `lib/nam/THIRD_PARTY_LICENSES.md`. Captures for every kind of amp are shared on [TONE3000](https://www.tone3000.com).
 
 **Ideas borrowed from research.**
 - Mesmerize's tank follows the plate reverberator in Jon Dattorro, "Effect Design, Part 1: Reverberator and Other Filters" (JAES, 1997).

@@ -3,12 +3,13 @@
 -- tick, so PARAMS, princeton's panes, lcx and a mapped MIDI knob all move alike.
 local control = {}
 
-control.LEVEL_MIN, control.LEVEL_MAX = -75, 10
+-- -75 dB is the quietest level that still sounds; the tick below it, LEVEL_OFF, is silence.
+control.LEVEL_MIN, control.LEVEL_MAX, control.LEVEL_OFF = -75, 10, -76
 
 -- A ladder starts at its first value and climbs in rungs of { up to, step }. Steps grow with the
 -- value, so a tick is fine where the ear is fine and coarse where it isn't.
 local LADDERS = {
-  level = { -75, { -20, 1 }, { 10, 0.5 } },
+  level = { -76, { -20, 1 }, { 10, 0.5 } },
   rate  = { 0.1, { 2, 0.1 }, { 10, 0.5 }, { 25, 1 } },
   hz    = { 20, { 100, 5 }, { 500, 25 }, { 1000, 50 }, { 5000, 250 }, { 10000, 500 }, { 20000, 1000 } },
   ms    = { 0.1, { 1, 0.1 }, { 10, 1 }, { 100, 5 }, { 500, 25 }, { 1000, 50 }, { 5000, 250 }, { 10000, 500 } },
@@ -66,11 +67,11 @@ end
 local UNITS = { level = "dB", rate = "Hz", hz = "Hz", ms = "ms", ms0 = "ms", s = "s", s0 = "s" }
 
 -- spec(kind, lo, hi, default[, step, units]) builds the controlspec of one kind. Levels default to
--- the whole -75..+10 dB, Drives to 0..10, Amounts to 0..100 %; Steps need their step.
+-- off..+10 dB, Drives to 0..10, Amounts to 0..100 %; Steps need their step.
 function control.spec(kind, lo, hi, default, step, units)
   local cs
   if kind == "level" then
-    cs = ladder_spec("level", lo or control.LEVEL_MIN, hi or control.LEVEL_MAX, default or 0, "dB")
+    cs = ladder_spec("level", lo or control.LEVEL_OFF, hi or control.LEVEL_MAX, default or 0, "dB")
   elseif kind == "drive" then
     cs = controlspec.new(0, 10, "lin", 0.1, default, "", 0.01)
     cs.fine = 0.1
@@ -93,15 +94,20 @@ end
 
 -- the bottom of a level's travel is off, not merely quiet
 function control.amp(db)
-  if db <= control.LEVEL_MIN then return 0 end
+  if db < control.LEVEL_MIN then return 0 end
   return 10 ^ (db / 20)
 end
 
 function control.level_str(db)
-  if db <= control.LEVEL_MIN then return "-inf dB" end
+  if db < control.LEVEL_MIN then return "-inf dB" end
   local s = string.format("%.1f", db)
   if tonumber(s) == 0 then s = "0.0" elseif db > 0 then s = "+" .. s end
   return s .. " dB"
+end
+
+-- A level in dB for the engine, with off as far below hearing as dbamp needs.
+function control.db(db)
+  return db < control.LEVEL_MIN and -200 or db
 end
 
 -- Adds a control of one kind. Its action gets the value, or for a Level the linear gain.

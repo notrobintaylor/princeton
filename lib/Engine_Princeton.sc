@@ -363,7 +363,7 @@ Engine_Princeton : CroneEngine {
                 reverb_dwell = 5, reverb_drip = 5, reverb_freeze = 0,
                 trem_speed = 2.5, trem_intensity = 0,
                 mic = 1, characteristic = 0,
-                warp_rate = 2.5, warp_depth = 5, warp_rise = 2.5, warp_bypass = 1, warp_mix = 0,
+                warp_rate = 2.5, warp_depth = 5, warp_rise = 2.5, warp_bypass = 1, warp_mix = 100,
                 repeat_time = 500, repeat_feedback = 50, repeat_level = 1, repeat_bypass = 1, repeat_mod_depth = 10, repeat_mod_rate = 2.5,
                 mute = 0, amp_bypass = 0, nam_on = 0, nam_cal = 1.8, nam_mid = 5, nam_mid_freq = 750,
                 reverb_mute = 0, cab_mode = 1,
@@ -426,7 +426,7 @@ Engine_Princeton : CroneEngine {
                               warp_rise);
             warp_lfo = SinOsc.ar(warp_rate + LFNoise2.kr(4, 0.08), 0, warp_depth_env, 0.007);
             warp_sig = DelayC.ar(sig, 0.02, warp_lfo.clip(0.0001, 0.02));
-            sig = XFade2.ar(warp_sig, sig, LagUD.kr(Select.kr(warp_bypass.round(1), [warp_mix.linlin(0, 100, -1, 1), 1]), warp_rise, 0.008));
+            sig = XFade2.ar(warp_sig, sig, LagUD.kr(Select.kr(warp_bypass.round(1), [warp_mix.linlin(0, 100, 1, -1), 1]), warp_rise, 0.008));
 
             // ── Repeat ───────────────────────────────────────────────────────
             repeat_gate   = Lag.kr(1 - repeat_bypass.round(1), 0.008);

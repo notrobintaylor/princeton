@@ -52,7 +52,8 @@ function looper_params.setup(deps)
   level_add("dub_level", "Rec Level")
   level_add("level", "Play Level")
   level_add("fade_level", "Fade Level")
-  params:add{type="number", id=P("speed"), name="Speed", min=-100, max=100, default=0, formatter=function(p) return p:get() .. "%" end, action=function(v)
+  params:add_control(P("speed"), "Speed", control.spec("amount", -100, 100, 0))
+  params:set_action(P("speed"), function(v)
     -- in Steps, Speed knows only half, normal and double: any move snaps to the next stage in
     -- its direction
     if params:get(P("speed_control")) == 1 then
@@ -67,7 +68,7 @@ function looper_params.setup(deps)
     end
     if not speed_is_owned() then E("looper_speed")(looper.speed_value()) end
     re()
-  end}
+  end)
   params:add_option(P("speed_control"), "Speed Mode", {"Octaves","Free"}, 1)
 
   params:add_separator(P("sep_medium"), "─── Medium ───")
