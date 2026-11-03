@@ -64,11 +64,11 @@ local function target_visible(target_id)
   local n, suf = target_id:match("^lfo(%d+)_(.+)$")
   if n then
     local target_lfo    = tonumber(n)
-    local target_wf     = params:get("lfo"..target_lfo.."_waveform")
+    local target_shape     = params:get("lfo"..target_lfo.."_shape")
     local target_synced = params:get("lfo"..target_lfo.."_sync_div") > 1
     if suf == "rate"      then return not target_synced end
-    if suf == "phase" or suf == "rate_slew"  then return target_wf ~= 6 end
-    if suf == "steps" or suf == "stability"  then return target_wf == 6 end
+    if suf == "phase" or suf == "rate_slew"  then return target_shape ~= 6 end
+    if suf == "steps" or suf == "stability"  then return target_shape == 6 end
     if suf == "sync_div" or suf == "sync_feel" then return target_synced end
   end
   local ns, sufs = target_id:match("^seq(%d+)_(.+)$")

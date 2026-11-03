@@ -380,7 +380,7 @@ end
 
 for i = 1, trigs.N do
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Rate",        id="trig"..i.."_rate",        mn=0.1, mx=25,  st=0.1, send=function(v) trigs.mod.rate[i]        = v end}
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Probability", id="trig"..i.."_probability", mn=0,   mx=100, st=1,   send=function(v) trigs.mod.probability[i] = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Chance", id="trig"..i.."_chance", mn=0,   mx=100, st=1,   send=function(v) trigs.mod.chance[i] = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Sync Div",    id="trig"..i.."_sync_div",    mn=2,   mx=#sync.DIV_OPTS, st=1, send=function(v) trigs.mod.sync_div[i]  = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Sync Feel",   id="trig"..i.."_sync_feel",   mn=1,   mx=3,   st=1,   send=function(v) trigs.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
@@ -986,7 +986,7 @@ local function draw_group1_pane()
     local id  = "lfo" .. idx .. ls.suf
     local v1  = ls.fmt(params:get(id), idx)
     local v2  = nil
-    if ls.suf == "_waveform" or ls.suf == "_target_param" then
+    if ls.suf == "_shape" or ls.suf == "_target_param" then
       local sp = v1:find(" ")
       if sp then v1, v2 = v1:sub(1, sp - 1), v1:sub(sp + 1) end
     end
@@ -2275,19 +2275,31 @@ function init()
   params._orig_read  = params._orig_read or params.read
   params.pset_loading = false
   params.pset_epoch   = params.pset_epoch or 0
+  -- Params renamed since (Waveform is Shape, Probability is Chance) keep their old spelling in older
+  -- PSETs; during the read the old ids point at today's params, and saved mod targets are translated too.
+  local renamed = {}
+  for i = 1, lfo.NUM do renamed["lfo" .. i .. "_waveform"] = "lfo" .. i .. "_shape" end
+  for i = 1, trigs.N do renamed["trig" .. i .. "_probability"] = "trig" .. i .. "_chance" end
   params.read = function(self, ...)
     params.pset_loading = true
+    local aliased = {}
+    for old, new in pairs(renamed) do
+      if params.lookup[old] == nil and params.lookup[new] then
+        params.lookup[old] = params.lookup[new]; aliased[#aliased + 1] = old
+      end
+    end
     local marked = params.lookup["sync_scheme"] ~= nil
     if marked then params:set("sync_scheme", 1) end
     if params.lookup["signal_voice"] then params:set("signal_voice", "") end
     modtarget.mark_unknown(mod_bindings)
     local ok, err = pcall(params._orig_read, self, ...)
+    for _, old in ipairs(aliased) do params.lookup[old] = nil end
     if ok and marked and params:get("sync_scheme") < sync.SCHEME then
       sync.migrate_psets()
     end
     if marked then params:set("sync_scheme", sync.SCHEME) end
     if ok then
-      modtarget.restore_from_ids(mod_bindings)
+      modtarget.restore_from_ids(mod_bindings, renamed)
       restore_voice()
     end
     params.pset_loading = false
@@ -2963,7 +2975,7 @@ function init()
     local prefix = "lfo" .. idx
 
     local function refresh_visibility()
-      local wf  = params:get(prefix .. "_waveform")
+      local wf  = params:get(prefix .. "_shape")
       local div = params:get(prefix .. "_sync_div")
       if div > 1 then
         params:hide(prefix .. "_rate")
@@ -3017,8 +3029,8 @@ function init()
       re()
     end)
 
-    params:add_option(prefix .. "_waveform", "Waveform", lfo.WAVEFORMS, 1)
-    params:set_action(prefix .. "_waveform", function(_)
+    params:add_option(prefix .. "_shape", "Shape", lfo.SHAPES, 1)
+    params:set_action(prefix .. "_shape", function(_)
       refresh_visibility()
       if not initing then
         lfo.start_clock(idx)
@@ -3292,10 +3304,10 @@ function init()
       re()
     end)
 
-    params:add_control(prefix .. "_probability", "Probability", controlspec.new(0, 100, "lin", 1, 100, "%"))
-    params:set_action(prefix .. "_probability", function(_)
-      trigs.mod.probability[idx] = nil
-      lfo.target_base[prefix .. "_probability"] = nil
+    params:add_control(prefix .. "_chance", "Chance", controlspec.new(0, 100, "lin", 1, 100, "%"))
+    params:set_action(prefix .. "_chance", function(_)
+      trigs.mod.chance[idx] = nil
+      lfo.target_base[prefix .. "_chance"] = nil
       re()
     end)
 

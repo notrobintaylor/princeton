@@ -2,7 +2,7 @@ local sync      = include("lib/sync")
 local modtarget = include("lib/modtarget")
 local scope     = include("lib/scope")
 
--- trigger: four Trigs, fingers over the switches; on each beat of their rate (or the clock) Probability
+-- trigger: four Trigs, fingers over the switches; on each beat of their rate (or the clock) Chance
 -- decides whether to fire an action from TRIG_TARGETS (princeton.lua). A Stepped Random LFO with a Trig
 -- on it stops running freely and steps only when fired (refresh_suspend counts the Trigs holding it).
 local trigs = {}
@@ -11,7 +11,7 @@ local MED  = 5
 local FULL = 15
 
 trigs.N           = 4
-trigs.mod         = { rate = {}, probability = {}, sync_div = {}, sync_feel = {} }
+trigs.mod         = { rate = {}, chance = {}, sync_div = {}, sync_feel = {} }
 trigs.clock_gen   = {}
 trigs.last_global = {}
 trigs.applied_lfo = {}
@@ -35,7 +35,7 @@ local binding
 function trigs.strip_fn.sync_active(idx) return params:get("trig"..idx.."_sync_div") > 1 end
 
 trigs.STRIP = {
-  {name="Probability", suf="_probability",   typ="ctrl", step=1,   fmt=function(v,i) return string.format("%d%%",math.floor(v)) end},
+  {name="Chance",      suf="_chance",        typ="ctrl", step=1,   fmt=function(v,i) return string.format("%d%%",math.floor(v)) end},
   {name="Rate",        suf="_rate",          typ="ctrl", step=0.1, fmt=function(v,i) return string.format("%.1fHz",v) end,
    visible_when=function(idx) return not trigs.strip_fn.sync_active(idx) end},
   {name="Sync",        suf="_sync_div",      typ="opt",  nmax=#sync.DIV_OPTS, fmt=function(v,i) return sync.DIV_OPTS[v] end},
@@ -108,7 +108,7 @@ function trigs.fn.refresh_suspend(idx)
   trigs.applied_lfo[idx] = desired_lfo
 end
 
--- Fire: run the action and remember when. The clock calls it when Probability says yes; K2 in the rack fires unconditionally.
+-- Fire: run the action and remember when. The clock calls it when Chance says yes; K2 in the rack fires unconditionally.
 function trigs.fn.fire(idx)
   trigs.last_fire[idx] = util.time()
   scope.push(trigs.scope[idx], trigs.last_fire[idx], 1)
@@ -135,7 +135,7 @@ function trigs.fn.start_clock(idx)
         clock.sleep(1 / math.max(0.05, rate))
       end
       if trigs.clock_gen[idx] ~= my then return end
-      local prob = trigs.mod.probability[idx] ~= nil and trigs.mod.probability[idx] or params:get("trig"..idx.."_probability")
+      local prob = trigs.mod.chance[idx] ~= nil and trigs.mod.chance[idx] or params:get("trig"..idx.."_chance")
       if prob > 0 and (prob >= 100 or math.random() * 100 < prob) then
         trigs.fn.fire(idx)
       else
@@ -165,7 +165,7 @@ function trigs.fn.refresh_dropdowns_for_lfo(lfo_idx)
   if _menu and _menu.rebuild_params then _menu.rebuild_params() end
 end
 
--- The Trig's recent history: every chance with its time, 1 fired, 0 skipped by Probability.
+-- The Trig's recent history: every roll with its time, 1 fired, 0 skipped by Chance.
 -- The rack shows the last eight.
 function trigs.scope_live(idx)
   local sc = trigs.scope[idx]

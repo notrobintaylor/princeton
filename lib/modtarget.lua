@@ -136,12 +136,14 @@ end
 
 -- After loading: release every source that has an id, then reclaim each by id. Two passes, because
 -- otherwise one source could still hold a target that another is about to claim.
-function modtarget.restore_from_ids(bindings)
+-- renamed maps an id's former spelling to today's.
+function modtarget.restore_from_ids(bindings, renamed)
   local want = {}
   for _, b in ipairs(bindings) do
     for i = 1, b.num do
       local pid = id_param(b, i)
       local id  = params.lookup[pid] and params:get(pid) or UNKNOWN
+      id = renamed and renamed[id] or id
       if id ~= UNKNOWN then
         local g = 1
         for gi, t in ipairs(b.targets) do

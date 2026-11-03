@@ -40,7 +40,7 @@ function looper_params.setup(deps)
     if name == (deps.medium_default or "Chip") then medium_default = i end
   end
 
-  if deps.embedded then params:add_group(deps.group_label or "LOOPER", 27) end
+  if deps.embedded then params:add_group(deps.group_label or "LOOPER", 30) end
   params:add_separator(P("sep_control"), "─── Control ───")
   params:add_option(P("transport"), "Step Order", {"Rec·Play·Dub", "Rec·Dub·Play"}, 1)
   params:add_option(P("play_from"), "Play From", {"Start", "Cue"}, 1)
@@ -116,6 +116,14 @@ function looper_params.setup(deps)
   params:set_action(P("stop_clear"), function() if fired() then looper.stop_clear() end end)
   params:add_binary(P("undo"), "Undo", "trigger", 0)
   params:set_action(P("undo"), function() if fired() then looper.undo() end end)
+  params:add_binary(P("record"), "Rec", "trigger", 0)
+  params:set_action(P("record"), function() if fired() then looper.record() end end)
+  params:add_binary(P("play"), "Play", "trigger", 0)
+  params:set_action(P("play"), function() if fired() then looper.play() end end)
+  -- Read-only mirror of the transport (0 empty, 1 rec, 2 dub, 3 play, 4 stop) for controllers.
+  params:add_number(P("state"), "State", 0, 4, 0)
+  params:hide(P("state"))
+  params:set_save(P("state"), false)
 end
 
 return looper_params

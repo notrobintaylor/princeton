@@ -11,11 +11,11 @@ local MED  = 5
 local FULL = 15
 
 lfo.NUM       = 8
-lfo.WAVEFORMS = {"Sine", "Triangle", "Saw", "Square", "Smooth Random", "Stepped Random"}
+lfo.SHAPES = {"Sine", "Triangle", "Saw", "Square", "Smooth Random", "Stepped Random"}
 lfo.DIR_OPTS  = {"+", "-", "+/-"}
 
 local NUM_LFOS  = lfo.NUM
-local WAVEFORMS = lfo.WAVEFORMS
+local SHAPES = lfo.SHAPES
 local DIR_OPTS  = lfo.DIR_OPTS
 
 lfo.mod = {
@@ -57,8 +57,8 @@ lfo.target_device_filter = {}
 lfo.target_param_filter  = {}
 
 -- ── Scope ──────────────────────────────────────────────────────
--- The sprite shows what an LFO means to do; the scope shows what it does. Every value sent to the
--- target is ring-buffered with a timestamp, normalised to the target's range, so clipping and tick steps show too.
+-- The scope shows what an LFO does: every swing it sends is ring-buffered with a timestamp,
+-- normalised to the widest swing, so a target that clips shows a flattened curve.
 lfo.scope = {}
 
 local function scope_reset(idx) scope.reset(lfo.scope[idx]) end
@@ -71,10 +71,10 @@ local on_target_change
 local binding
 
 function lfo.is_sync_active(idx) return params:get(PID[idx].sync_div)  > 1 end
-function lfo.is_step_random(idx) return params:get(PID[idx].waveform) == 6 end
+function lfo.is_step_random(idx) return params:get(PID[idx].shape) == 6 end
 
 lfo.STRIP = {
-  {name="Waveform",  suf="_waveform",     typ="opt",  nmax=6, fmt=function(v,i) return WAVEFORMS[v] end},
+  {name="Shape",     suf="_shape",        typ="opt",  nmax=6, fmt=function(v,i) return SHAPES[v] end},
   {name="Rate",      suf="_rate",         typ="ctrl", step=0.1, fmt=function(v,i) return string.format("%.1fHz",v) end,
    visible_when=function(idx) return not lfo.is_sync_active(idx) end},
   {name="Depth",     suf="_depth",        typ="ctrl", step=1,   fmt=function(v,i) return string.format("%d%%",math.floor(v)) end},
@@ -166,10 +166,10 @@ local function lfo_phase_offset(idx)
   return 0
 end
 
-local function compute_v_unsigned(idx)
+local function compute_v_unsigned(idx, phase)
   local s = lfo.state[idx]
-  local wf = params:get(PID[idx].waveform)
-  local p = (s.phase + lfo_phase_offset(idx)) % 1
+  local wf = params:get(PID[idx].shape)
+  local p = ((phase or s.phase) + lfo_phase_offset(idx)) % 1
   if wf == 1 then return (math.sin(p * 2 * math.pi) + 1) / 2
   elseif wf == 2 then return 1 - 2 * math.abs(p - 0.5)
   elseif wf == 3 then return p
@@ -218,11 +218,11 @@ local function target_visible(target_id)
   local n, suf = target_id:match("^lfo(%d+)_(.+)$")
   if n then
     local target_lfo    = tonumber(n)
-    local target_wf     = params:get("lfo"..target_lfo.."_waveform")
+    local target_shape     = params:get("lfo"..target_lfo.."_shape")
     local target_synced = params:get("lfo"..target_lfo.."_sync_div") > 1
     if suf == "rate"      then return not target_synced end
-    if suf == "phase" or suf == "rate_slew"  then return target_wf ~= 6 end
-    if suf == "steps" or suf == "stability"  then return target_wf == 6 end
+    if suf == "phase" or suf == "rate_slew"  then return target_shape ~= 6 end
+    if suf == "steps" or suf == "stability"  then return target_shape == 6 end
     if suf == "sync_div" or suf == "sync_feel" then return target_synced end
   end
   local ns, sufs = target_id:match("^seq(%d+)_(.+)$")
@@ -260,6 +260,42 @@ local function effective_base(id)
   return synced_base(id) or lfo.target_base[id] or params:get(id)
 end
 
+-- The scope draws the swing around the base, -1 to 1 of the widest swing Depth and Direction allow,
+-- so a clamped target shows as a flattened curve. It skips the target's step rounding: the picture
+-- shows the shape, not the staircase a coarse parameter makes of it.
+local function scope_swing(idx, t, base, v_un)
+  local d = (lfo.mod.depth[idx] ~= nil and lfo.mod.depth[idx] or params:get(PID[idx].depth)) / 100
+  local dir = params:get(PID[idx].dir)
+  local range = t.mx - t.mn
+  local off
+  if dir == 1 then     off = v_un * d * range
+  elseif dir == 2 then off = -v_un * d * range
+  else                 off = (v_un * 2 - 1) * d * range / 2
+  end
+  local swing = (dir == 3 and 0.5 or 1) * d * range
+  if swing <= 0 then return 0 end
+  return util.clamp((util.clamp(base + off, t.mn, t.mx) - base) / swing, -1, 1)
+end
+
+-- Between two ticks the scope gets in-between points from the phase, as many as the window needs to
+-- look round; a slow tick on a coarse target would otherwise draw a triangle as a few corners.
+local scope_window
+local function scope_fill(idx, prev_phase, prev_v, dt, rate)
+  local target_idx = lfo.last_global[idx] or 1
+  local t = TARGET_PARAMS[target_idx]
+  if target_idx == 1 or not t or not t.id or t.mx <= t.mn or lfo.target_owner[t.id] ~= idx then return end
+  local k = util.clamp(math.ceil(dt * 160 / scope_window(idx)), 1, 16)
+  if k < 2 then return end
+  local base, now = effective_base(t.id), util.time()
+  local wf = params:get(PID[idx].shape)
+  for j = 1, k - 1 do
+    local f = j / k
+    local v_un = wf == 5 and prev_v + (lfo.state[idx].smooth_rand_v - prev_v) * f
+                 or compute_v_unsigned(idx, prev_phase + dt * rate * f)
+    scope_push(idx, now - dt * (1 - f), scope_swing(idx, t, base, v_un))
+  end
+end
+
 local function apply_to_target(idx)
   if is_initing() then return end
   if params:get(PID[idx].enable) ~= 2 then return end
@@ -286,10 +322,7 @@ local function apply_to_target(idx)
   local val = util.clamp(base + off, t.mn, t.mx)
   val = math.floor(val / t.st + 0.5) * t.st
   local now = util.time()
-  -- The scope draws the swing around the base, -1 to 1 of the widest swing Depth and Direction allow,
-  -- so a clamped target shows as a flattened curve.
-  local swing = (dir == 3 and 0.5 or 1) * d * range
-  if range > 0 then scope_push(idx, now, swing > 0 and util.clamp((val - base) / swing, -1, 1) or 0) end
+  if range > 0 then scope_push(idx, now, scope_swing(idx, t, base, v_un)) end
   -- A slow LFO often lands on the same step for many ticks, so repeats are skipped.
   -- After half a second it resends anyway, in case something else has moved the target meanwhile.
   local last = lfo.last_sent[idx]
@@ -357,7 +390,7 @@ function lfo.start_clock(idx)
       if lfo.clock_gen[idx] ~= my then return end
       local cur_target = lfo.last_global[idx] or 1
       if cur_target == 1 then break end
-      local wf = params:get(PID[idx].waveform)
+      local wf = params:get(PID[idx].shape)
 
       if wf == 6 then
         if lfo.random.suspended[idx] then
@@ -427,7 +460,7 @@ function lfo.start_clock(idx)
           lfo.mod.rate_slewed[idx] = rate
         end
         local s = lfo.state[idx]
-        local prev_phase = s.phase
+        local prev_phase, prev_v = s.phase, s.smooth_rand_v
         s.phase = (s.phase + dt * rate) % 1
         if wf == 5 then
           if s.phase < prev_phase then
@@ -436,6 +469,7 @@ function lfo.start_clock(idx)
           local alpha = math.min(1, dt * rate * 4)
           s.smooth_rand_v = s.smooth_rand_v + (s.smooth_rand_target - s.smooth_rand_v) * alpha
         end
+        if params:get(PID[idx].enable) == 2 then scope_fill(idx, prev_phase, prev_v, dt, rate) end
         apply_to_target(idx)
       end
     end
@@ -493,7 +527,7 @@ function lfo.tm_register_max(steps) return tm_register_max(steps) end
 -- Scope window: two periods so the shape reads as a shape, sixteen steps for the register.
 -- It follows the rate actually running (slewed, modulated or clocked), so rate modulation shows as squeeze and stretch.
 
-local function scope_window(idx)
+function scope_window(idx)
   local rate
   local sync_div_opt = lfo_g("sync_div", idx)
   if sync_div_opt > 1 and is_clock_running() then
@@ -501,7 +535,7 @@ local function scope_window(idx)
   else
     rate = lfo.mod.rate_slewed[idx] or lfo.mod.rate[idx] or params:get(PID[idx].rate)
   end
-  local cycles = params:get(PID[idx].waveform) == 6 and 16 or 2
+  local cycles = params:get(PID[idx].shape) == 6 and 16 or 2
   return util.clamp(cycles / math.max(0.05, rate), 0.2, 12)
 end
 
@@ -513,7 +547,7 @@ end
 -- Drawing lives in lib/scope; w and h set the window (also used small, in the rack list).
 -- lv is the curve's brightness.
 function lfo.draw_scope(ox, top, idx, w, h_px, lv)
-  scope.draw(lfo.scope[idx], ox, top, w, h_px, scope_window(idx), lv)
+  scope.draw(lfo.scope[idx], ox, top, w, h_px, scope_window(idx), lv, params:get(PID[idx].shape) == 6)
 end
 
 

@@ -2,6 +2,8 @@
 -- editor. In the chooser it runs on invented values, in the editor it shows what the source really
 -- does.
 
+local scope = include("lib/scope")
+
 local sprites_mod = {}
 
 local FULL, DIM = 15, 3
@@ -12,30 +14,14 @@ sprites_mod.TRIG_SLOTS = 8    -- chances the Trigger picture shows
 
 local function dim_of(lv) return lv > 2 and DIM or 1 end
 
--- A scope-style line: each column joins its neighbour with a vertical stroke. ys[i] is the
--- height in column i, nil leaves a gap.
-local function polyline(x, w, ys, lv)
-  screen.level(lv)
-  local prev
-  for i = 0, w - 1 do
-    local cy = ys[i]
-    if cy then
-      if prev then screen.rect(x + i, math.min(cy, prev), 1, math.abs(cy - prev) + 1)
-      else screen.rect(x + i, cy, 1, 1) end
-    end
-    prev = cy
-  end
-  screen.fill()
-end
-
 -- ── Modulate ───────────────────────────────────────────────────
 local function demo_lfo(x, y, w, h, now, lv)
   local win, ys = 2.5, {}
   for i = 0, w - 1 do
     local v = 0.5 + 0.5 * math.sin(TAU * (now - win * (w - 1 - i) / (w - 1)) / 1.25)
-    ys[i] = y + math.floor((1 - v) * (h - 1) + 0.5)
+    ys[i] = y + (1 - v) * (h - 1)
   end
-  polyline(x, w, ys, lv)
+  scope.line(x, ys, w, lv)
 end
 
 -- ── Sense ──────────────────────────────────────────────────────
@@ -49,12 +35,14 @@ function sprites_mod.sense(x, y, w, h, env, lv)
   for i = 0, w - 1 do
     local e = env[i]
     if e then
-      e = math.floor(math.max(0, math.min(1, e)) * hh + 0.5)
+      e = math.max(0, math.min(1, e)) * hh
+      -- under a pixel the two halves would blur the centre line into a double one
+      if e < 1 then e = 0 end
       top[i], bot[i] = mid - e, mid + e
     end
   end
-  polyline(x, w, top, lv)
-  polyline(x, w, bot, lv)
+  scope.line(x, top, w, lv)
+  scope.line(x, bot, w, lv)
 end
 
 -- short attack, long decay, alternating loud and soft
@@ -74,12 +62,9 @@ end
 
 -- ── Walk ───────────────────────────────────────────────────────
 -- steps holds all step values (-1..1), n how many play, cur the playing step and sel the one being
--- edited. Disabled slots are drawn as dashed frames, so you can see what returns when you raise the
--- count.
-local function dashed_rect(rx, ry, rw, rh)
-  for i = 0, rw - 1, 2 do screen.rect(rx + i, ry, 1, 1); screen.rect(rx + i, ry + rh - 1, 1, 1) end
-  for j = 0, rh - 1, 2 do screen.rect(rx, ry + j, 1, 1); screen.rect(rx + rw - 1, ry + j, 1, 1) end
-end
+-- edited. Disabled slots stay as faint ghosts at the lowest brightness, so you can see what returns
+-- when you raise the count.
+local GHOST = 1
 
 function sprites_mod.walk(x, y, w, h, steps, n, cur, sel, lv)
   local total = #steps
@@ -98,9 +83,8 @@ function sprites_mod.walk(x, y, w, h, steps, n, cur, sel, lv)
       -- the chase light
       screen.rect(bx, y + h - 2, cw - 1, 2)
     else
-      screen.level(dim)
-      dashed_rect(bx, by, cw - 1, v)
-      for i = 0, cw - 2, 2 do screen.rect(bx + i, y + h - 1, 1, 1) end
+      screen.level(GHOST)
+      screen.rect(bx, by, cw - 1, v)
     end
     screen.fill()
     if sel == k then

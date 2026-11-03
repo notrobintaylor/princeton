@@ -62,6 +62,13 @@ function looper.new(deps, into)
   local engine_active = false
   local snap_stable, snap_undo
 
+  -- The state is mirrored into a hidden param, so a controller can light its Rec and Play
+  -- buttons without reaching into the script.
+  local function set_state(st)
+    L.state = st
+    if params.lookup[P("state")] then params:set(P("state"), st, true) end
+  end
+
   L.on_transition = nil
   local function notify(st)
     if L.on_transition and not following then L.on_transition(st) end
@@ -96,7 +103,7 @@ function looper.new(deps, into)
     sample_gen = sample_gen + 1
     epoch = epoch + 1
     quant_pending = false
-    L.state  = IDLE
+    set_state(IDLE)
     L.frames = 0
     E("imprint_off")()
     E("loop_clear")()
@@ -125,7 +132,7 @@ function looper.new(deps, into)
   local function transition_to(st)
     rec_auto_gen = rec_auto_gen + 1
     local prev = L.state
-    L.state = st
+    set_state(st)
     if st == REC then notify("prepare") end
     set_engine(st)
     if prev == REC or prev == DUB then
@@ -262,7 +269,7 @@ function looper.new(deps, into)
       end)
     elseif L.state == STOP then
       if params:get(P("dub_style")) == 3 then
-        L.state = PLAY
+        set_state(PLAY)
         set_engine(PLAY)
         if params:get(P("play_from")) == 2 then
           sample_retrig_val = 1 - sample_retrig_val
@@ -307,7 +314,7 @@ function looper.new(deps, into)
     if snap_undo == nil then return false end
     if L.state ~= PLAY and L.state ~= STOP and L.state ~= DUB then return false end
     if L.state == DUB then
-      L.state = PLAY
+      set_state(PLAY)
       set_engine(PLAY)
     end
     E("loop_undo")(snap_undo)
@@ -315,6 +322,40 @@ function looper.new(deps, into)
     notify("undo")
     redraw()
     return true
+  end
+
+  -- Rec and Play reach each state directly instead of walking step's cycle. Rec records, or
+  -- overdubs a loop that plays or stands, and a second press ends the take or the overdub.
+  function L.record()
+    if L.state == STOP and params:get(P("dub_style")) ~= 3 then
+      if quant_pending then return end
+      quant_pending = true
+      quantize_then(function()
+        quant_pending = false
+        transition_to(DUB)
+      end)
+      redraw()
+    else
+      L.step()
+    end
+  end
+
+  -- Play starts and stops the loop and closes a running take straight into playback. Clearing
+  -- stays with Stop/Clear, so a stopped loop survives any number of Play presses.
+  function L.play()
+    if L.state == REC then
+      if quant_pending then return end
+      quant_pending = true
+      quantize_then(function()
+        quant_pending = false
+        commit_frames()
+        transition_to(params:get(P("dub_style")) == 3 and STOP or PLAY)
+      end)
+    elseif L.state == STOP then
+      L.step()
+    elseif L.state == PLAY or L.state == DUB then
+      L.stop_clear()
+    end
   end
 
   function L.follow(st)
