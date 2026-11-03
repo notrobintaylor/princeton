@@ -18,7 +18,7 @@ strip.CAL = 11
 strip.lvl = { 0, 0, 0, 0 }
 
 -- One unit is 82 x 28 like Build and Mesmerize, laid out like a slim studio preamp: a fine LED bar
--- over the amp's 4 px knobs and the gain digits, the engage LED centred on the right. Knobs and LED
+-- over the amp's 4 px knobs and the drive digits, the engage LED centred on the right. Knobs and LED
 -- keep Build's 7 px to the side walls, and the bar ends flush with the digits.
 local UNIT = { W = 82, H = 28 }
 UNIT.METER  = { X = 8, Y = 7, N = 25, PITCH = 2, H = 2 }
@@ -81,7 +81,8 @@ local function draw_unit(x, y, ch, active, fk)
     px(x + m.X + (k - 1) * m.PITCH, y + m.Y, 1, m.H, lit and (k > m.N - 3 and FULL or 8) or 2)
   end
 
-  local gv  = params:get("strip_gain")
+  -- the digits read the drive as the gain it adds: 2 dB a step either side of 5
+  local gv  = (params:get("strip_gain") - 5) * 2
   local g   = math.floor(gv + (gv < 0 and -0.5 or 0.5))
   local txt = string.format("%2d", math.abs(g))
   local glv = fk == 1 and FULL or 8

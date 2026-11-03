@@ -29,7 +29,7 @@ local modrack = include("lib/modrack")
 local lifecycle = include("lib/lifecycle")
 local nam     = include("lib/nam")
 local chstrip = include("lib/strip")
-local level   = include("lib/level")
+local control = include("lib/control")
 local midimap = include("lib/midimap")
 local synth   = include("lib/synth")
 -- Voices from voice mods (e.g. "form"), selectable in Route next to Mono and Stereo.
@@ -37,29 +37,25 @@ local VOICES  = (package.loaded.voices and package.loaded.voices.list) or {}
 local fmt     = include("lib/fmt")
 local menu_rows = include("lib/menu_rows")
 
+-- The cabinet's knobs and the looper pane's rows in panel order. Names, ranges and formatting
+-- come from the params themselves, so the panes read exactly what PARAMS reads.
 local PARAMS_DEF = {
-  { id="amp_volume",         name="Volume",    default=5.0,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_bass",           name="Bass",      default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_treble",         name="Treble",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_master",         name="Master",    default=0,    min=-75, max=10, step=0.5, db=true,  cat="Amp"     },
-  { id="tremolo_intensity", name="Intensity", default=0,    min=0,   max=100, step=1,  db=false, unit="%", cat="Tremolo" },
-  { id="tremolo_speed",     name="Speed",     default=2.5,  min=0.1, max=25, step=0.1, db=false, unit="Hz", cat="Tremolo" },
-  { id="reverb_amount",     name="Amount",    default=10,   min=0,   max=100, step=1,  db=false, unit="%", cat="Reverb"  },
-  { id="reverb_length",     name="Length",    default=2.5,  min=0.5, max=5.0, step=0.1, db=false, unit="s", cat="Reverb"  },
-  { id="mic_position",            name="Position",     default=1,    min=0,   max=2,  step=1,   db=false, cat="Mic"     },
-  { id="amp_mid",            name="Mid",       default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
+  { id="amp_volume",        cat="Amp"     },
+  { id="amp_bass",          cat="Amp"     },
+  { id="amp_treble",        cat="Amp"     },
+  { id="amp_master",        cat="Amp"     },
+  { id="tremolo_intensity", cat="Tremolo" },
+  { id="tremolo_speed",     cat="Tremolo" },
+  { id="reverb_amount",     cat="Reverb"  },
+  { id="reverb_length",     cat="Reverb"  },
+  { id="mic_position",      cat="Mic"     },
+  { id="amp_mid",           cat="Amp"     },
 }
-local LOOPER_DEF = {
-  { id="looper_medium",     name="Medium",     default=4,   min=1,  max=6,  step=1,   db=false, cat="Loop", options={"BBD","Cassette","CD","Chip","Tape","Vinyl"} },
-  { id="looper_wear",       name="Wear",       default=5,   min=0,  max=100, step=1, db=false, unit="%", cat="Loop"  },
-  { id="looper_direction",  name="Direction",  default=0,   min=0,   max=3,  step=1,  db=false, cat="Loop"  },
-  { id="looper_dub_level",  name="Rec Level",  default=-2.5, min=-75, max=10, step=0.5, db=true, cat="Loop"  },
-  { id="looper_level",      name="Play Level", default=-2.5, min=-75, max=10, step=0.5, db=true, cat="Loop"  },
-  { id="looper_fade_level", name="Fade Level", default=-2.5, min=-75, max=10, step=0.5, db=true, cat="Loop"  },
-  { id="looper_speed",      name="Speed",      default=0,   min=-100, max=100, step=1, db=false, cat="Loop"  },
-  { id="looper_quant_div",  name="Quantize",      default=1,   min=1, max=#sync.DIV_OPTS, step=1, db=false, cat="Loop", options=sync.DIV_OPTS },
-  { id="looper_quant_feel", name="Quantize Feel", default=1,   min=1, max=3, step=1, db=false, cat="Loop", options=sync.FEEL_OPTS },
-}
+local LOOPER_DEF = {}
+for _, id in ipairs({ "looper_medium", "looper_wear", "looper_direction", "looper_dub_level", "looper_level",
+                      "looper_fade_level", "looper_speed", "looper_quant_div", "looper_quant_feel" }) do
+  LOOPER_DEF[#LOOPER_DEF + 1] = { id = id, cat = "Loop" }
+end
 local MIC_NAMES  = { "Center", "Middle", "Edge" }
 local DIR_NAMES  = looper_params.DIR_NAMES
 
@@ -131,10 +127,10 @@ local PEDALS = {
     name       = "Push",
     display    = "Push",
     params     = {
-      { id="push_gain",  name="Gain",  default=5.0, min=0, max=10, step=0.1 },
-      { id="push_tone",  name="Tone",  default=5.0, min=0, max=10, step=0.1 },
-      { id="push_level", name="Level", default=0, min=-75, max=10, step=0.5, unit="dB", level=true },
-      { id="push_comp",  name="Comp",  default=5.0, min=0, max=10, step=0.1 },
+      { id="push_gain",  name="Gain",  kind="drive",  default=5 },
+      { id="push_tone",  name="Tone",  kind="amount", default=50, scale=0.1 },
+      { id="push_level", name="Level", kind="level",  default=0 },
+      { id="push_comp",  name="Comp",  kind="amount", default=50, scale=0.1 },
     },
     psel       = 1,
     bypass_cmd = "push_bypass",
@@ -145,10 +141,10 @@ local PEDALS = {
     name       = "Distort",
     display    = "Distort",
     params     = {
-      { id="distort_gain",    name="Gain",     default=5.0, min=0, max=10, step=0.1 },
-      { id="distort_tone",    name="Tone",     default=7.5, min=0, max=10, step=0.1 },
-      { id="distort_level",   name="Level",    default=0, min=-75, max=10, step=0.5, unit="dB", level=true },
-      { id="distort_lowcut",  name="Low Cut",  default=0, min=0, max=2, step=1, options={"Off","100 Hz","250 Hz"} },
+      { id="distort_gain",    name="Gain",     kind="drive",  default=5 },
+      { id="distort_tone",    name="Tone",     kind="amount", default=75, scale=0.1 },
+      { id="distort_level",   name="Level",    kind="level",  default=0 },
+      { id="distort_lowcut",  name="Low Cut",  kind="hz",     default=20, lo=20, hi=1000 },
     },
     psel       = 1,
     bypass_cmd = "distort_bypass",
@@ -159,10 +155,10 @@ local PEDALS = {
     name       = "Warp",
     display    = "Warp",
     params     = {
-      { id="warp_rate",  name="Rate",      default=2.5, min=0.1, max=25, step=0.1, unit="Hz", warp="exp" },
-      { id="warp_depth", name="Depth",     default=5, min=0, max=100, step=1, unit="%" },
-      { id="warp_rise",  name="Rise/Fall", default=2.5, min=0.01, max=5.0, step=0.01, unit="s", warp="exp" },
-      { id="warp_mix",   name="Mix",       default=0,  min=0, max=100, step=1, unit="%" },
+      { id="warp_rate",  name="Rate",      kind="rate",   default=2.5, lo=0.1, hi=25 },
+      { id="warp_depth", name="Depth",     kind="amount", default=25 },
+      { id="warp_rise",  name="Rise/Fall", kind="s",      default=2.5, lo=0.01, hi=5 },
+      { id="warp_mix",   name="Mix",       kind="amount", default=100 },
     },
     psel       = 1,
     bypass_cmd = "warp_bypass",
@@ -172,12 +168,12 @@ local PEDALS = {
     name       = "Repeat",
     display    = "Repeat",
     params     = {
-      { id="repeat_time",           name="Time",      default=500, min=1, max=1000, step=1, unit="ms" },
-      { id="repeat_feedback",       name="Feedback",  default=50, min=0, max=100, step=1, unit="%" },
-      { id="repeat_level",          name="Level",     default=0, min=-75, max=10, step=0.5, unit="dB", level=true },
-      { id="repeat_characteristic", name="Color",     default=0,   min=0, max=1,  step=1, options={"Bright","Dark"} },
-      { id="repeat_mod_depth",      name="Mod Depth", default=10,  min=0, max=100, step=1, unit="%" },
-      { id="repeat_mod_rate",       name="Mod Rate",  default=2.5, min=0.1, max=10, step=0.1, unit="Hz", warp="exp" },
+      { id="repeat_time",           name="Time",      kind="ms",     default=500, lo=1, hi=1000 },
+      { id="repeat_feedback",       name="Feedback",  kind="amount", default=50 },
+      { id="repeat_level",          name="Level",     kind="level",  default=0 },
+      { id="repeat_characteristic", name="Tone",      default=0, options={"Bright","Dark"} },
+      { id="repeat_mod_depth",      name="Mod Depth", kind="amount", default=10 },
+      { id="repeat_mod_rate",       name="Mod Rate",  kind="rate",   default=2.5, lo=0.1, hi=25 },
     },
     psel       = 1,
     bypass_cmd = "repeat_bypass",
@@ -208,63 +204,63 @@ local BLD_BLOCKS   = { 2.512, 6.31, 15.85, 39.81, 100, 251.2, 631, 1585, 3981, 1
 -- sending.
 local TARGET_PARAMS = {
   {label="Off"},
-  {label="Cut: Threshold",    id="cut_thresh",       mn=-80,  mx=0,     st=0.5,  send=function(v) engine.cut_thresh(v) end},
-  {label="Cut: Attack",       id="cut_attack",       mn=0.1,  mx=2500,  st=0.1,  send=function(v) engine.cut_attack(v) end},
-  {label="Cut: Hold",         id="cut_hold",         mn=1,    mx=2500,  st=1,    send=function(v) engine.cut_hold(math.floor(v)) end},
-  {label="Cut: Release",      id="cut_release",      mn=1,    mx=2500,  st=1,    send=function(v) engine.cut_release(v) end},
-  {label="Cut: Range",        id="cut_range",        mn=-75,  mx=0,     st=0.5,  send=function(v) engine.cut_range(v) end},
-  {label="Cut: Margin",       id="cut_hyst",         mn=0,    mx=25,    st=0.5,  send=function(v) engine.cut_hyst(v) end},
-  {label="Fray: Drive",       id="fray_drive",       mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_drive(v) end},
-  {label="Fray: Comp",        id="fray_comp",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_comp(v) end},
-  {label="Fray: Stab",        id="fray_stab",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_stab(v) end},
-  {label="Fray: Octave",      id="fray_octave",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_octave(v) end},
-  {label="Fray: Gate",        id="fray_gate",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_gate(v) end},
-  {label="Fray: Tone",        id="fray_tone",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_tone(v) end},
-  {label="Fray: Volume",      id="fray_volume",      mn=-75,  mx=10,    st=0.5,  send=function(v) engine.fray_volume(level.amp(v)) end},
-  {label="Push: Gain",         id="push_gain",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_gain(v) end},
-  {label="Push: Tone",         id="push_tone",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_tone(v) end},
-  {label="Push: Level",        id="push_level",        mn=-75,  mx=10,    st=0.5,  send=function(v) engine.push_level(level.amp(v)) end},
-  {label="Push: Comp",         id="push_comp",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_comp(v) end},
-  {label="Distort: Gain",      id="distort_gain",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.distort_gain(v) end},
-  {label="Distort: Tone",      id="distort_tone",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.distort_tone(v) end},
-  {label="Distort: Level",     id="distort_level",     mn=-75,  mx=10,    st=0.5,  send=function(v) engine.distort_level(level.amp(v)) end},
-  {label="Warp: Rate",         id="warp_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) engine.warp_rate(v) end},
-  {label="Warp: Depth",        id="warp_depth",        mn=0,    mx=100,   st=1,    send=function(v) engine.warp_depth(math.floor(v)) end},
-  {label="Warp: Rise/Fall",    id="warp_rise",         mn=0.01, mx=5.0,   st=0.01, send=function(v) engine.warp_rise(v) end},
-  {label="Warp: Mix",          id="warp_mix",          mn=0,    mx=100,   st=1,    send=function(v) engine.warp_mix(math.floor(v)) end},
-  {label="Repeat: Time",       id="repeat_time",       mn=1,    mx=1000,  st=1,    send=function(v) engine.repeat_time(math.floor(v)) end},
-  {label="Repeat: Feedback",   id="repeat_feedback",   mn=0,    mx=100,   st=1,    send=function(v) engine.repeat_feedback(math.floor(v)) end},
-  {label="Repeat: Level",      id="repeat_level",      mn=-75,  mx=10,    st=0.5,  send=function(v) engine.repeat_level(level.amp(v)) end},
-  {label="Repeat: Mod Depth",  id="repeat_mod_depth",  mn=0,    mx=100,   st=1,    send=function(v) engine.repeat_mod_depth(math.floor(v)) end},
-  {label="Repeat: Mod Rate",   id="repeat_mod_rate",   mn=0.1,  mx=10,    st=0.1,  send=function(v) engine.repeat_mod_rate(v) end},
-  {label="Amp: Volume",        id="amp_volume",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_volume(v) end},
-  {label="Amp: Bass",          id="amp_bass",          mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_bass(v) end},
-  {label="Amp: Treble",        id="amp_treble",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_treble(v) end},
-  {label="Amp: Master",        id="amp_master",        mn=-75,  mx=10,    st=0.5,  send=function(v) engine.amp_master(level.amp(v)) end},
+  {label="Cut: Threshold",    id="cut_thresh",       send=function(v) engine.cut_thresh(v) end},
+  {label="Cut: Attack",       id="cut_attack",       send=function(v) engine.cut_attack(v) end},
+  {label="Cut: Hold",         id="cut_hold",         send=function(v) engine.cut_hold(math.floor(v)) end},
+  {label="Cut: Release",      id="cut_release",      send=function(v) engine.cut_release(v) end},
+  {label="Cut: Range",        id="cut_range",        send=function(v) engine.cut_range(v) end},
+  {label="Cut: Margin",       id="cut_hyst",         send=function(v) engine.cut_hyst(v) end},
+  {label="Fray: Drive",       id="fray_drive",       send=function(v) engine.fray_drive(v) end},
+  {label="Fray: Comp",        id="fray_comp",        send=function(v) engine.fray_comp(v * 0.1) end},
+  {label="Fray: Stab",        id="fray_stab",        send=function(v) engine.fray_stab(v * 0.1) end},
+  {label="Fray: Octave",      id="fray_octave",      send=function(v) engine.fray_octave(v * 0.1) end},
+  {label="Fray: Gate",        id="fray_gate",        send=function(v) engine.fray_gate(v * 0.1) end},
+  {label="Fray: Tone",        id="fray_tone",        send=function(v) engine.fray_tone(v * 0.1) end},
+  {label="Fray: Level",      id="fray_volume",      send=function(v) engine.fray_volume(control.amp(v)) end},
+  {label="Push: Gain",         id="push_gain",         send=function(v) engine.push_gain(v) end},
+  {label="Push: Tone",         id="push_tone",         send=function(v) engine.push_tone(v * 0.1) end},
+  {label="Push: Level",        id="push_level",        send=function(v) engine.push_level(control.amp(v)) end},
+  {label="Push: Comp",         id="push_comp",         send=function(v) engine.push_comp(v * 0.1) end},
+  {label="Distort: Gain",      id="distort_gain",      send=function(v) engine.distort_gain(v) end},
+  {label="Distort: Tone",      id="distort_tone",      send=function(v) engine.distort_tone(v * 0.1) end},
+  {label="Distort: Level",     id="distort_level",     send=function(v) engine.distort_level(control.amp(v)) end},
+  {label="Warp: Rate",         id="warp_rate",         send=function(v) engine.warp_rate(v) end},
+  {label="Warp: Depth",        id="warp_depth",        send=function(v) engine.warp_depth(math.floor(v)) end},
+  {label="Warp: Rise/Fall",    id="warp_rise",         send=function(v) engine.warp_rise(v) end},
+  {label="Warp: Mix",          id="warp_mix",          send=function(v) engine.warp_mix(math.floor(v)) end},
+  {label="Repeat: Time",       id="repeat_time",       send=function(v) engine.repeat_time(math.floor(v)) end},
+  {label="Repeat: Feedback",   id="repeat_feedback",   send=function(v) engine.repeat_feedback(math.floor(v)) end},
+  {label="Repeat: Level",      id="repeat_level",      send=function(v) engine.repeat_level(control.amp(v)) end},
+  {label="Repeat: Mod Depth",  id="repeat_mod_depth",  send=function(v) engine.repeat_mod_depth(math.floor(v)) end},
+  {label="Repeat: Mod Rate",   id="repeat_mod_rate",   send=function(v) engine.repeat_mod_rate(v) end},
+  {label="Amp: Volume",        id="amp_volume",        send=function(v) engine.amp_volume(v) end},
+  {label="Amp: Bass",          id="amp_bass",          send=function(v) engine.amp_bass(v <= 50 and v * 0.05 or 2.5 + (v - 50) * 0.15) end},
+  {label="Amp: Treble",        id="amp_treble",        send=function(v) engine.amp_treble(v * 0.1) end},
+  {label="Amp: Master",        id="amp_master",        send=function(v) engine.amp_master(control.amp(v)) end},
   {label="Amp: Rectifier",     id="amp_rectifier",     mn=1,    mx=3,     st=1,    send=function(v) engine.amp_rectifier(math.floor(v + 0.5) - 1) end},
-  {label="Tremolo: Speed",     id="tremolo_speed",     mn=0.1,  mx=25,    st=0.1,  send=function(v) engine.tremolo_speed(v) end},
-  {label="Tremolo: Intensity", id="tremolo_intensity", mn=0,    mx=100,   st=1,    send=function(v) engine.tremolo_intensity(math.floor(v)) end},
-  {label="Hold 1: Size", id="hold1_size", mn=0, mx=10, st=0.1, send=function(v) engine.hold_size(1, v) end},
-  {label="Hold 1: Density", id="hold1_density", mn=1, mx=10, st=0.1, send=function(v) engine.hold_density(1, v) end},
-  {label="Hold 1: Spread", id="hold1_spread", mn=0, mx=10, st=0.1, send=function(v) engine.hold_spread(1, v) end},
-  {label="Hold 1: Pitch", id="hold1_pitch", mn=-24, mx=24, st=1, send=function(v) engine.hold_pitch(1, v) end},
-  {label="Hold 1: Pitch Mix", id="hold1_pmix", mn=0, mx=100, st=1, send=function(v) engine.hold_pmix(1, v) end},
-  {label="Hold 1: Reverse Mix", id="hold1_rev", mn=0, mx=100, st=1, send=function(v) engine.hold_rev(1, v) end},
-  {label="Hold 1: Gain", id="hold1_gain", mn=0, mx=10, st=0.1, send=function(v) engine.hold_gain(1, v) end},
-  {label="Hold 1: Level", id="hold1_level", mn=-75, mx=10, st=0.5, send=function(v) engine.hold_level(1, level.amp(v)) end},
-  {label="Hold 1: Movement", id="hold1_move", mn=0, mx=10, st=0.1, send=function(v) engine.hold_move(1, v) end},
-  {label="Hold 2: Size", id="hold2_size", mn=0, mx=10, st=0.1, send=function(v) engine.hold_size(2, v) end},
-  {label="Hold 2: Density", id="hold2_density", mn=1, mx=10, st=0.1, send=function(v) engine.hold_density(2, v) end},
-  {label="Hold 2: Spread", id="hold2_spread", mn=0, mx=10, st=0.1, send=function(v) engine.hold_spread(2, v) end},
-  {label="Hold 2: Pitch", id="hold2_pitch", mn=-24, mx=24, st=1, send=function(v) engine.hold_pitch(2, v) end},
-  {label="Hold 2: Pitch Mix", id="hold2_pmix", mn=0, mx=100, st=1, send=function(v) engine.hold_pmix(2, v) end},
-  {label="Hold 2: Reverse Mix", id="hold2_rev", mn=0, mx=100, st=1, send=function(v) engine.hold_rev(2, v) end},
-  {label="Hold 2: Gain", id="hold2_gain", mn=0, mx=10, st=0.1, send=function(v) engine.hold_gain(2, v) end},
-  {label="Hold 2: Level", id="hold2_level", mn=-75, mx=10, st=0.5, send=function(v) engine.hold_level(2, level.amp(v)) end},
-  {label="Hold 2: Movement", id="hold2_move", mn=0, mx=10, st=0.1, send=function(v) engine.hold_move(2, v) end},
-  {label="Loop: Rec Level",  id="looper_dub_level",  mn=-75,  mx=10,    st=0.5,  send=function(v) engine.looper_dub_level(level.amp(v)) end},
-  {label="Loop: Play Level", id="looper_level",      mn=-75,  mx=10,    st=0.5,  send=function(v) engine.looper_level(level.amp(v)) end},
-  {label="Loop: Fade Level", id="looper_fade_level", mn=-75,  mx=10,    st=0.5,  send=function(v) engine.looper_fade_level(level.amp(v)) end},
+  {label="Tremolo: Speed",     id="tremolo_speed",     send=function(v) engine.tremolo_speed(v) end},
+  {label="Tremolo: Intensity", id="tremolo_intensity", send=function(v) engine.tremolo_intensity(math.floor(v)) end},
+  {label="Hold 1: Size", id="hold1_size", send=function(v) engine.hold_size(1, v * 0.1) end},
+  {label="Hold 1: Density", id="hold1_density", send=function(v) engine.hold_density(1, 1 + v * 0.09) end},
+  {label="Hold 1: Spread", id="hold1_spread", send=function(v) engine.hold_spread(1, v * 0.1) end},
+  {label="Hold 1: Pitch", id="hold1_pitch", send=function(v) engine.hold_pitch(1, v) end},
+  {label="Hold 1: Pitch Mix", id="hold1_pmix", send=function(v) engine.hold_pmix(1, v) end},
+  {label="Hold 1: Reverse Mix", id="hold1_rev", send=function(v) engine.hold_rev(1, v) end},
+  {label="Hold 1: Gain", id="hold1_gain", send=function(v) engine.hold_gain(1, v) end},
+  {label="Hold 1: Level", id="hold1_level", send=function(v) engine.hold_level(1, control.amp(v)) end},
+  {label="Hold 1: Movement", id="hold1_move", send=function(v) engine.hold_move(1, v * 0.1) end},
+  {label="Hold 2: Size", id="hold2_size", send=function(v) engine.hold_size(2, v * 0.1) end},
+  {label="Hold 2: Density", id="hold2_density", send=function(v) engine.hold_density(2, 1 + v * 0.09) end},
+  {label="Hold 2: Spread", id="hold2_spread", send=function(v) engine.hold_spread(2, v * 0.1) end},
+  {label="Hold 2: Pitch", id="hold2_pitch", send=function(v) engine.hold_pitch(2, v) end},
+  {label="Hold 2: Pitch Mix", id="hold2_pmix", send=function(v) engine.hold_pmix(2, v) end},
+  {label="Hold 2: Reverse Mix", id="hold2_rev", send=function(v) engine.hold_rev(2, v) end},
+  {label="Hold 2: Gain", id="hold2_gain", send=function(v) engine.hold_gain(2, v) end},
+  {label="Hold 2: Level", id="hold2_level", send=function(v) engine.hold_level(2, control.amp(v)) end},
+  {label="Hold 2: Movement", id="hold2_move", send=function(v) engine.hold_move(2, v * 0.1) end},
+  {label="Loop: Rec Level",  id="looper_dub_level",  send=function(v) engine.looper_dub_level(control.amp(v)) end},
+  {label="Loop: Play Level", id="looper_level",      send=function(v) engine.looper_level(control.amp(v)) end},
+  {label="Loop: Fade Level", id="looper_fade_level", send=function(v) engine.looper_fade_level(control.amp(v)) end},
   {label="Loop: Speed",      id="looper_speed",      mn=-100, mx=100,   st=1,    send=function(v)
     local ratio
     if params:get("looper_speed_control") == 1 then
@@ -272,22 +268,22 @@ local TARGET_PARAMS = {
     else ratio = 2^(v/100) end
     engine.looper_speed(ratio)
   end},
-  {label="Loop: Imprint",    id="looper_imprint",    mn=0,    mx=100,   st=1,    send=function(v) engine.looper_imprint(math.floor(v)) end},
-  {label="Loop: Wear",       id="looper_wear",       mn=0,    mx=100,   st=1,    send=function(v) engine.looper_wear(math.floor(v)) end},
-  {label="Loop: Cassette Wow", id="looper_wow_cas",    mn=0,    mx=100,   st=1,    send=function(v) engine.looper_wow_cas(math.floor(v)) end},
-  {label="Loop: CD Errors",  id="looper_cd_errors",  mn=0,    mx=100,   st=1,    send=function(v) engine.looper_cd_errors(math.floor(v)) end},
-  {label="Loop: Chip Crush", id="looper_chip_crush", mn=0,    mx=100,   st=1,    send=function(v) engine.looper_chip_crush(math.floor(v)) end},
-  {label="Loop: Tape Wow",   id="looper_wow_tape",   mn=0,    mx=100,   st=1,    send=function(v) engine.looper_wow_tape(math.floor(v)) end},
-  {label="Reverb: Amount",     id="reverb_amount",     mn=0,    mx=100,   st=1,    send=function(v) engine.reverb_amount(math.floor(v)) end},
-  {label="Reverb: Length",     id="reverb_length",     mn=0.5,  mx=5.0,   st=0.1,  send=function(v) engine.reverb_length(v) end},
-  {label="Reverb: Low Shelf",  id="reverb_low_shelf",  mn=-5,   mx=5,     st=0.5,  send=function(v) engine.reverb_low_shelf(v) end},
-  {label="Reverb: High Shelf", id="reverb_high_shelf", mn=-5,   mx=5,     st=0.5,  send=function(v) engine.reverb_high_shelf(v) end},
-  {label="Reverb: Dwell",      id="reverb_dwell",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.reverb_dwell(v) end},
-  {label="Reverb: Drip",       id="reverb_drip",       mn=0,    mx=10,    st=0.1,  send=function(v) engine.reverb_drip(v) end},
-  {label="Cab: Cab Level",     id="cab_level",         mn=-75,  mx=10,    st=0.5,  send=function(v) engine.cab_level(level.amp(v)) end},
+  {label="Loop: Imprint",    id="looper_imprint",    send=function(v) engine.looper_imprint(math.floor(v)) end},
+  {label="Loop: Wear",       id="looper_wear",       send=function(v) engine.looper_wear(math.floor(v)) end},
+  {label="Loop: Cassette Wow", id="looper_wow_cas",    send=function(v) engine.looper_wow_cas(math.floor(v)) end},
+  {label="Loop: CD Errors",  id="looper_cd_errors",  send=function(v) engine.looper_cd_errors(math.floor(v)) end},
+  {label="Loop: Chip Crush", id="looper_chip_crush", send=function(v) engine.looper_chip_crush(math.floor(v)) end},
+  {label="Loop: Tape Wow",   id="looper_wow_tape",   send=function(v) engine.looper_wow_tape(math.floor(v)) end},
+  {label="Reverb: Amount",     id="reverb_amount",     send=function(v) engine.reverb_amount(math.floor(v)) end},
+  {label="Reverb: Length",     id="reverb_length",     send=function(v) engine.reverb_length(v) end},
+  {label="Reverb: Low Shelf",  id="reverb_low_shelf",  send=function(v) engine.reverb_low_shelf(v * 0.05) end},
+  {label="Reverb: High Shelf", id="reverb_high_shelf", send=function(v) engine.reverb_high_shelf(v * 0.05) end},
+  {label="Reverb: Dwell",      id="reverb_dwell",      send=function(v) engine.reverb_dwell(v * 0.1) end},
+  {label="Reverb: Drip",       id="reverb_drip",       send=function(v) engine.reverb_drip(v * 0.1) end},
+  {label="Cab & Mic: Level",     id="cab_level",         send=function(v) engine.cab_level(control.amp(v)) end},
   {label="Count: Division",    id="count_div",         mn=1,    mx=5,     st=1,    send=function(v) lfo.count.div = math.floor(v+0.5) end},
-  {label="Count: Level",       id="count_level",       mn=-75,  mx=10,    st=0.5,  send=function(v) lfo.count.level = v end},
-  {label="Count: Length",      id="count_length",      mn=1,    mx=500,   st=1,    send=function(v) lfo.count.length = math.floor(v + 0.5) end},
+  {label="Count: Level",       id="count_level",       send=function(v) lfo.count.level = v end},
+  {label="Count: Length",      id="count_length",      send=function(v) lfo.count.length = math.floor(v + 0.5) end},
   {label="Count: Root",        id="count_root",        mn=0,    mx=12,    st=1,    send=function(v)
     local p = math.floor(v + 0.5)
     if p <= 0 then lfo.count.root = 0; return end
@@ -299,65 +295,65 @@ local TARGET_PARAMS = {
   {label="Count: Chords",      id="count_chords",      mn=1,    mx=4,     st=1,    send=function(v) lfo.count.chords = math.floor(v + 0.5) end},
   {label="Count: Scale Play",  id="count_scale_play",  mn=1,    mx=8,     st=1,    send=function(v) lfo.count.play   = math.floor(v + 0.5) end},
   {label="Count: Scale Degree",id="count_degree",      mn=1,    mx=15,    st=1,    send=function(v) lfo.count.degree = math.floor(v + 0.5) end},
-  {label="LFO 1: Rate",        id="lfo1_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[1]  = v end},
-  {label="LFO 2: Rate",        id="lfo2_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[2]  = v end},
-  {label="LFO 3: Rate",        id="lfo3_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[3]  = v end},
-  {label="LFO 4: Rate",        id="lfo4_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[4]  = v end},
-  {label="LFO 5: Rate",        id="lfo5_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[5]  = v end},
-  {label="LFO 6: Rate",        id="lfo6_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[6]  = v end},
-  {label="LFO 7: Rate",        id="lfo7_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[7]  = v end},
-  {label="LFO 8: Rate",        id="lfo8_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) lfo.mod.rate[8]  = v end},
-  {label="LFO 1: Depth",       id="lfo1_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[1] = v end},
-  {label="LFO 2: Depth",       id="lfo2_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[2] = v end},
-  {label="LFO 3: Depth",       id="lfo3_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[3] = v end},
-  {label="LFO 4: Depth",       id="lfo4_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[4] = v end},
-  {label="LFO 5: Depth",       id="lfo5_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[5] = v end},
-  {label="LFO 6: Depth",       id="lfo6_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[6] = v end},
-  {label="LFO 7: Depth",       id="lfo7_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[7] = v end},
-  {label="LFO 8: Depth",       id="lfo8_depth",        mn=0,    mx=100,   st=1,    send=function(v) lfo.mod.depth[8] = v end},
-  {label="Tremolo: Sync Div",  id="tremolo_sync_div",  mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
+  {label="LFO 1: Rate",        id="lfo1_rate",         send=function(v) lfo.mod.rate[1]  = v end},
+  {label="LFO 2: Rate",        id="lfo2_rate",         send=function(v) lfo.mod.rate[2]  = v end},
+  {label="LFO 3: Rate",        id="lfo3_rate",         send=function(v) lfo.mod.rate[3]  = v end},
+  {label="LFO 4: Rate",        id="lfo4_rate",         send=function(v) lfo.mod.rate[4]  = v end},
+  {label="LFO 5: Rate",        id="lfo5_rate",         send=function(v) lfo.mod.rate[5]  = v end},
+  {label="LFO 6: Rate",        id="lfo6_rate",         send=function(v) lfo.mod.rate[6]  = v end},
+  {label="LFO 7: Rate",        id="lfo7_rate",         send=function(v) lfo.mod.rate[7]  = v end},
+  {label="LFO 8: Rate",        id="lfo8_rate",         send=function(v) lfo.mod.rate[8]  = v end},
+  {label="LFO 1: Depth",       id="lfo1_depth",        send=function(v) lfo.mod.depth[1] = v end},
+  {label="LFO 2: Depth",       id="lfo2_depth",        send=function(v) lfo.mod.depth[2] = v end},
+  {label="LFO 3: Depth",       id="lfo3_depth",        send=function(v) lfo.mod.depth[3] = v end},
+  {label="LFO 4: Depth",       id="lfo4_depth",        send=function(v) lfo.mod.depth[4] = v end},
+  {label="LFO 5: Depth",       id="lfo5_depth",        send=function(v) lfo.mod.depth[5] = v end},
+  {label="LFO 6: Depth",       id="lfo6_depth",        send=function(v) lfo.mod.depth[6] = v end},
+  {label="LFO 7: Depth",       id="lfo7_depth",        send=function(v) lfo.mod.depth[7] = v end},
+  {label="LFO 8: Depth",       id="lfo8_depth",        send=function(v) lfo.mod.depth[8] = v end},
+  {label="Tremolo: Division",  id="tremolo_sync_div",  mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["tremolo_sync_div"] ~= new_v then
       lfo.sync_override["tremolo_sync_div"] = new_v
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Tremolo: Sync Feel", id="tremolo_sync_feel", mn=1,    mx=3,     st=1,    send=function(v)
+  {label="Tremolo: Feel", id="tremolo_sync_feel", mn=1,    mx=3,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["tremolo_sync_feel"] ~= new_v then
       lfo.sync_override["tremolo_sync_feel"] = new_v
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Warp: Sync Div",     id="warp_sync_div",     mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
+  {label="Warp: Division",     id="warp_sync_div",     mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["warp_sync_div"] ~= new_v then
       lfo.sync_override["warp_sync_div"] = new_v
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Warp: Sync Feel",    id="warp_sync_feel",    mn=1,    mx=3,     st=1,    send=function(v)
+  {label="Warp: Feel",    id="warp_sync_feel",    mn=1,    mx=3,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["warp_sync_feel"] ~= new_v then
       lfo.sync_override["warp_sync_feel"] = new_v
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Repeat: Sync Div",   id="repeat_sync_div",   mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
+  {label="Repeat: Division",   id="repeat_sync_div",   mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["repeat_sync_div"] ~= new_v then
       lfo.sync_override["repeat_sync_div"] = new_v
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Repeat: Sync Feel",  id="repeat_sync_feel",  mn=1,    mx=3,     st=1,    send=function(v)
+  {label="Repeat: Feel",  id="repeat_sync_feel",  mn=1,    mx=3,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["repeat_sync_feel"] ~= new_v then
       lfo.sync_override["repeat_sync_feel"] = new_v
       sync.push_all(initing, clock_running, lfo.sync_override)
     end
   end},
-  {label="Loop: Quantize",   id="looper_quant_div",  mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
+  {label="Loop: Quantize Division",   id="looper_quant_div",  mn=2,    mx=#sync.DIV_OPTS,     st=1,    send=function(v)
     local new_v = math.floor(v+0.5)
     if lfo.sync_override["looper_quant_div"] ~= new_v then
       lfo.sync_override["looper_quant_div"] = new_v
@@ -376,64 +372,63 @@ local TARGET_PARAMS = {
 for i = 1, lfo.NUM do
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Phase",     id="lfo"..i.."_phase",     mn=1, mx=4,   st=1,   send=function(v) lfo.mod.phase[i]     = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Steps",     id="lfo"..i.."_steps",     mn=1, mx=16,  st=1,   send=function(v) lfo.mod.steps[i]     = math.floor(v + 0.5) end}
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Stability", id="lfo"..i.."_stability", mn=0, mx=100, st=1,   send=function(v) lfo.mod.stability[i] = v end}
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Rate Slew", id="lfo"..i.."_rate_slew", mn=0, mx=5,   st=0.1, send=function(v) lfo.mod.rate_slew[i] = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Stability", id="lfo"..i.."_stability", send=function(v) lfo.mod.stability[i] = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Rate Slew", id="lfo"..i.."_rate_slew", send=function(v) lfo.mod.rate_slew[i] = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Sync Div",  id="lfo"..i.."_sync_div",  mn=2, mx=#sync.DIV_OPTS,   st=1,   send=function(v) lfo.mod.sync_div[i]  = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="LFO "..i..": Sync Feel", id="lfo"..i.."_sync_feel", mn=1, mx=3,   st=1,   send=function(v) lfo.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
 
 for i = 1, seq.NUM do
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate",      id="seq"..i.."_rate",      mn=0.1, mx=25,  st=0.1, send=function(v) seq.mod.rate[i]      = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate",      id="seq"..i.."_rate",      send=function(v) seq.mod.rate[i]      = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Steps",     id="seq"..i.."_steps",     mn=2,   mx=16,  st=1,   send=function(v) seq.mod.steps[i]     = math.floor(v + 0.5) end}
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate Slew", id="seq"..i.."_rate_slew", mn=0,   mx=5,   st=0.1, send=function(v) seq.mod.rate_slew[i] = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Rate Slew", id="seq"..i.."_rate_slew", send=function(v) seq.mod.rate_slew[i] = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Sync Div",  id="seq"..i.."_sync_div",  mn=2, mx=#sync.DIV_OPTS,   st=1,   send=function(v) seq.mod.sync_div[i]  = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Walk "..i..": Sync Feel", id="seq"..i.."_sync_feel", mn=1,   mx=3,   st=1,   send=function(v) seq.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
 
 for i = 1, trigs.N do
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Rate",        id="trig"..i.."_rate",        mn=0.1, mx=25,  st=0.1, send=function(v) trigs.mod.rate[i]        = v end}
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Chance", id="trig"..i.."_chance", mn=0,   mx=100, st=1,   send=function(v) trigs.mod.chance[i] = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Rate",        id="trig"..i.."_rate",        send=function(v) trigs.mod.rate[i]        = v end}
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Chance", id="trig"..i.."_chance", send=function(v) trigs.mod.chance[i] = v end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Sync Div",    id="trig"..i.."_sync_div",    mn=2,   mx=#sync.DIV_OPTS, st=1, send=function(v) trigs.mod.sync_div[i]  = math.floor(v + 0.5) end}
   TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Trigger "..i..": Sync Feel",   id="trig"..i.."_sync_feel",   mn=1,   mx=3,   st=1,   send=function(v) trigs.mod.sync_feel[i] = math.floor(v + 0.5) end}
 end
 
 TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Speed",    id="tape_speed",    mn=1, mx=3,  st=1,   send=function(v) engine.tape_speed(math.floor(v + 0.5) - 1) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Drive",    id="tape_drive",    mn=0, mx=10, st=0.1, send=function(v) engine.tape_drive(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Drive",    id="tape_drive",    send=function(v) engine.tape_drive(v) end}
 TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Bias",     id="tape_bias",     mn=1, mx=3,  st=1,   send=function(v) engine.tape_bias(math.floor(v + 0.5) - 1) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Hiss",     id="tape_hiss",     mn=0, mx=10, st=0.1, send=function(v) engine.tape_hiss(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Wow",      id="tape_wow",      mn=0, mx=10, st=0.1, send=function(v) engine.tape_wow(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Azimuth",  id="tape_azimuth",  mn=0, mx=10, st=0.1, send=function(v) engine.tape_azimuth(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Magnetism", id="tape_mag",     mn=0, mx=10, st=0.1, send=function(v) engine.tape_mag(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Hiss",     id="tape_hiss",     send=function(v) engine.tape_hiss(v * 0.1) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Wow",      id="tape_wow",      send=function(v) engine.tape_wow(v * 0.1) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Azimuth",  id="tape_azimuth",  send=function(v) engine.tape_azimuth(v * 0.1) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Tape: Magnetism", id="tape_mag",     send=function(v) engine.tape_mag(v * 0.1) end}
 TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Block",       id="bld_block",   mn=1,  mx=10,     st=1,   send=function(v) bld_send_block(math.floor(v + 0.5)) end}
 TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Ratio",       id="bld_ratio",   mn=1,  mx=11,     st=1,   send=function(v) bld_send_ratio(math.floor(v + 0.5)) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Time",        id="bld_time",    mn=0,  mx=1,      st=0.01, send=function(v) bld_send_block(nil, v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Feedback",    id="bld_fb",      mn=0,  mx=100,    st=1,   send=function(v) engine.bld_fb(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Mix",         id="bld_mix",     mn=0,  mx=100,    st=1,   send=function(v) engine.bld_mix(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Spread",      id="bld_spread",  mn=0,  mx=100,    st=1,   send=function(v) engine.bld_spread(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Low Cut",     id="bld_lowcut",  mn=10, mx=1000,   st=1,   send=function(v) engine.bld_lowcut(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: High Cut",    id="bld_highcut", mn=800, mx=15000, st=10,  send=function(v) engine.bld_highcut(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Amp: Mid",           id="amp_mid",     mn=0,  mx=10,     st=0.1, send=function(v) engine.amp_mid(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Amp: Mid Freq",      id="amp_mid_freq", mn=250, mx=4000, st=10,  send=function(v) engine.amp_mid_freq(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Size",      id="evp_size",       mn=10, mx=300,  st=1,   send=function(v) engine.evp_size(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Pre-Delay", id="evp_predelay",   mn=0,  mx=500,  st=1,   send=function(v) engine.evp_predelay(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Decay",     id="evp_decay",      mn=0,  mx=100,  st=1,   send=function(v) engine.evp_decay(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Damping",   id="evp_damping",    mn=0,  mx=100,  st=1,   send=function(v) engine.evp_damping(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Tilt",      id="evp_tilt",       mn=-100, mx=100, st=1,  send=function(v) engine.evp_tilt(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Mix",       id="evp_mix",        mn=0,  mx=100,  st=1,   send=function(v) engine.evp_mix(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Spread",    id="evp_spread",     mn=0,  mx=200,  st=1,   send=function(v) engine.evp_spread(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Saturation", id="evp_saturation", mn=0, mx=100,  st=1,   send=function(v) engine.evp_saturation(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Width",     id="evp_width",      mn=0,  mx=200,  st=1,   send=function(v) engine.evp_width(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Low Cut",   id="evp_lowcut",     mn=20, mx=1000, st=1,   send=function(v) engine.evp_lowcut(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Octave",        id="bld_octave",     mn=0,  mx=100,  st=1,   send=function(v) engine.bld_octave(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Smear",         id="bld_smear",      mn=0,  mx=100,  st=1,   send=function(v) engine.bld_smear(v) end}
-TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Crossfeed",     id="bld_xfeed",      mn=0,  mx=100,  st=1,   send=function(v) engine.bld_xfeed(v) end}
-for _, q in ipairs({ { "Gain", "gain", -12, 24, 0.5 }, { "Even Harmonics", "even", 0, 10, 0.1 },
-                     { "Odd Harmonics", "odd", 0, 10, 0.1 }, { "Low Cut", "lowcut", 20, 1000, 1 },
-                     { "High Cut", "highcut", 1000, 20000, 10 }, { "Level", "level", -75, 10, 0.5 } }) do
-  local id = "strip_" .. q[2]
-  local amp = q[2] == "level"
-  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: " .. q[1], id=id, mn=q[3], mx=q[4], st=q[5], send=function(v) engine[id](amp and level.amp(v) or v) end}
-end
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Time",        id="bld_time",    send=function(v) bld_send_block(nil, v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Feedback",    id="bld_fb",      send=function(v) engine.bld_fb(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Mix",         id="bld_mix",     send=function(v) engine.bld_mix(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Spread",      id="bld_spread",  send=function(v) engine.bld_spread(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Low Cut",     id="bld_lowcut",  send=function(v) engine.bld_lowcut(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: High Cut",    id="bld_highcut", send=function(v) engine.bld_highcut(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Amp: Mid",           id="amp_mid",     send=function(v) engine.amp_mid(v * 0.1) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Amp: Mid Freq",      id="amp_mid_freq", send=function(v) engine.amp_mid_freq(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Size",      id="evp_size",       send=function(v) engine.evp_size(10 + v * 2.9) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Pre-Delay", id="evp_predelay",   send=function(v) engine.evp_predelay(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Decay",     id="evp_decay",      send=function(v) engine.evp_decay(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Damping",   id="evp_damping",    send=function(v) engine.evp_damping(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Tilt",      id="evp_tilt",       send=function(v) engine.evp_tilt(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Mix",       id="evp_mix",        send=function(v) engine.evp_mix(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Spread",    id="evp_spread",     send=function(v) engine.evp_spread(v * 2) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Saturation", id="evp_saturation", send=function(v) engine.evp_saturation(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Width",     id="evp_width",      send=function(v) engine.evp_width(v * 2) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Low Cut",   id="evp_lowcut",     send=function(v) engine.evp_lowcut(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Octave",        id="bld_octave",     send=function(v) engine.bld_octave(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Smear",         id="bld_smear",      send=function(v) engine.bld_smear(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Crossfeed",     id="bld_xfeed",      send=function(v) engine.bld_xfeed(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: Drive",          id="strip_gain",    send=function(v) engine.strip_gain(10 ^ ((v - 5) / 10)) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: Even Harmonics", id="strip_even",    send=function(v) engine.strip_even(v * 0.1) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: Odd Harmonics",  id="strip_odd",     send=function(v) engine.strip_odd(v * 0.1) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: Low Cut",        id="strip_lowcut",  send=function(v) engine.strip_lowcut(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: High Cut",       id="strip_highcut", send=function(v) engine.strip_highcut(v) end}
+TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: Level",          id="strip_level",   send=function(v) engine.strip_level(control.amp(v)) end}
 
 local DEVICE_NAMES     = {}
 local DEVICE_PARAMS    = {}
@@ -520,77 +515,43 @@ local COUNT_STRIP = {
   {name="Register", id="count_register", typ="opt", nmax=8,  fmt=function(v) return tostring(v - 1) end},
   {name="Scale",    id="count_scale",    typ="opt",  nmax=8,  fmt=function(v) return scales.SCALE_NAMES[v] end},
   {name="Degree",   id="count_degree",     typ="opt", nmax=15, fmt=function(v) return tostring(v) end},
-  {name="Play",     id="count_scale_play", typ="opt", nmax=8, fmt=function(v) return ({"Off","Fwd","Rev","3rds","4ths","5ths","7ths","Rnd"})[v] end},
+  {name="Play",     id="count_scale_play", typ="opt", nmax=8, fmt=function(v) return params:lookup_param("count_scale_play").options[v] end},
   {name="Chords",   id="count_chords",     typ="opt", nmax=4, fmt=function(v) return ({"Off","Octaves","Power","Triads"})[v] end},
-  {name="Level",    id="count_level",   typ="ctrl", step=0.5, fmt=function(v) return level.str(v) end},
+  {name="Level",    id="count_level",   typ="ctrl", step=0.5, fmt=function(v) return control.level_str(v) end},
   {name="Length",   id="count_length",  typ="ctrl", step=1,  fmt=function(v) return string.format("%dms",math.floor(v)) end},
   {name="Position", id="count_position", typ="opt",  nmax=2,  fmt=function(v) return ({"Parallel","Inline"})[v] end},
 }
 
-local function fmt_unit(v, p)
-  if p.unit then
-    return p.step < 1 and string.format("%.1f%s", v, p.unit) or string.format("%d%s", math.floor(v), p.unit)
-  end
-  return string.format("%.1f", v)
-end
-
-local function fmt_def_val(def, idx, v_in)
-  local p  = def[idx]
-  local id = p.id
-  local v  = v_in or params:get(id)
-  if p.options then return p.options[v] end
-  if id == "mic_position"     then return MIC_NAMES[v] end
-  if id == "looper_direction" then return DIR_NAMES[v] end
-  if id == "looper_speed" then
-    if params:get("looper_speed_control") == 1 then
-      if v < 0 then return "-100%" elseif v > 0 then return "+100%" else return "+0%" end
-    else
-      return string.format("%+d%%", math.floor(v))
-    end
-  end
-  local s = sync.fmt(id, clock_running)
-  if s then return s end
-  if p.db   then return level.str(v) end
-  return fmt_unit(v, p)
-end
-local function fmt_val(idx) return fmt_def_val(PARAMS_DEF, idx) end
-
-local PARAM_DEF_OF = {}
-for i, e in ipairs(PARAMS_DEF) do PARAM_DEF_OF[e.id] = { def = PARAMS_DEF, idx = i } end
-for i, e in ipairs(LOOPER_DEF) do PARAM_DEF_OF[e.id] = { def = LOOPER_DEF, idx = i } end
-local PARAM_PED_OF = {}
-for _, pd in ipairs(PEDALS) do
-  for _, e in ipairs(pd.params) do PARAM_PED_OF[e.id] = e end
-end
-
+-- Every readout uses the param's own formatter, so the screen reads what PARAMS reads. A live
+-- value (modulation, a moving Hold) goes through the same formatter.
 local function fmt_param(id, v_in)
-  if id == "tune_ref" then return string.format("%.1f Hz", params:get(id)) end
   -- NAM profile names outgrow the strip, so it shows the list position instead
   if id == "amp_model" then
     return (v_in or params:get(id)) .. "/" .. #params:lookup_param(id).options
   end
-  local d = PARAM_DEF_OF[id]
-  if d then return fmt_def_val(d.def, d.idx, v_in) end
-  local pe = PARAM_PED_OF[id]
-  if pe then
-    local s = sync.fmt(id, clock_running)
-    if s then return s end
+  if id == "looper_speed" then
     local v = v_in or params:get(id)
-    if pe.options then return pe.options[v] end
-    if pe.level then return level.str(v) end
-    return fmt_unit(v, pe)
+    if params:get("looper_speed_control") == 1 then
+      if v < 0 then return "-100%" elseif v > 0 then return "+100%" else return "+0%" end
+    end
+    return string.format("%+d%%", math.floor(v))
   end
   local s = sync.fmt(id, clock_running)
   if s then return s end
+  if v_in == nil then return params:string(id) end
   local p = params:lookup_param(id)
-  if v_in and p and p.controlspec then
-    local cs = p.controlspec
-    local u  = cs.units
-    local r = util.round(v_in, (cs.step and cs.step > 0) and cs.step or 0.01)
-    return util.round(r, 0.01) .. ((u and u ~= "") and (" " .. u) or "")
+  if p.options then return p.options[util.clamp(math.floor(v_in + 0.5), 1, #p.options)] end
+  if p.formatter and p.controlspec then
+    return p.formatter({ controlspec = p.controlspec, get = function() return v_in end })
   end
-  return params:string(id)
+  return tostring(v_in)
 end
+local function fmt_def_val(def, idx, v_in) return fmt_param(def[idx].id, v_in) end
+local function fmt_val(idx) return fmt_param(PARAMS_DEF[idx].id) end
+
+local PARAM_DEF_OF = {}
+for i, e in ipairs(PARAMS_DEF) do PARAM_DEF_OF[e.id] = { def = PARAMS_DEF, idx = i } end
+for i, e in ipairs(LOOPER_DEF) do PARAM_DEF_OF[e.id] = { def = LOOPER_DEF, idx = i } end
 
 local function snap_val(v, step)
   if step == 1 then return math.floor(v + 0.5)
@@ -657,6 +618,13 @@ local function source_running(id)
   return false
 end
 
+-- Hold's Size, Density and Spread read in percent, while the engine and its Movement polls keep
+-- their own 0..10 (Density 1..10) scale; these two tables translate either way.
+local HOLD_E = { size = function(v) return v * 0.1 end, density = function(v) return 1 + v * 0.09 end,
+           spread = function(v) return v * 0.1 end }
+local HOLD_P = { size = function(e) return e * 10 end, density = function(e) return (e - 1) / 0.09 end,
+                 spread = function(e) return e * 10 end }
+
 local function hold_moving(id)
   local hi, name = id:match("^hold(%d)_(%a+)$")
   if not (hi and (name == "size" or name == "density" or name == "spread")) then return nil end
@@ -669,7 +637,10 @@ local function live_value(id)
   local v = running and mod_live[id] or nil
   if not running then mod_live[id] = nil end
   local hi, name, moving = hold_moving(id)
-  if hi and (running or moving) then return hold_live[hi][name] or v end
+  if hi and (running or moving) then
+    local e = hold_live[hi][name]
+    return e and HOLD_P[name](e) or v
+  end
   return v
 end
 
@@ -714,11 +685,6 @@ local function edit_param(id, d)
   local m = sync.PARAM_MAP[id]
   if m and params:get(m.div) > 1 then
     params:set(m.div, sync.step_div(id, params:get(m.div), d, params:get(m.feel), clock.get_tempo()))
-    return
-  end
-  if id == "bld_time" then
-    local n = bld_steps(params:get("bld_block"))
-    params:set(id, util.clamp(math.floor(params:get(id) * n + 0.5) + d, 0, n) / n)
     return
   end
   params:delta(id, d)
@@ -869,9 +835,9 @@ local function draw_left_strip()
     screen.level(B.MED)
     screen.move(cabinet.LEFT_CX,  8); screen.text_center("Cab & Mic")
     screen.move(cabinet.LEFT_CX, 17); screen.text_center("Simulation")
-    screen.move(cabinet.LEFT_CX, 26); screen.text_center("Bypass")
+    screen.move(cabinet.LEFT_CX, 26); screen.text_center("Off")
   elseif knob then
-    draw_strip(PARAMS_DEF[knob].cat, PARAMS_DEF[knob].name, strip_val(id, fmt_val(knob), sync.val_level(id, clock_running)))
+    draw_strip(PARAMS_DEF[knob].cat, params:lookup_param(id).name, strip_val(id, fmt_val(knob), sync.val_level(id, clock_running)))
   else
     draw_strip(devname, params:lookup_param(id).name, strip_val(id, fmt_param(id), sync.val_level(id, clock_running)))
   end
@@ -1008,13 +974,8 @@ local function draw_pedalboard()
   local psel = cur_pedal_sel()
   local pd   = cur_pedal()
   local p    = pd.params[pd.psel]
-  local v    = params:get(p.id)
-  local vstr = sync.fmt(p.id, clock_running)
-  if not vstr then
-    if p.options then vstr = p.options[v]
-    else vstr = fmt_unit(v, p) end
-  end
-  draw_strip(pd.name, p.name, strip_val(p.id, vstr, tap.level(p.id, sync.val_level(p.id, clock_running))))
+  local vstr = fmt_param(p.id)
+  draw_strip(pd.name, params:lookup_param(p.id).name, strip_val(p.id, vstr, tap.level(p.id, sync.val_level(p.id, clock_running))))
 
   -- ── Two pedals, flush with the edges of the shared cabinet ───
   local OX1 = cabinet.CAB.x
@@ -1307,7 +1268,7 @@ local function draw_performance()
   if dev.abbr == "LOP" then
     local li = perf_param[perf_sel] or 1
     local lp = LOOPER_DEF[li]
-    draw_strip(lp.cat, lp.name, strip_val(lp.id, fmt_def_val(LOOPER_DEF, li), sync.val_level(lp.id, clock_running)))
+    draw_strip(lp.cat, params:lookup_param(lp.id).name, strip_val(lp.id, fmt_def_val(LOOPER_DEF, li), sync.val_level(lp.id, clock_running)))
   elseif dev.abbr == "TUN" then
     local cx  = cabinet.LEFT_CX
     local tlv = tune.muted and B.FULL or B.MED
@@ -1371,7 +1332,7 @@ local function hold_polls_make()
 end
 
 local function hold_value(idx, name)
-  return hold_live[idx][name] or params:get("hold" .. idx .. "_" .. name)
+  return hold_live[idx][name] or HOLD_E[name](params:get("hold" .. idx .. "_" .. name))
 end
 
 local function hold_grain_tick(idx)
@@ -1426,7 +1387,7 @@ local function draw_hold_grains(x, y, idx, focused, dev)
   screen.rect(ox + 2, oy + 3, 1, 26); screen.rect(ox + 34, oy + 3, 1, 26); screen.fill()
   local cols, mid = {}, oy + 15
   if on then
-    local peak = 3 + math.min(level.amp(params:get("hold" .. idx .. "_level")), 2) * 6
+    local peak = 3 + math.min(control.amp(params:get("hold" .. idx .. "_level")), 2) * 6
     for _, q in ipairs(hold_grains[idx]) do
       local t   = q.age / q.ttl
       local env = (t < 0.3) and (t / 0.3) or ((1 - t) / 0.7)
@@ -1618,7 +1579,7 @@ local evp = { rings = {}, spawn = 0, level = 0 }
 
 local function evp_tick(dt)
   if params:get("evp_freeze") == 2 then return end
-  local size  = params:get("evp_size") / 100
+  local size  = (10 + params:get("evp_size") * 2.9) / 100
   local decay = params:get("evp_decay") / 100
   local speed = 8 * (0.5 + size * 0.5)
   local fade  = math.exp(-dt * (4 - 3.6 * decay))
@@ -1907,7 +1868,7 @@ local function mod_open_toggle()
 end
 
 local function count_tick_now()
-  local lvl      = 0.5 * level.amp(lfo.count.level ~= nil and lfo.count.level or params:get("count_level"))
+  local lvl      = 0.5 * control.amp(lfo.count.level ~= nil and lfo.count.level or params:get("count_level"))
   local length   = lfo.count.length   ~= nil and lfo.count.length        or params:get("count_length")
   local root     = lfo.count.root     ~= nil and lfo.count.root          or params:get("count_root")
   local register = lfo.count.register ~= nil and lfo.count.register      or params:get("count_register")
@@ -2438,11 +2399,8 @@ function init()
       if p.options then
         params:add_option(p.id, p.name, p.options, p.default + 1)
         params:set_action(p.id, function(v) engine[p.id](v - 1); re() end)
-      elseif p.level then
-        level.add(p.id, p.name, p.default, function(a) engine[p.id](a); re() end)
       else
-        params:add_control(p.id, p.name, controlspec.new(p.min, p.max, p.warp or "lin", p.step, p.default, p.unit or ""))
-        params:set_action(p.id, function(v) engine[p.id](p.step == 1 and math.floor(v) or v); re() end)
+        control.add(p.id, p.name, p.kind, p.default, function(v) engine[p.id](p.scale and v * p.scale or v); re() end, p.lo, p.hi)
       end
     end
   end
@@ -2463,20 +2421,22 @@ function init()
     end
   end
 
-  local function add_engine_ctrl(id, name, mn, mx, warp, step, default, unit)
-    params:add_control(id, name, controlspec.new(mn, mx, warp, step, default, unit or ""))
-    params:set_action(id, function(v) engine[id](v); re() end)
+  -- eng(id, conv) sends a control to the engine command of the same name, converted where the
+  -- engine still thinks in its own scale (an Amount of 0..100 % for a 0..10 knob, say).
+  local function eng(id, conv)
+    return function(v) engine[id](conv and conv(v) or v); re() end
   end
+  local function tenth(v) return v * 0.1 end
 
   local function add_sync_params(prefix)
     params:add_separator(prefix .. "_sep_sync", "─── Synchronization ───")
-    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, sync.DIV_DEFAULT)
+    params:add_option(prefix .. "_sync_div", "Division", sync.DIV_OPTS, sync.DIV_DEFAULT)
     params:set_action(prefix .. "_sync_div", sync_df_action(prefix))
-    params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
+    params:add_option(prefix .. "_sync_feel", "Feel", sync.FEEL_OPTS, 1)
     params:set_action(prefix .. "_sync_feel", sync_df_action(prefix))
     if tap.ID[prefix] then
       local function retap() if not (initing or params.pset_loading) then tap.apply(prefix) end end
-      params:add_option(prefix .. "_tap_div", "Tap Div", tap.DIV_OPTS, sync.DIV_DEFAULT - 1)
+      params:add_option(prefix .. "_tap_div", "Tap Division", tap.DIV_OPTS, sync.DIV_DEFAULT - 1)
       params:set_action(prefix .. "_tap_div", retap)
       params:add_option(prefix .. "_tap_feel", "Tap Feel", sync.FEEL_OPTS, 1)
       params:set_action(prefix .. "_tap_feel", retap)
@@ -2494,7 +2454,7 @@ function init()
     end
     params:add_group(ped.name:upper(), 2 + #ped.params + (has_sync and 6 or 0))
     params:add_separator(prefix .. "_sep_control", "─── Control ───")
-    params:add_option(ped.enable_id, "Engage", {"Bypass", "Active"}, 1)
+    params:add_option(ped.enable_id, "Engage", {"Off", "On"}, 1)
     params:set_action(ped.enable_id, function(v)
       if ped.subsynth then lifecycle.set(ped.subsynth, v == 2)
       else engine[ped.bypass_cmd](2 - v) end
@@ -2509,9 +2469,9 @@ function init()
     nam.scan()
     params:add_group("AMP", 18)
     params:add_separator("amp_sep_control", "─── Control ───")
-    params:add_option("amp_enable", "Engage", {"Bypass", "Active"}, 2)
+    params:add_option("amp_enable", "Engage", {"Off", "On"}, 2)
     params:set_action("amp_enable", function(v) engine.amp_bypass(2 - v); re() end)
-    params:add_option("amp_type", "Amp", {"Internal", "NAM", "Strip"}, 1)
+    params:add_option("amp_type", "Amp", {"Combo", "NAM", "Strip"}, 1)
     params:add_option("amp_model", "Model", nam.options(), 1)
     local function show(ids, on)
       for _, id in ipairs(ids) do if on then params:show(id) else params:hide(id) end end
@@ -2553,39 +2513,36 @@ function init()
     params:set_action("amp_nam_cab", amp_select)
     params:hide("amp_model")
     params:hide("amp_nam_cab")
-    add_engine_ctrl("amp_volume", "Volume", 0, 10, "lin", 0.1, 5.0)
-    add_engine_ctrl("amp_bass",   "Bass",   0, 10, "lin", 0.1, 2.5)
-    add_engine_ctrl("amp_mid", "Mid", 0, 10, "lin", 0.1, 5.0)
-    params:add_control("amp_mid_freq", "Mid Freq", controlspec.new(250, 4000, "exp", 0, 750, "Hz"))
+    control.add("amp_volume", "Volume", "drive", 5, eng("amp_volume"))
+    -- the combo's bass is flat a quarter of the way up, so 50 % lands there and the rest spreads above
+    control.add("amp_bass", "Bass", "amount", 50, eng("amp_bass", function(v) return v <= 50 and v * 0.05 or 2.5 + (v - 50) * 0.15 end))
+    control.add("amp_mid", "Mid", "amount", 50, eng("amp_mid", tenth))
+    params:add_control("amp_mid_freq", "Mid Freq", control.spec("hz", 250, 4000, 750))
     params:set_action("amp_mid_freq", function(v) engine.amp_mid_freq(v); re() end)
     params:hide("amp_mid")
     params:hide("amp_mid_freq")
-    add_engine_ctrl("amp_treble", "Treble", 0, 10, "lin", 0.1, 5.0)
-    level.add("amp_master", "Master", 0, function(a) engine.amp_master(a); re() end)
+    control.add("amp_treble", "Treble", "amount", 50, eng("amp_treble", tenth))
+    control.level("amp_master", "Master", 0, function(a) engine.amp_master(a); re() end)
     params:add_option("amp_rectifier", "Rectifier", {"Tube 5Y3", "Tube 5U4", "Silicon"}, 2)
     params:set_action("amp_rectifier", function(v) engine.amp_rectifier(v - 1); re() end)
-    -- Strip: one linked set for both channels. The cuts sweep exponentially, so a tick moves
-    -- both ends of the range by the same musical distance.
-    for _, q in ipairs({ { "gain", "Gain", -12, 24, "lin", 0.5, 0, "dB" }, { "even", "Even Harmonics", 0, 10, "lin", 0.1, 0, "" },
-                         { "odd", "Odd Harmonics", 0, 10, "lin", 0.1, 5, "" }, { "lowcut", "Low Cut", 20, 1000, "exp", 0, 80, "Hz" },
-                         { "highcut", "High Cut", 1000, 20000, "exp", 0, 12000, "Hz" } }) do
-      local id = "strip_" .. q[1]
-      local quantum = q[6] > 0 and q[6] / (q[4] - q[3]) or 0.01
-      params:add_control(id, q[2], controlspec.new(q[3], q[4], q[5], q[6], q[7], q[8], quantum))
-      params:set_action(id, function(v) engine[id](v); re() end)
-      params:hide(id)
-    end
-    level.add("strip_level", "Level", 0, function(a) engine.strip_level(a); re() end)
-    params:hide("strip_level")
+    -- Strip: one linked set for both channels. Drive 5 is unity into the console stage and every
+    -- step of one adds 2 dB, so 0 to 10 spans -10 to +10 dB.
+    control.add("strip_gain", "Drive", "drive", 5, eng("strip_gain", function(v) return 10 ^ ((v - 5) / 10) end))
+    control.add("strip_even", "Even Harmonics", "amount", 0, eng("strip_even", tenth))
+    control.add("strip_odd", "Odd Harmonics", "amount", 50, eng("strip_odd", tenth))
+    control.add("strip_lowcut", "Low Cut", "hz", 80, eng("strip_lowcut"), 20, 1000)
+    control.add("strip_highcut", "High Cut", "hz", 12000, eng("strip_highcut"), 1000, 20000)
+    control.level("strip_level", "Level", 0, function(a) engine.strip_level(a); re() end)
+    for _, id in ipairs(chstrip.IDS) do params:hide(id) end
   end
 
   local function setup_tremolo()
     params:add_group("TREMOLO", 10)
     params:add_separator("tremolo_sep_control", "─── Control ───")
-    params:add_option("tremolo_enable", "Engage", {"Bypass", "Active"}, 2)
+    params:add_option("tremolo_enable", "Engage", {"Off", "On"}, 1)
     params:set_action("tremolo_enable", function(v) engine.tremolo_intensity(v == 2 and params:get("tremolo_intensity") or 0); re() end)
-    add_engine_ctrl("tremolo_speed", "Speed", 0.1, 25, "exp", 0, 2.5, "Hz")
-    params:add_control("tremolo_intensity", "Intensity", controlspec.new(0, 100, "lin", 1, 0, "%"))
+    control.add("tremolo_speed", "Speed", "rate", 2.5, eng("tremolo_speed"), 0.1, 25)
+    params:add_control("tremolo_intensity", "Intensity", control.spec("amount", 0, 100, 0))
     params:set_action("tremolo_intensity", function(v) if params:get("tremolo_enable") == 2 then engine.tremolo_intensity(v) end; re() end)
     add_sync_params("tremolo")
   end
@@ -2603,16 +2560,17 @@ function init()
   end
 
   local function setup_reverb()
-    params:add_group("SPRING REVERB", 9)
+    params:add_group("REVERB", 9)
     params:add_separator("reverb_sep_control", "─── Control ───")
-    params:add_option("reverb_enable", "Engage", {"Bypass", "Active"}, 2)
+    params:add_option("reverb_enable", "Engage", {"Off", "On"}, 2)
     params:set_action("reverb_enable", function(v) engine.reverb_mute(v == 2 and 0 or 1); re() end)
-    add_engine_ctrl("reverb_amount",     "Amount",     0,   100, "lin", 1,   10,  "%")
-    add_engine_ctrl("reverb_length",     "Length",     0.5, 5.0, "lin", 0.1, 2.5, "s")
-    add_engine_ctrl("reverb_low_shelf",  "Low Shelf", -5,   5,   "lin", 0.5, 0,   "dB")
-    add_engine_ctrl("reverb_high_shelf", "High Shelf",-5,   5,   "lin", 0.5, 0,   "dB")
-    add_engine_ctrl("reverb_dwell",      "Dwell",      0,   10,  "lin", 0.1, 5)
-    add_engine_ctrl("reverb_drip",       "Drip",       0,   10,  "lin", 0.1, 5)
+    control.add("reverb_amount",     "Amount",     "amount", 10,  eng("reverb_amount"))
+    control.add("reverb_length",     "Length",     "s",      2.5, eng("reverb_length"), 0.5, 5)
+    -- the shelves turn like tone knobs; full travel is 5 dB either way
+    control.add("reverb_low_shelf",  "Low Shelf",  "amount", 0,   eng("reverb_low_shelf", function(v) return v * 0.05 end), -100, 100)
+    control.add("reverb_high_shelf", "High Shelf", "amount", 0,   eng("reverb_high_shelf", function(v) return v * 0.05 end), -100, 100)
+    control.add("reverb_dwell",      "Dwell",      "amount", 50,  eng("reverb_dwell", tenth))
+    control.add("reverb_drip",       "Drip",       "amount", 50,  eng("reverb_drip", tenth))
     params:add_option("reverb_freeze", "Freeze", {"Off", "On"}, 1)
     params:set_action("reverb_freeze", function(v) engine.reverb_freeze(v - 1); re() end)
   end
@@ -2626,7 +2584,7 @@ function init()
   local function setup_cab()
     params:add_group("CAB & MIC", 4)
     params:add_separator("cab_sep_control", "─── Control ───")
-    params:add_option("cab_mode", "Mode", {"Bypass", "Cab & Mic Sim"}, 2)
+    params:add_option("cab_mode", "Engage", {"Off", "On"}, 2)
     cab_refresh = function()
       local v   = params:get("cab_mode")
       local off = dev_hidden("CAB")
@@ -2638,41 +2596,42 @@ function init()
       if _menu and _menu.rebuild_params and not initing then _menu.rebuild_params() end
     end
     params:set_action("cab_mode", function() cab_refresh(); re() end)
-    params:add_option("mic_position", "Mic Position", MIC_NAMES, 2)
+    params:add_option("mic_position", "Position", MIC_NAMES, 2)
     params:set_action("mic_position", function(v) engine.mic_position(v - 1); re() end)
-    level.add("cab_level", "Cab Level", 0, function(a) engine.cab_level(a); re() end)
+    control.level("cab_level", "Level", 0, function(a) engine.cab_level(a); re() end)
   end
 
   local function setup_envelop()
     params:add_group("MESMERIZE", 18)
     params:add_separator("evp_sep_control", "─── Control ───")
-    params:add_option("evp_enable", "Engage", {"Bypass", "Active"}, 1)
+    params:add_option("evp_enable", "Engage", {"Off", "On"}, 1)
     params:set_action("evp_enable", function(v) engine.evp_bypass(2 - v); re() end)
     params:add_option("evp_freeze", "Freeze", {"Off", "On"}, 1)
     params:set_action("evp_freeze", function(v) engine.evp_freeze(v - 1); re() end)
     params:add_option("evp_spill", "Spillover", {"Off", "On"}, 1)
     params:set_action("evp_spill", function(v) engine.evp_spill(v - 1); re() end)
-    add_engine_ctrl("evp_size", "Size", 10, 300, "lin", 1, 100, "%")
-    add_engine_ctrl("evp_predelay", "Pre-Delay", 0, 500, "lin", 1, 100, "ms")
-    add_engine_ctrl("evp_decay", "Decay", 0, 100, "lin", 1, 75, "%")
-    add_engine_ctrl("evp_damping", "Damping", 0, 100, "lin", 1, 5, "%")
-    add_engine_ctrl("evp_tilt", "Tilt", -100, 100, "lin", 1, 0, "%")
-    add_engine_ctrl("evp_mix", "Mix", 0, 100, "lin", 1, 25, "%")
+    -- Size, Spread and Width reach past the room's own proportions, so 0..100 % spans the tank's range
+    control.add("evp_size", "Size", "amount", 30, eng("evp_size", function(v) return 10 + v * 2.9 end))
+    control.add("evp_predelay", "Pre-Delay", "ms0", 100, eng("evp_predelay"), 0, 500)
+    control.add("evp_decay", "Decay", "amount", 75, eng("evp_decay"))
+    control.add("evp_damping", "Damping", "amount", 5, eng("evp_damping"))
+    control.add("evp_tilt", "Tilt", "amount", 0, eng("evp_tilt"), -100, 100)
+    control.add("evp_mix", "Mix", "amount", 25, eng("evp_mix"))
     params:add_separator("evp_sep_space", "─── Space ───")
-    add_engine_ctrl("evp_spread", "Spread", 0, 200, "lin", 1, 100, "%")
-    add_engine_ctrl("evp_diffusion", "Diffusion", 0, 95, "lin", 1, 25, "%")
+    control.add("evp_spread", "Spread", "amount", 50, eng("evp_spread", function(v) return v * 2 end))
+    control.add("evp_diffusion", "Diffusion", "amount", 25, eng("evp_diffusion", function(v) return v * 0.95 end))
     params:add_separator("evp_sep_tone", "─── Tone & Stereo ───")
-    add_engine_ctrl("evp_saturation", "Saturation", 0, 100, "lin", 1, 0, "%")
-    add_engine_ctrl("evp_bandwidth", "Bandwidth", 0, 100, "lin", 1, 50, "%")
-    add_engine_ctrl("evp_lowcut", "Low Cut", 20, 1000, "exp", 1, 60, "Hz")
-    add_engine_ctrl("evp_width", "Width", 0, 200, "lin", 1, 100, "%")
+    control.add("evp_saturation", "Saturation", "amount", 0, eng("evp_saturation"))
+    control.add("evp_bandwidth", "Bandwidth", "amount", 50, eng("evp_bandwidth"))
+    control.add("evp_lowcut", "Low Cut", "hz", 60, eng("evp_lowcut"), 20, 1000)
+    control.add("evp_width", "Width", "amount", 50, eng("evp_width", function(v) return v * 2 end))
   end
 
   local function setup_build()
     local function push() if not initing then sync.push_all(initing, clock_running, lfo.sync_override) end end
     params:add_group("BUILD", 19)
     params:add_separator("bld_sep_control", "─── Control ───")
-    params:add_option("bld_enable", "Engage", {"Bypass", "Active"}, 1)
+    params:add_option("bld_enable", "Engage", {"Off", "On"}, 1)
     params:set_action("bld_enable", function(v) engine.bld_bypass(2 - v); re() end)
     params:add_option("bld_freeze", "Freeze", {"Off", "On"}, 1)
     params:set_action("bld_freeze", function(v) engine.bld_freeze(v - 1); re() end)
@@ -2684,13 +2643,20 @@ function init()
     params:set_action("bld_ratio", function(v) bld_send_ratio(v); re() end)
     params:add_number("bld_block", "Block", 1, #BLD_BLOCKS, 10, function(p) return tostring(p:get()) end)
     local block_last = 10
+    -- Time steps in twelfths of a doubling up to the block's ceiling; the grid sits in the spec, so
+    -- PARAMS, the pane, lcx and MIDI all land on the same semitones.
+    local function time_grid(z)
+      local cs = params:lookup_param("bld_time").controlspec
+      cs.step, cs.quantum, cs.fine = 1 / bld_steps(z), 1 / bld_steps(z), 1 / bld_steps(z)
+    end
     params:set_action("bld_block", function(z)
       local ms = bld_ms(block_last, params:get("bld_time"))
       block_last = z
+      time_grid(z)
       params:set("bld_time", bld_pos(z, math.min(ms, BLD_BLOCKS[z])))
       bld_send_block(); re()
     end)
-    params:add_control("bld_time", "Time", controlspec.new(0, 1, "lin", 0, 1),
+    params:add_control("bld_time", "Time", control.spec("steps", 0, 1, 1, 1 / bld_steps(10)),
       function(p)
         local ms = bld_ms(params:get("bld_block"), p:get())
         if ms < 10 then return string.format("%.1f ms", ms) end
@@ -2698,96 +2664,93 @@ function init()
         return string.format("%.2f s", ms / 1000)
       end)
     params:set_action("bld_time", function() bld_send_block(); re() end)
-    add_engine_ctrl("bld_fb", "Feedback", 0, 100, "lin", 1, 50, "%")
-    add_engine_ctrl("bld_octave", "Octave", 0, 100, "lin", 1, 10, "%")
-    add_engine_ctrl("bld_smear", "Smear", 0, 100, "lin", 1, 10, "%")
-    add_engine_ctrl("bld_xfeed", "Crossfeed", 0, 100, "lin", 1, 5, "%")
-    add_engine_ctrl("bld_mix", "Mix", 0, 100, "lin", 1, 25, "%")
+    time_grid(10)
+    control.add("bld_fb", "Feedback", "amount", 50, eng("bld_fb"))
+    control.add("bld_octave", "Octave", "amount", 10, eng("bld_octave"))
+    control.add("bld_smear", "Smear", "amount", 10, eng("bld_smear"))
+    control.add("bld_xfeed", "Crossfeed", "amount", 5, eng("bld_xfeed"))
+    control.add("bld_mix", "Mix", "amount", 25, eng("bld_mix"))
     params:add_separator("bld_sep_tone", "─── Tone & Stereo ───")
-    add_engine_ctrl("bld_spread", "Spread", 0, 100, "lin", 1, 50, "%")
-    add_engine_ctrl("bld_lowcut", "Low Cut", 10, 1000, "exp", 1, 40, "Hz")
-    add_engine_ctrl("bld_highcut", "High Cut", 800, 15000, "exp", 10, 15000, "Hz")
+    control.add("bld_spread", "Spread", "amount", 50, eng("bld_spread"))
+    control.add("bld_lowcut", "Low Cut", "hz", 40, eng("bld_lowcut"), 20, 1000)
+    control.add("bld_highcut", "High Cut", "hz", 15000, eng("bld_highcut"), 1000, 20000)
     params:add_separator("bld_sep_sync", "─── Synchronization ───")
-    params:add_option("bld_time_sync_div", "Sync", sync.DIV_OPTS, 1)
+    params:add_option("bld_time_sync_div", "Division", sync.DIV_OPTS, 1)
     params:set_action("bld_time_sync_div", function(v)
       if v <= 1 or not clock_running then engine.bld_time(bld_ms(params:get("bld_block"), params:get("bld_time"))) end
       push(); re()
     end)
-    params:add_option("bld_time_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
+    params:add_option("bld_time_sync_feel", "Feel", sync.FEEL_OPTS, 1)
     params:set_action("bld_time_sync_feel", function() push(); re() end)
   end
 
   local function setup_tape()
     params:add_group("TAPE", 13)
     params:add_separator("tape_sep_control", "─── Control ───")
-    params:add_option("tape_enable", "Engage", {"Bypass", "Active"}, 2)
+    params:add_option("tape_enable", "Engage", {"Off", "On"}, 2)
     params:set_action("tape_enable", function(v) engine.tape_bypass(2 - v); re() end)
     params:add_binary("tape_transport", "Stop/Start", "trigger", 0)
     params:set_action("tape_transport", function() if not (initing or params.pset_loading) then tape.toggle() end end)
     params:add_option("tape_speed", "Speed", {"7.5 ips", "15 ips", "30 ips"}, 2)
     params:set_action("tape_speed", function(v) engine.tape_speed(v - 1); re() end)
-    add_engine_ctrl("tape_drive", "Drive", 0, 10, "lin", 0.1, 5)
+    control.add("tape_drive", "Drive", "drive", 5, eng("tape_drive"))
     params:add_option("tape_bias", "Bias", {"Under", "Normal", "Over"}, 2)
     params:set_action("tape_bias", function(v) engine.tape_bias(v - 1); re() end)
-    add_engine_ctrl("tape_hiss", "Hiss", 0, 10, "lin", 0.1, 0.5)
-    add_engine_ctrl("tape_wow", "Wow", 0, 10, "lin", 0.1, 2.5)
-    add_engine_ctrl("tape_mag", "Magnetism", 0, 10, "lin", 0.1, 2.5)
+    control.add("tape_hiss", "Hiss", "amount", 5, eng("tape_hiss", tenth))
+    control.add("tape_wow", "Wow", "amount", 25, eng("tape_wow", tenth))
+    control.add("tape_mag", "Magnetism", "amount", 25, eng("tape_mag", tenth))
     params:add_separator("tape_sep_transport", "─── Stereo & Transport ───")
-    add_engine_ctrl("tape_azimuth", "Azimuth", 0, 10, "lin", 0.1, 2.5)
-    add_engine_ctrl("tape_down", "Spin Down", 0.1, 5, "lin", 0.1, 2.5, "s")
-    add_engine_ctrl("tape_up", "Spin Up", 0.1, 5, "lin", 0.1, 1.0, "s")
+    control.add("tape_azimuth", "Azimuth", "amount", 25, eng("tape_azimuth", tenth))
+    control.add("tape_down", "Spin Down", "s", 2.5, eng("tape_down"), 0.1, 5)
+    control.add("tape_up", "Spin Up", "s", 1, eng("tape_up"), 0.1, 5)
   end
 
   local function setup_hold(idx)
     local p = "hold" .. idx .. "_"
-    local d  = (idx == 2) and 7.5 or 5
+    local d  = (idx == 2) and 75 or 50
     local st = (idx == 2) and 12 or -12
     params:add_group("HOLD " .. idx, 16)
     params:add_separator(p .. "sep_control", "─── Control ───")
-    params:add_option(p .. "enable", "Engage", {"Bypass", "Active"}, 1)
+    params:add_option(p .. "enable", "Engage", {"Off", "On"}, 1)
     params:set_action(p .. "enable", function(v) if v == 2 then engine.hold_on(idx) else engine.hold_off(idx) end; re() end)
     params:add_binary(p .. "recapture", "Recapture", "trigger", 0)
     params:set_action(p .. "recapture", function() if not (initing or params.pset_loading) then engine.hold_recapture(idx) end end)
-    params:add_control(p .. "size", "Size", controlspec.new(0, 10, "lin", 0.1, d))
-    params:set_action(p .. "size", function(v) engine.hold_size(idx, v); re() end)
-    params:add_control(p .. "density", "Density", controlspec.new(1, 10, "lin", 0.1, d))
-    params:set_action(p .. "density", function(v) engine.hold_density(idx, v); re() end)
-    params:add_control(p .. "spread", "Spread", controlspec.new(0, 10, "lin", 0.1, d))
-    params:set_action(p .. "spread", function(v) engine.hold_spread(idx, v); re() end)
-    params:add_control(p .. "move", "Movement", controlspec.new(0, 10, "lin", 0.1, 2.5))
-    params:set_action(p .. "move", function(v) engine.hold_move(idx, v); hold_move_marks(); re() end)
-    params:add_control(p .. "pitch", "Pitch", controlspec.new(-24, 24, "lin", 1, st, "st"))
+    control.add(p .. "size", "Size", "amount", d, function(v) engine.hold_size(idx, HOLD_E.size(v)); re() end)
+    control.add(p .. "density", "Density", "amount", d - 5, function(v) engine.hold_density(idx, HOLD_E.density(v)); re() end)
+    control.add(p .. "spread", "Spread", "amount", d, function(v) engine.hold_spread(idx, HOLD_E.spread(v)); re() end)
+    control.add(p .. "move", "Movement", "amount", 25, function(v) engine.hold_move(idx, v * 0.1); hold_move_marks(); re() end)
+    params:add_control(p .. "pitch", "Pitch", control.spec("steps", -24, 24, st, 1, "st"))
     params:set_action(p .. "pitch", function(v) engine.hold_pitch(idx, v); re() end)
-    params:add_control(p .. "pmix", "Pitch Mix", controlspec.new(0, 100, "lin", 1, 10, "%"))
+    params:add_control(p .. "pmix", "Pitch Mix", control.spec("amount", 0, 100, 10))
     params:set_action(p .. "pmix", function(v) engine.hold_pmix(idx, v); re() end)
-    params:add_control(p .. "rev", "Reverse Mix", controlspec.new(0, 100, "lin", 1, 0, "%"))
+    params:add_control(p .. "rev", "Reverse Mix", control.spec("amount", 0, 100, 0))
     params:set_action(p .. "rev", function(v) engine.hold_rev(idx, v); re() end)
     params:add_option(p .. "shape", "Shape", {"Smooth", "Soft", "Swell", "Pluck", "Plateau"}, 1)
     params:set_action(p .. "shape", function(v) engine.hold_shape(idx, v - 1); re() end)
     params:add_option(p .. "interp", "Resolution", {"Coarse", "Fine"}, 2)
     params:set_action(p .. "interp", function(v) engine.hold_interp(idx, (v == 2) and 4 or 2); re() end)
-    params:add_control(p .. "gain", "Gain", controlspec.new(0, 10, "lin", 0.1, 5))
+    params:add_control(p .. "gain", "Gain", control.spec("drive", 0, 10, 5))
     params:set_action(p .. "gain", function(v) engine.hold_gain(idx, v); re() end)
-    level.add(p .. "level", "Level", 0, function(a) engine.hold_level(idx, a); re() end)
-    params:add_control(p .. "rise", "Rise", controlspec.new(0.01, 5.0, "exp", 0.01, 0.25, "s"))
+    control.level(p .. "level", "Level", 0, function(a) engine.hold_level(idx, a); re() end)
+    params:add_control(p .. "rise", "Rise", control.spec("s", 0.01, 5, 0.25))
     params:set_action(p .. "rise", function(v) engine.hold_rise(idx, v); re() end)
-    params:add_control(p .. "fall", "Fall", controlspec.new(0.01, 5.0, "exp", 0.01, 2.5, "s"))
+    params:add_control(p .. "fall", "Fall", control.spec("s", 0.01, 5, 2.5))
     params:set_action(p .. "fall", function(v) engine.hold_fall(idx, v); re() end)
   end
 
   local function setup_gate()
     params:add_group("CUT", 9)
     params:add_separator("cut_sep_control", "─── Control ───")
-    params:add_option("cut_enable", "Engage", {"Bypass", "Active"}, 1)
+    params:add_option("cut_enable", "Engage", {"Off", "On"}, 1)
     params:set_action("cut_enable", function(v) if v == 2 then engine.cut_on() else engine.cut_off() end; re() end)
-    params:add_control("cut_thresh", "Threshold", controlspec.new(-80, 0, "lin", 0.5, -50, "dB"))
+    params:add_control("cut_thresh", "Threshold", control.spec("level", -75, 0, -50))
     params:set_action("cut_thresh", function(v) engine.cut_thresh(v); re() end)
-    add_engine_ctrl("cut_attack",  "Attack",  0.1, 2500, "exp", 0, 1,   "ms")
-    add_engine_ctrl("cut_hold",    "Hold",    1,   2500, "exp", 0, 20,  "ms")
-    add_engine_ctrl("cut_release", "Release", 1,   2500, "exp", 0, 100, "ms")
-    params:add_control("cut_range", "Range", controlspec.new(-75, 0, "lin", 0.5, -75, "dB"))
+    control.add("cut_attack",  "Attack",  "ms", 1,   eng("cut_attack"),  0.1, 2500)
+    control.add("cut_hold",    "Hold",    "ms", 20,  eng("cut_hold"),    1,   2500)
+    control.add("cut_release", "Release", "ms", 100, eng("cut_release"), 1,   2500)
+    params:add_control("cut_range", "Range", control.spec("level", -75, 0, -75))
     params:set_action("cut_range", function(v) engine.cut_range(v); re() end)
-    add_engine_ctrl("cut_hyst", "Margin", 0, 25, "lin", 0.5, 0, "dB")
+    control.add("cut_hyst", "Margin", "steps", 0, eng("cut_hyst"), 0, 25, 0.5, "dB")
     params:add_option("cut_detect", "Detection", {"Peak", "RMS"}, 1)
     params:set_action("cut_detect", function(v) engine.cut_detect(v - 1); re() end)
   end
@@ -2795,17 +2758,17 @@ function init()
   local function setup_fray()
     params:add_group("FRAY", 10)
     params:add_separator("fray_sep_control", "─── Control ───")
-    params:add_option("fray_enable", "Engage", {"Bypass", "Active"}, 1)
+    params:add_option("fray_enable", "Engage", {"Off", "On"}, 1)
     params:set_action("fray_enable", function(v) lifecycle.set("fray", v == 2); re() end)
-    add_engine_ctrl("fray_drive",  "Drive",  0, 10, "lin", 0.1, 7.5)
-    add_engine_ctrl("fray_comp",   "Comp",   0, 10, "lin", 0.1, 5)
-    add_engine_ctrl("fray_stab",   "Stab",   0, 10, "lin", 0.1, 0)
-    add_engine_ctrl("fray_octave", "Octave", 0, 10, "lin", 0.1, 0)
+    control.add("fray_drive",  "Drive",  "drive",  7.5, eng("fray_drive"))
+    control.add("fray_comp",   "Comp",   "amount", 50,  eng("fray_comp", tenth))
+    control.add("fray_stab",   "Stab",   "amount", 0,   eng("fray_stab", tenth))
+    control.add("fray_octave", "Octave", "amount", 0,   eng("fray_octave", tenth))
     params:add_option("fray_octave_mode", "Oct Mode", {"Down", "Up", "Both"}, 2)
     params:set_action("fray_octave_mode", function(v) engine.fray_octave_mode(v - 1); re() end)
-    add_engine_ctrl("fray_gate",   "Gate",   0, 10, "lin", 0.1, 0)
-    add_engine_ctrl("fray_tone",   "Tone",   0, 10, "lin", 0.1, 10)
-    level.add("fray_volume", "Volume", 0, function(a) engine.fray_volume(a); re() end)
+    control.add("fray_gate",   "Gate",   "amount", 0,   eng("fray_gate", tenth))
+    control.add("fray_tone",   "Tone",   "amount", 100, eng("fray_tone", tenth))
+    control.level("fray_volume", "Level", 0, function(a) engine.fray_volume(a); re() end)
   end
 
   local function setup_metro()
@@ -2844,14 +2807,14 @@ function init()
     params:add_number("count_degree", "Scale Degree", 1, 15, 1)
     params:set_action("count_degree", function(_) lfo.count.degree = nil end)
     params:add_option("count_scale_play", "Scale Play",
-      {"Off", "Forward", "Reverse", "Interval (Thirds)", "Interval (Fourths)", "Interval (Fifths)", "Interval (Sevenths)", "Random"}, 1)
+      {"Off", "Forward", "Reverse", "3rds", "4ths", "5ths", "7ths", "Random"}, 1)
     params:set_action("count_scale_play", function(_) lfo.count.play = nil; count_step = 0 end)
     params:add_option("count_chords", "Chords", {"Off", "Octaves", "Power Chords", "Triads"}, 1)
     params:set_action("count_chords", function(_) lfo.count.chords = nil end)
 
     params:add_separator("count_sep_sound", "─── Sound ───")
-    level.add("count_level", "Level", 0, function() lfo.count.level = nil; re() end)
-    params:add_control("count_length", "Length", controlspec.new(1, 500, "lin", 1, 50, "ms"))
+    control.level("count_level", "Level", 0, function() lfo.count.level = nil; re() end)
+    params:add_control("count_length", "Length", control.spec("ms", 1, 500, 50))
     params:set_action("count_length", function(_) lfo.count.length = nil end)
     params:add_option("count_position", "Position", {"Parallel", "Inline"}, 1)
   end
@@ -2859,20 +2822,20 @@ function init()
   local function setup_tuner()
     params:add_group("TUNE", 3)
     params:add_separator("tune_sep_control", "─── Control ───")
-    params:add_option("tune_mute", "Engage", {"Bypass", "Active"}, 1)
+    params:add_option("tune_mute", "Mute", {"Off", "On"}, 1)
     params:set_action("tune_mute", function(v)
       tune.muted = (v == 2)
       engine.mute(tune.muted and 1 or 0)
       re()
     end)
-    params:add_control("tune_ref", "Reference", controlspec.new(420, 460, "lin", 0.1, 440.0, "Hz"))
+    params:add_control("tune_ref", "Reference", control.spec("steps", 420, 460, 440, 1, "Hz"))
     params:set_action("tune_ref", function(v) tune.ref_hz = v; re() end)
   end
 
   -- Signal Flow is the patch bay: Input picks Mono, Stereo or a voice from a voice mod. Sends A
   -- and B tap at the input, after the looper or at the output to feed an fx mod.
   local function setup_signal_flow()
-    params:add_group("SIGNAL FLOW", 7)
+    params:add_group("ROUTE", 7)
     params:add_separator("signal_flow_sep_control", "─── Control ───")
     local inputs = {"Mono", "Stereo"}
     for _, vc in ipairs(VOICES) do inputs[#inputs + 1] = vc.name end
@@ -2899,13 +2862,13 @@ function init()
       synth.set_voice(vc)
       re()
     end)
-    level.add("input_trim", "Input Trim", 0, function(a) engine.input_trim(a); re() end)
+    control.level("input_trim", "Input Trim", 0, function(a) engine.input_trim(a); re() end)
     params:add_option("fx_send_a_source", "Send A Source", {"Input", "Loop", "Output"}, 3)
     params:set_action("fx_send_a_source", function(v) engine.fx_send_a_source(v - 1); re() end)
-    level.add("fx_send_a_level", "Send A Level", 0, function(a) engine.fx_send_a_level(a); re() end)
+    control.level("fx_send_a_level", "Send A Level", 0, function(a) engine.fx_send_a_level(a); re() end)
     params:add_option("fx_send_b_source", "Send B Source", {"Input", "Loop", "Output"}, 3)
     params:set_action("fx_send_b_source", function(v) engine.fx_send_b_source(v - 1); re() end)
-    level.add("fx_send_b_level", "Send B Level", 0, function(a) engine.fx_send_b_level(a); re() end)
+    control.level("fx_send_b_level", "Send B Level", 0, function(a) engine.fx_send_b_level(a); re() end)
   end
 
   -- The Keys are invisible: no pane, only a menu group, active while a voice is the input. They
@@ -2966,17 +2929,18 @@ function init()
         params:add_number(id, e.name, e.number[1], e.number[2], e.number[3], e.fmt)
         conv = function(v) return v end
       elseif e.time then
-        params:add_control(id, e.name, controlspec.new(1, 10000, "exp", 0, e.time, "ms"), form_time)
-        conv = function(v) return fmt.nice(v) / 1000 end
+        params:add_control(id, e.name, control.spec("ms", 1, 10000, e.time), form_time)
+        conv = function(v) return v / 1000 end
       elseif e.hz then
-        params:add_control(id, e.name, controlspec.new(e.hz[1], e.hz[2], "exp", 0, e.hz[3], "Hz"), form_hz)
-        conv = function(v) return fmt.nice(v, true) end
+        params:add_control(id, e.name, control.spec("hz", e.hz[1], e.hz[2], e.hz[3]), form_hz)
+        conv = function(v) return v end
       elseif e.db then
-        params:add_control(id, e.name, level.spec(e.db))
-        params:lookup_param(id).formatter = function(p) return level.str(p:get()) end
-        conv = level.amp
+        params:add_control(id, e.name, control.spec("level", nil, nil, e.db))
+        params:lookup_param(id).formatter = function(p) return control.level_str(p:get()) end
+        conv = control.amp
       else
-        params:add_control(id, e.name, controlspec.new(e.min or 0, e.max or 100, "lin", e.step or 1, e.default, e.unit or "%"), e.fmt)
+        local kind = (e.unit == nil or e.unit == "%") and "amount" or "steps"
+        params:add_control(id, e.name, control.spec(kind, e.min or 0, e.max or 100, e.default, e.step or 1, e.unit), e.fmt)
         conv = function(v) return v * (e.scale or 0.01) end
       end
       if conv then
@@ -3059,7 +3023,7 @@ function init()
       return g
     end
 
-    params:add_group("MOD LFO " .. idx, 18)
+    params:add_group("LFO " .. idx, 18)
     params:add_separator(prefix .. "_sep_control", "─── Control ───")
 
     params:add_option(prefix .. "_enable", "Engage", {"Off", "On"}, 1)
@@ -3092,13 +3056,13 @@ function init()
       re()
     end)
 
-    params:add_control(prefix .. "_rate", "Rate", controlspec.new(0.1, 25, "exp", 0.1, 1.0, "Hz"))
+    params:add_control(prefix .. "_rate", "Rate", control.spec("rate", 0.1, 25, 1))
     params:set_action(prefix .. "_rate", function(_)
       lfo.mod.rate[idx] = nil
       lfo.target_base[prefix .. "_rate"] = nil
     end)
 
-    params:add_control(prefix .. "_depth", "Depth", controlspec.new(0, 100, "lin", 1, 50, "%"))
+    params:add_control(prefix .. "_depth", "Depth", control.spec("amount", 0, 100, 50))
     params:set_action(prefix .. "_depth", function(_)
       lfo.mod.depth[idx] = nil
       lfo.target_base[prefix .. "_depth"] = nil
@@ -3120,13 +3084,13 @@ function init()
       if s then s.tm_register = s.tm_register & lfo.tm_register_max(v) end
     end)
 
-    params:add_control(prefix .. "_stability", "Stability", controlspec.new(0, 100, "lin", 1, 50, "%"))
+    params:add_control(prefix .. "_stability", "Stability", control.spec("amount", 0, 100, 50))
     params:set_action(prefix .. "_stability", function(_)
       lfo.mod.stability[idx] = nil
       lfo.target_base[prefix .. "_stability"] = nil
     end)
 
-    params:add_control(prefix .. "_rate_slew", "Rate Slew", controlspec.new(0, 5, "lin", 0.1, 0, "s"))
+    params:add_control(prefix .. "_rate_slew", "Rate Slew", control.spec("s0", 0, 5, 0))
     params:set_action(prefix .. "_rate_slew", function(_)
       lfo.mod.rate_slew[idx] = nil
       lfo.target_base[prefix .. "_rate_slew"] = nil
@@ -3134,7 +3098,7 @@ function init()
 
     params:add_separator(prefix .. "_sep_sync", "─── Synchronization ───")
 
-    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, 1)
+    params:add_option(prefix .. "_sync_div", "Division", sync.DIV_OPTS, 1)
     params:set_action(prefix .. "_sync_div", function(_)
       lfo.mod.sync_div[idx] = nil
       lfo.target_base[prefix .. "_sync_div"] = nil
@@ -3145,7 +3109,7 @@ function init()
       end
     end)
 
-    params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
+    params:add_option(prefix .. "_sync_feel", "Feel", sync.FEEL_OPTS, 1)
     params:set_action(prefix .. "_sync_feel", function(_)
       lfo.mod.sync_feel[idx] = nil
       lfo.target_base[prefix .. "_sync_feel"] = nil
@@ -3224,7 +3188,7 @@ function init()
       return g
     end
 
-    params:add_group("MOD SENSE " .. idx, 9)
+    params:add_group("SENSE " .. idx, 9)
     params:add_separator(prefix .. "_sep_control", "─── Control ───")
 
     params:add_option(prefix .. "_enable", "Engage", {"Off", "On"}, 1)
@@ -3247,7 +3211,7 @@ function init()
       re()
     end)
 
-    params:add_control(prefix .. "_depth", "Depth", controlspec.new(0, 100, "lin", 1, 50, "%"))
+    params:add_control(prefix .. "_depth", "Depth", control.spec("amount", 0, 100, 50))
 
     params:add_option(prefix .. "_dir", "Direction", env.DIR_OPTS, 1)
 
@@ -3255,7 +3219,7 @@ function init()
     -- new to its target until Freeze is off.
     params:add_option(prefix .. "_freeze", "Freeze", {"Off", "On"}, 1)
 
-    params:add_control(prefix .. "_slew", "Slew", controlspec.new(1, 500, "lin", 1, 50, "ms"))
+    params:add_control(prefix .. "_slew", "Slew", control.spec("ms", 1, 500, 50))
     params:set_action(prefix .. "_slew", function(v)
       local s = v / 1000
       engine[prefix .. "_attack"](s)
@@ -3347,7 +3311,7 @@ function init()
     end
     if #dev_shorts == 0 then dev_shorts = {"-"} end
 
-    params:add_group("MOD TRIGGER " .. idx, 10)
+    params:add_group("TRIGGER " .. idx, 10)
     params:add_separator(prefix .. "_sep_control", "─── Control ───")
 
     params:add_option(prefix .. "_enable", "Engage", {"Off", "On"}, 1)
@@ -3356,14 +3320,14 @@ function init()
       re()
     end)
 
-    params:add_control(prefix .. "_chance", "Chance", controlspec.new(0, 100, "lin", 1, 100, "%"))
+    params:add_control(prefix .. "_chance", "Chance", control.spec("amount", 0, 100, 100))
     params:set_action(prefix .. "_chance", function(_)
       trigs.mod.chance[idx] = nil
       lfo.target_base[prefix .. "_chance"] = nil
       re()
     end)
 
-    params:add_control(prefix .. "_rate", "Rate", controlspec.new(0.1, 25, "exp", 0.1, 1.0, "Hz"))
+    params:add_control(prefix .. "_rate", "Rate", control.spec("rate", 0.1, 25, 1))
     params:set_action(prefix .. "_rate", function(_)
       trigs.mod.rate[idx] = nil
       lfo.target_base[prefix .. "_rate"] = nil
@@ -3371,7 +3335,7 @@ function init()
 
     params:add_separator(prefix .. "_sep_sync", "─── Synchronization ───")
 
-    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, 1)
+    params:add_option(prefix .. "_sync_div", "Division", sync.DIV_OPTS, 1)
     params:set_action(prefix .. "_sync_div", function(_)
       trigs.mod.sync_div[idx] = nil
       lfo.target_base[prefix .. "_sync_div"] = nil
@@ -3383,7 +3347,7 @@ function init()
       re()
     end)
 
-    params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
+    params:add_option(prefix .. "_sync_feel", "Feel", sync.FEEL_OPTS, 1)
     params:set_action(prefix .. "_sync_feel", function(_)
       trigs.mod.sync_feel[idx] = nil
       lfo.target_base[prefix .. "_sync_feel"] = nil
@@ -3391,7 +3355,7 @@ function init()
 
     params:add_separator(prefix .. "_sep_target", "─── Target ───")
 
-    params:add_option(prefix .. "_target_device", "Device", trigs.DEVICES, default_dev)
+    params:add_option(prefix .. "_target_device", "Target Device", trigs.DEVICES, default_dev)
     params:set_action(prefix .. "_target_device", function(filtered_v)
       if not initing then
         local cur_global = trigs.last_global[idx] or 1
@@ -3425,7 +3389,7 @@ function init()
       re()
     end)
 
-    params:add_option(prefix .. "_target_param", "Target", dev_shorts, 1)
+    params:add_option(prefix .. "_target_param", "Target Action", dev_shorts, 1)
     params:set_action(prefix .. "_target_param", function(filtered_v)
       if not initing then
         local cur_global = trigs.last_global[idx] or 1
@@ -3600,7 +3564,7 @@ function init()
       return g
     end
 
-    params:add_group("MOD WALK " .. idx, 29)
+    params:add_group("WALK " .. idx, 29)
     params:add_separator(prefix .. "_sep_control", "─── Control ───")
 
     params:add_option(prefix .. "_enable", "Engage", {"Off", "On"}, 1)
@@ -3633,16 +3597,16 @@ function init()
     end)
 
     for k = 1, seq.MAX_STEPS do
-      params:add_control(prefix .. "_step_" .. k, "Step " .. k, controlspec.new(-100, 100, "lin", 1, 0, "%"))
+      params:add_control(prefix .. "_step_" .. k, "Step " .. k, control.spec("amount", -100, 100, 0))
     end
 
-    params:add_control(prefix .. "_rate", "Rate", controlspec.new(0.1, 25, "exp", 0.1, 1.0, "Hz"))
+    params:add_control(prefix .. "_rate", "Rate", control.spec("rate", 0.1, 25, 1))
     params:set_action(prefix .. "_rate", function(_)
       seq.mod.rate[idx] = nil
       lfo.target_base[prefix .. "_rate"] = nil
     end)
 
-    params:add_control(prefix .. "_rate_slew", "Rate Slew", controlspec.new(0, 5, "lin", 0.1, 0, "s"))
+    params:add_control(prefix .. "_rate_slew", "Rate Slew", control.spec("s0", 0, 5, 0))
     params:set_action(prefix .. "_rate_slew", function(_)
       seq.mod.rate_slew[idx] = nil
       lfo.target_base[prefix .. "_rate_slew"] = nil
@@ -3650,7 +3614,7 @@ function init()
 
     params:add_separator(prefix .. "_sep_sync", "─── Synchronization ───")
 
-    params:add_option(prefix .. "_sync_div", "Sync", sync.DIV_OPTS, 1)
+    params:add_option(prefix .. "_sync_div", "Division", sync.DIV_OPTS, 1)
     params:set_action(prefix .. "_sync_div", function(_)
       seq.mod.sync_div[idx] = nil
       lfo.target_base[prefix .. "_sync_div"] = nil
@@ -3661,7 +3625,7 @@ function init()
       end
     end)
 
-    params:add_option(prefix .. "_sync_feel", "Sync Feel", sync.FEEL_OPTS, 1)
+    params:add_option(prefix .. "_sync_feel", "Feel", sync.FEEL_OPTS, 1)
     params:set_action(prefix .. "_sync_feel", function(_)
       seq.mod.sync_feel[idx] = nil
       lfo.target_base[prefix .. "_sync_feel"] = nil
@@ -3760,6 +3724,12 @@ function init()
   modtarget.add_id_params(mod_bindings)
   fmt.apply_all()
   menu_rows.install()
+  -- Mod targets take range and resolution from their param, so a range lives in one place only.
+  for _, t in ipairs(TARGET_PARAMS) do
+    local p  = t.id and params.lookup[t.id] and params:lookup_param(t.id)
+    local cs = p and p.t == params.tCONTROL and p.controlspec
+    if cs then t.mn, t.mx, t.st = cs.minval, cs.maxval, cs.fine or (cs.step > 0 and cs.step) or 0.01 end
+  end
   params:bang()
   midimap.on_touch = function(id) if params:get("gui_follow_focus") == 2 then focus_param(id) end end
   midimap.init()
@@ -3803,9 +3773,12 @@ function init()
   setup_clock_watchers()
   redraw()
 
+  -- norns bangs its system params once the script is up, which turns the input monitor and its
+  -- own reverb back on; princeton mixes the guitar and brings its own reverbs, so both go quiet.
   clock.run(function()
     clock.sleep(0.2)
     audio.level_monitor(0)
+    audio.rev_off()
   end)
 
   clock.run(function()
@@ -3942,9 +3915,10 @@ function cleanup()
     params.read = params._orig_read
     params._orig_read, params.pset_loading, params.pset_epoch = nil, nil, nil
   end
-  -- princeton muted the input monitor (it mixes the guitar itself). The next script gets back
-  -- the level the system mixer shows.
+  -- princeton muted the input monitor and the system reverb. The next script gets back what the
+  -- system mixer shows.
   pcall(function() mix:lookup_param("monitor"):bang() end)
+  pcall(function() params:lookup_param("reverb"):bang() end)
   menu_rows.remove()
   midimap.cleanup()
   synth.cleanup()

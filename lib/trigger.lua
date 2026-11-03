@@ -38,8 +38,8 @@ trigs.STRIP = {
   {name="Chance",      suf="_chance",        typ="ctrl", step=1,   fmt=function(v,i) return string.format("%d%%",math.floor(v)) end},
   {name="Rate",        suf="_rate",          typ="ctrl", step=0.1, fmt=function(v,i) return string.format("%.1fHz",v) end,
    visible_when=function(idx) return not trigs.strip_fn.sync_active(idx) end},
-  {name="Sync",        suf="_sync_div",      typ="opt",  nmax=#sync.DIV_OPTS, fmt=function(v,i) return sync.DIV_OPTS[v] end},
-  {name="Sync Feel",   suf="_sync_feel",     typ="opt",  nmax=3,   fmt=function(v,i) return sync.FEEL_OPTS[v] end},
+  {name="Division",suf="_sync_div",      typ="opt",  nmax=#sync.DIV_OPTS, fmt=function(v,i) return sync.DIV_OPTS[v] end},
+  {name="Feel",   suf="_sync_feel",     typ="opt",  nmax=3,   fmt=function(v,i) return sync.FEEL_OPTS[v] end},
   {name="Device",      suf="_target_device", typ="opt",  nmax_fn=function(i) return #(trigs.target_device_filter[i] or {}) end,
    fmt=function(v,i)
      local dmap = trigs.target_device_filter[i]

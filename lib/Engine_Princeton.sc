@@ -61,7 +61,7 @@ Engine_Princeton : CroneEngine {
             Env([0, 1, 1, 0], [0.08, 0.84, 0.08], \lin).asSignal(1024)
         ].collect({ |sig| Buffer.sendCollection(context.server, sig, 1) });
         push_gain_v = 5; push_tone_v = 5; push_level_v = 1; push_comp_v = 5;
-        distort_gain_v = 5; distort_tone_v = 7.5; distort_level_v = 1; distort_lowcut_v = 0;
+        distort_gain_v = 5; distort_tone_v = 7.5; distort_level_v = 1; distort_lowcut_v = 20;
         fray_drive_v = 7.5; fray_tone_v = 10; fray_gate_v = 0; fray_comp_v = 5;
         fray_stab_v = 0; fray_octave_v = 0; fray_octave_mode_v = 1; fray_volume_v = 1;
         cut_thresh_v = -50; cut_attack_v = 1; cut_hold_v = 20; cut_release_v = 100; cut_range_v = -75; cut_hyst_v = 0; cut_detect_v = 0;
@@ -176,7 +176,7 @@ Engine_Princeton : CroneEngine {
 
         SynthDef(\princeton_distort, {
             arg bus = 0, gate = 1, fade = 0.025,
-                distort_gain = 5, distort_tone = 7.5, distort_level = 1, distort_lowcut = 0, distort_cal = 8.5;
+                distort_gain = 5, distort_tone = 7.5, distort_level = 1, distort_lowcut = 20, distort_cal = 8.5;
             var dry, distort_drive, distort_sig, env;
             distort_gain  = Lag.kr(distort_gain,  0.05);
             distort_tone  = Lag.kr(distort_tone,  0.05);
@@ -190,8 +190,8 @@ Engine_Princeton : CroneEngine {
             distort_drive = adaaClip.(distort_drive);
             distort_drive = LeakDC.ar(distort_drive);
             distort_drive = LPF.ar(distort_drive, distort_tone.linexp(0, 10, 300, 5000));
-            // the lowcut switch sweeps the frequency over 50 ms instead of letting it jump
-            distort_drive = HPF.ar(distort_drive, Lag.kr(Select.kr(distort_lowcut.round(1), [20, 100, 250]), 0.05));
+            // a post-drive high-pass that clears the sub-bass the clipping piles up; 20 Hz is off
+            distort_drive = HPF.ar(distort_drive, Lag.kr(distort_lowcut, 0.05).clip(20, 1000));
             distort_sig   = distort_drive * distort_level * 0.0255 * distort_cal.dbamp;
             ReplaceOut.ar(bus, LinXFade2.ar(dry, distort_sig, env * 2 - 1));
         }).add;
@@ -369,7 +369,7 @@ Engine_Princeton : CroneEngine {
                 reverb_mute = 0, cab_mode = 1,
                 cab_level = 1.0,
                 strip_on = 0, strip_cal = 0, strip_level_bus_num = 0, reverb_level_bus_num = 0,
-                strip_gain = 0, strip_lowcut = 80, strip_highcut = 12000, strip_level = 1,
+                strip_gain = 1, strip_lowcut = 80, strip_highcut = 12000, strip_level = 1,
                 strip_even = 0, strip_odd = 5;
 
             var sig;
@@ -488,7 +488,7 @@ Engine_Princeton : CroneEngine {
             // harmonics before the cuts. strip_cal makes a strip at 0 dB as loud as the amp at its defaults.
             strip_fade = Lag.kr(strip_on.round(1), 0.05);
             strip_k    = 0.05 * (60 ** (Lag.kr(strip_odd, 0.05).clip(0, 10) * 0.1));
-            strip_pre  = sig * (Lag.kr(strip_gain, 0.05) + strip_cal).dbamp;
+            strip_pre  = sig * Lag.kr(strip_gain, 0.05) * strip_cal.dbamp;
             strip_out  = adaaTanh.(strip_pre * strip_k) / strip_k;
             strip_out  = LeakDC.ar(strip_out + (Lag.kr(strip_even, 0.05).clip(0, 10) * 0.06 * strip_out.tanh.squared));
             strip_out  = HPF.ar(strip_out, Lag.kr(strip_lowcut, 0.05).clip(20, 1000));

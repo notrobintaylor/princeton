@@ -1,8 +1,8 @@
 local sync  = include("lib/sync")
-local level = include("lib/level")
+local control = include("lib/control")
 
 -- looper_params: the controls each looper built by looper.new gets in the PARAMS menu:
--- transport, level, speed, the medium and its quirks (the "M:" entries), quantize and three
+-- transport, level, speed, the medium and its quirks, quantize and three
 -- mappable triggers. A host script can restrict the media (deps.media); the list then shows
 -- only those, while the engine still gets their fixed numbers (to_engine).
 local looper_params = {}
@@ -22,7 +22,7 @@ function looper_params.setup(deps)
   local E                    = looper.cmd
 
   local function level_add(suffix, name)
-    level.add(P(suffix), name, -2.5, function(a) E("looper_" .. suffix)(a); re() end)
+    control.level(P(suffix), name, -2.5, function(a) E("looper_" .. suffix)(a); re() end)
   end
 
   -- ── Media selection ────────────────────────────────────────────
@@ -68,32 +68,32 @@ function looper_params.setup(deps)
     if not speed_is_owned() then E("looper_speed")(looper.speed_value()) end
     re()
   end}
-  params:add_option(P("speed_control"), "Speed Control", {"Steps","Smooth"}, 1)
+  params:add_option(P("speed_control"), "Speed Mode", {"Octaves","Free"}, 1)
 
   params:add_separator(P("sep_medium"), "─── Medium ───")
   params:add_option(P("medium"), "Medium", labels, medium_default)
   params:set_action(P("medium"), function(v)
     E("looper_medium")(to_engine[v]); looper.medium_changed(); re()
   end)
-  params:add_control(P("imprint"), "Imprint", controlspec.new(0, 100, "lin", 1, 10, "%"))
+  params:add_control(P("imprint"), "Imprint", control.spec("amount", 0, 100, 10))
   params:set_action(P("imprint"), function(v) E("looper_imprint")(v); re() end)
-  params:add_control(P("wear"), "Wear", controlspec.new(0, 100, "lin", 1, 5, "%"))
+  params:add_control(P("wear"), "Wear", control.spec("amount", 0, 100, 5))
   params:set_action(P("wear"), function(v) E("looper_wear")(v); re() end)
-  params:add_option(P("bbd_tone"), "M: BBD Tone", {"Bright", "Dark"}, 1)
+  params:add_option(P("bbd_tone"), "BBD Tone", {"Bright", "Dark"}, 1)
   params:set_action(P("bbd_tone"), function(v) E("looper_bbd_tone")(v - 1) end)
-  params:add_control(P("wow_cas"), "M: Cassette Wow", controlspec.new(0, 100, "lin", 1, 5, "%"))
+  params:add_control(P("wow_cas"), "Cassette Wow", control.spec("amount", 0, 100, 5))
   params:set_action(P("wow_cas"), function(v) E("looper_wow_cas")(v) end)
-  params:add_control(P("cd_errors"), "M: CD Errors", controlspec.new(0, 100, "lin", 1, 0, "%"))
+  params:add_control(P("cd_errors"), "CD Errors", control.spec("amount", 0, 100, 0))
   params:set_action(P("cd_errors"), function(v) E("looper_cd_errors")(v) end)
-  params:add_control(P("chip_crush"), "M: Chip Crush", controlspec.new(0, 100, "lin", 1, 0, "%"))
+  params:add_control(P("chip_crush"), "Chip Crush", control.spec("amount", 0, 100, 0))
   params:set_action(P("chip_crush"), function(v) E("looper_chip_crush")(v) end)
-  params:add_control(P("wow_tape"), "M: Tape Wow", controlspec.new(0, 100, "lin", 1, 5, "%"))
+  params:add_control(P("wow_tape"), "Tape Wow", control.spec("amount", 0, 100, 5))
   params:set_action(P("wow_tape"), function(v) E("looper_wow_tape")(v) end)
-  params:add_control(P("vinyl_noise"), "M: Vinyl Noise", controlspec.new(0, 100, "lin", 1, 10, "%"))
+  params:add_control(P("vinyl_noise"), "Vinyl Noise", control.spec("amount", 0, 100, 10))
   params:set_action(P("vinyl_noise"), function(v) E("looper_vinyl_noise")(v) end)
 
   params:add_separator(P("sep_sync"), "─── Quantization ───")
-  params:add_option(P("quant_div"), "Quantize", sync.DIV_OPTS, 1)
+  params:add_option(P("quant_div"), "Quantize Division", sync.DIV_OPTS, 1)
   params:set_action(P("quant_div"), function(_)
     looper.quant_led_restart()
     if not is_initing() then on_quant_div_changed() end

@@ -15,7 +15,7 @@ function looper_ui.new(ctx, into)
   screen.clear()
 
   local p = ctx.LOOPER_DEF[sel]
-  ctx.draw_strip(ctx.label or p.cat, p.name, ctx.fmt_val(sel), ctx.val_level(p.id))
+  ctx.draw_strip(ctx.label or p.cat, params:lookup_param(p.id).name, ctx.fmt_val(sel), ctx.val_level(p.id))
 
   ctx.draw_state_icon()
 
