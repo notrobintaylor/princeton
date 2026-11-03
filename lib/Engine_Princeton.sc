@@ -16,7 +16,7 @@ Engine_Princeton : CroneEngine {
     var env1_bus, env2_bus;
     var pedal_bus;
     var looper_in_bus, looper_out_bus, mediaNames, looperModule;
-    var synth_bus;
+    var synth_bus, strip_level_bus, reverb_level_bus;
     // princeton's own home in the engine tree: every node lives here, even the fleeting ones
     // (count clicks, Hold ringing out, the brief silence after the Looper)
     var grp;
@@ -36,6 +36,8 @@ Engine_Princeton : CroneEngine {
         tap_bus = Bus.audio(context.server, 4);
         tape_stop_bus = Bus.control(context.server, 1);
         synth_bus = Bus.audio(context.server, 2);
+        strip_level_bus = Bus.control(context.server, 4);
+        reverb_level_bus = Bus.control(context.server, 1);
         nam_ok = File.exists(Platform.userExtensionDir +/+ "princeton/NamAmp.so")
             and: { File.mtime(Platform.userExtensionDir +/+ "princeton/NamAmp.so") < (Date.getDate.rawSeconds - Main.elapsedTime) };
         ("princeton: NAM " ++ if(nam_ok) { "available" } { "not available" }).postln;
@@ -58,13 +60,13 @@ Engine_Princeton : CroneEngine {
             Env([0, 1, 0],    [0.15, 0.85],      [-4, 2]).asSignal(1024),
             Env([0, 1, 1, 0], [0.08, 0.84, 0.08], \lin).asSignal(1024)
         ].collect({ |sig| Buffer.sendCollection(context.server, sig, 1) });
-        push_gain_v = 5; push_tone_v = 5; push_level_v = 5; push_comp_v = 5;
-        distort_gain_v = 5; distort_tone_v = 7.5; distort_level_v = 5; distort_lowcut_v = 0;
+        push_gain_v = 5; push_tone_v = 5; push_level_v = 1; push_comp_v = 5;
+        distort_gain_v = 5; distort_tone_v = 7.5; distort_level_v = 1; distort_lowcut_v = 0;
         fray_drive_v = 7.5; fray_tone_v = 10; fray_gate_v = 0; fray_comp_v = 5;
-        fray_stab_v = 0; fray_octave_v = 0; fray_octave_mode_v = 1; fray_volume_v = 5;
+        fray_stab_v = 0; fray_octave_v = 0; fray_octave_mode_v = 1; fray_volume_v = 1;
         cut_thresh_v = -50; cut_attack_v = 1; cut_hold_v = 20; cut_release_v = 100; cut_range_v = -75; cut_hyst_v = 0; cut_detect_v = 0;
         hold_gain_v = [5, 5];      hold_rise_v  = [0.25, 0.25]; hold_fall_v   = [2.5, 2.5];
-        hold_level_v = [5, 5];     hold_size_v  = [5, 7.5];     hold_density_v = [5, 7.5];
+        hold_level_v = [1, 1];     hold_size_v  = [5, 7.5];     hold_density_v = [5, 7.5];
         hold_pitch_v = [-12, 12];  hold_spread_v = [5, 7.5];    hold_pmix_v   = [10, 10];
         hold_rev_v   = [0, 0];     hold_move_v  = [2.5, 2.5];
         hold_shape_v = [0, 0]; hold_interp_v = [4, 4];
@@ -132,7 +134,7 @@ Engine_Princeton : CroneEngine {
 
         SynthDef(\princeton_push, {
             arg bus = 0, gate = 1, fade = 0.025, push_cal = -27.4,
-                push_gain = 5, push_tone = 5, push_level = 5, push_comp = 5;
+                push_gain = 5, push_tone = 5, push_level = 1, push_comp = 5;
             var dry, sig, tilt, gain_db, lvl_db, over, ratio, gr, env;
             gain_db = Lag.kr(push_gain, 0.05).clip(0, 10);
             gain_db = (gain_db.min(5) * 8) + ((gain_db - 5).max(0) * 4);
@@ -149,7 +151,7 @@ Engine_Princeton : CroneEngine {
             sig = LPF.ar(dry, 8000) * (gain_db - gr).dbamp;
             sig = LPF.ar(LeakDC.ar(sig.tanh), 10000);
             sig = BHiShelf.ar(BLowShelf.ar(sig, 700, 1, tilt.neg), 700, 1, tilt);
-            sig = sig * (((Lag.kr(push_level, 0.05).clip(0, 10) - 5) * 2.4) + push_cal).dbamp;
+            sig = sig * Lag.kr(push_level, 0.05) * push_cal.dbamp;
             ReplaceOut.ar(bus, LinXFade2.ar(dry, sig, env * 2 - 1));
         }).add;
 
@@ -174,7 +176,7 @@ Engine_Princeton : CroneEngine {
 
         SynthDef(\princeton_distort, {
             arg bus = 0, gate = 1, fade = 0.025,
-                distort_gain = 5, distort_tone = 7.5, distort_level = 5, distort_lowcut = 0, distort_cal = 8.5;
+                distort_gain = 5, distort_tone = 7.5, distort_level = 1, distort_lowcut = 0, distort_cal = 8.5;
             var dry, distort_drive, distort_sig, env;
             distort_gain  = Lag.kr(distort_gain,  0.05);
             distort_tone  = Lag.kr(distort_tone,  0.05);
@@ -190,14 +192,14 @@ Engine_Princeton : CroneEngine {
             distort_drive = LPF.ar(distort_drive, distort_tone.linexp(0, 10, 300, 5000));
             // the lowcut switch sweeps the frequency over 50 ms instead of letting it jump
             distort_drive = HPF.ar(distort_drive, Lag.kr(Select.kr(distort_lowcut.round(1), [20, 100, 250]), 0.05));
-            distort_sig   = distort_drive * distort_level.linlin(0, 10, 0.0, 0.051) * distort_cal.dbamp;
+            distort_sig   = distort_drive * distort_level * 0.0255 * distort_cal.dbamp;
             ReplaceOut.ar(bus, LinXFade2.ar(dry, distort_sig, env * 2 - 1));
         }).add;
 
         SynthDef(\princeton_fray, {
             arg bus = 0, gate = 1, fade = 0.025,
                 fray_drive = 7.5, fray_tone = 10, fray_gate = 0, fray_comp = 5,
-                fray_stab = 0, fray_octave = 0, fray_octave_mode = 1, fray_volume = 5, fray_cal = 8.7;
+                fray_stab = 0, fray_octave = 0, fray_octave_mode = 1, fray_volume = 1, fray_cal = 8.7;
             var dry, sig, env, amp, sag, gain, pre, fb, fb_amt, starve, bias;
             var oct_up, oct_down, oct, ring, open, wet;
             fray_drive  = Lag.kr(fray_drive,  0.05);
@@ -244,7 +246,7 @@ Engine_Princeton : CroneEngine {
             pre  = pre * Lag.kr(open, 0.004);
 
             pre = LPF.ar(pre, fray_tone.linexp(0, 10, 750, 7500));
-            wet = pre * fray_volume.linlin(0, 10, 0.0, 0.0264) * fray_cal.dbamp;
+            wet = pre * fray_volume * 0.0132 * fray_cal.dbamp;
             ReplaceOut.ar(bus, LinXFade2.ar(dry, wet, env * 2 - 1));
         }).add;
 
@@ -289,7 +291,7 @@ Engine_Princeton : CroneEngine {
             arg hold_buf_num = 0, hold_out_bus_num = 0,
                 gate = 1,
                 hold_gain = 5, hold_rise = 0.25, hold_fall = 2.5,
-                hold_level = 5, hold_size = 5, hold_density = 5, hold_pitch = 0,
+                hold_level = 1, hold_size = 5, hold_density = 5, hold_pitch = 0,
                 hold_spread = 5, hold_pmix = 10, hold_rev = 0, hold_envbuf = -1, hold_interp = 4,
                 hold_move = 2.5, hold_move_bus_num = 0;
             var grains, pad, env, gain_lin, level_lin, rate, bufdur, spread, ov, pmix, rmix, move;
@@ -338,7 +340,7 @@ Engine_Princeton : CroneEngine {
             pad = LPF.ar(pad, 5000);
 
             env = EnvGen.kr(Env.asr(hold_rise, 1, hold_fall.max(0.01)), gate, doneAction: 2);
-            level_lin = hold_level.linlin(0, 10, 0.0, 0.9);
+            level_lin = hold_level * 0.45;
             ReplaceOut.ar(hold_out_bus_num, pad * env * level_lin);
         }).add;
 
@@ -356,16 +358,19 @@ Engine_Princeton : CroneEngine {
 
             arg post_bus_num = 0, tap_bus_num = 0, tape_stop_bus_num = 0, pedal_bus_num = 0, hold_out_bus_num = 0,
                 looper_in_bus_num = 0, looper_out_bus_num = 0, hold_rec_bus_num = 0,
-                volume = 5.0, bass = 2.5, treble = 5, master = 7.5, rectifier = 1,
+                volume = 5.0, bass = 2.5, treble = 5, master = 1, rectifier = 1,
                 reverb = 10, reverb_length = 2.5, reverb_low_shelf = 0, reverb_high_shelf = 0,
                 reverb_dwell = 5, reverb_drip = 5, reverb_freeze = 0,
                 trem_speed = 2.5, trem_intensity = 0,
                 mic = 1, characteristic = 0,
                 warp_rate = 2.5, warp_depth = 5, warp_rise = 2.5, warp_bypass = 1, warp_mix = 0,
-                repeat_time = 500, repeat_feedback = 50, repeat_level = 50, repeat_bypass = 1, repeat_mod_depth = 10, repeat_mod_rate = 2.5,
+                repeat_time = 500, repeat_feedback = 50, repeat_level = 1, repeat_bypass = 1, repeat_mod_depth = 10, repeat_mod_rate = 2.5,
                 mute = 0, amp_bypass = 0, nam_on = 0, nam_cal = 1.8, nam_mid = 5, nam_mid_freq = 750,
                 reverb_mute = 0, cab_mode = 1,
-                cab_level = 1.0;
+                cab_level = 1.0,
+                strip_on = 0, strip_cal = 0, strip_level_bus_num = 0, reverb_level_bus_num = 0,
+                strip_gain = 0, strip_lowcut = 80, strip_highcut = 12000, strip_level = 1,
+                strip_even = 0, strip_odd = 5;
 
             var sig;
             var repeat_delay, repeat_fb, pre1, toned, pre2, power;
@@ -385,6 +390,7 @@ Engine_Princeton : CroneEngine {
             var repeat_gate;
             var cab_dsp;
             var send_input_tap, looper_ret;
+            var strip_fade, strip_pre, strip_out, strip_k, trem_gain;
 
             volume         = Lag.kr(volume,         0.05);
             bass           = Lag.kr(bass,           0.05);
@@ -435,7 +441,7 @@ Engine_Princeton : CroneEngine {
             repeat_bbd    = (repeat_in * 1.6).tanh / 1.6;
             repeat_delay  = LPF.ar(DelayL.ar(repeat_bbd, 1.01, repeat_dt.clip(0.001, 1.005)), repeat_bw * 1.3);
             LocalOut.ar(repeat_delay);
-            sig = sig + (repeat_delay * (repeat_level / 50.0));
+            sig = sig + (repeat_delay * repeat_level);
 
             // ── Amp: preamp → tone stack → power amp ───────────────────────────
             input_gain = volume.clip(0.01, 10).linexp(0.01, 10, 0.6544, 42.26);
@@ -477,14 +483,30 @@ Engine_Princeton : CroneEngine {
                 power   = LinXFade2.ar(power, nam_sig ! 2, nam_fade * 2 - 1);
             };
 
+            // ── Channel strip: the amp's clean stand-in, a linked stereo pair ────────
+            // Gain drives a console stage whose symmetric bend (Odd) and lean (Even) add odd and even
+            // harmonics before the cuts. strip_cal makes a strip at 0 dB as loud as the amp at its defaults.
+            strip_fade = Lag.kr(strip_on.round(1), 0.05);
+            strip_k    = 0.05 * (60 ** (Lag.kr(strip_odd, 0.05).clip(0, 10) * 0.1));
+            strip_pre  = sig * (Lag.kr(strip_gain, 0.05) + strip_cal).dbamp;
+            strip_out  = adaaTanh.(strip_pre * strip_k) / strip_k;
+            strip_out  = LeakDC.ar(strip_out + (Lag.kr(strip_even, 0.05).clip(0, 10) * 0.06 * strip_out.tanh.squared));
+            strip_out  = HPF.ar(strip_out, Lag.kr(strip_lowcut, 0.05).clip(20, 1000));
+            strip_out  = LPF.ar(strip_out, Lag.kr(strip_highcut, 0.05).clip(1000, 20000));
+            strip_out  = strip_out * Lag.kr(strip_level, 0.05);
+            Out.kr(strip_level_bus_num, Amplitude.kr(strip_out ++ (strip_pre * strip_k * 2), 0.005, 0.3) * strip_fade);
+            power      = LinXFade2.ar(power, strip_out, strip_fade * 2 - 1);
+
             // ── Tremolo ───────────────────────────────────────────────────────
             trem_lfo   = SinOsc.kr(trem_speed, 0, 0.5, 0.5);
             trem_dry   = Lag.kr(trem_intensity.linlin(0, 15, 1.0, 0.0).clip(0, 1), 0.05);
             trem_depth = Lag.kr(trem_intensity.linlin(16, 100, 0.0, 0.9).clip(0, 1), 0.05);
-            trem_out = [
-                power[0] * (trem_dry + (1.0 - trem_dry) * (trem_depth * trem_lfo                              + (1.0 - trem_depth))),
-                power[1] * (trem_dry + (1.0 - trem_dry) * (trem_depth * SinOsc.kr(trem_speed, pi * 0.5, 0.5, 0.5) + (1.0 - trem_depth)))
+            trem_gain  = [
+                trem_dry + (1.0 - trem_dry) * (trem_depth * trem_lfo                              + (1.0 - trem_depth)),
+                trem_dry + (1.0 - trem_dry) * (trem_depth * SinOsc.kr(trem_speed, pi * 0.5, 0.5, 0.5) + (1.0 - trem_depth))
             ];
+            // the strip has no tremolo, so its signal passes untouched
+            trem_out = power * ((trem_gain * (1 - strip_fade)) + strip_fade);
 
             // ── Looper ───────────────────────────────────────────────
             hold_sum = InFeedback.ar(hold_out_bus_num, 16).clump(2).sum;
@@ -532,6 +554,7 @@ Engine_Princeton : CroneEngine {
             spring_wet = BHiShelf.ar(spring_wet,  3500, 1.0, reverb_high_shelf);
 
             wetmix = loop_mix + spring_wet;
+            Out.kr(reverb_level_bus_num, Amplitude.kr((spring_wet[0] + spring_wet[1]) * 0.5, 0.01, 0.3));
 
             // ── Cabinet (parametric mic, one chain) ──────────────────────────
             mic_freq = SelectX.kr(mic, [3200, 2000, 1200]);
@@ -549,7 +572,7 @@ Engine_Princeton : CroneEngine {
             ];
             cab = LinXFade2.ar(cab, sig, Lag.kr(amp_bypass.round(1) * 2 - 1, 0.008));
 
-            out_sig   = cab * (master / 10.0).squared * 2.0;
+            out_sig   = cab * SelectX.kr(strip_fade, [master * 1.125, 1]);
             final_sig = out_sig.softclip * (1.0 - mute);
 
             ReplaceOut.ar(post_bus_num, final_sig * (1 - In.kr(tape_stop_bus_num)));
@@ -595,7 +618,7 @@ Engine_Princeton : CroneEngine {
             arg out_bus = 0, level = 0.5, pitch = 0, length = 50, count_bus_num = 0, position = 0;
             var freq = 440 * (2 ** (pitch / 12));
             var env  = EnvGen.ar(Env.perc(0.001, length * 0.001), doneAction: 2);
-            var sig  = SinOsc.ar(freq) * env * level.clip(0, 1);
+            var sig  = SinOsc.ar(freq) * env * level.clip(0, 2);
             Out.ar(out_bus,       [sig, sig] * (1 - position.round(1)));
             Out.ar(count_bus_num, sig * position.round(1));
         }).add;
@@ -646,7 +669,9 @@ Engine_Princeton : CroneEngine {
             \looper_in_bus_num,   looper_in_bus.index,
             \looper_out_bus_num,  looper_out_bus.index,
             \hold_out_bus_num,    hold_out_bus.index,
-            \hold_rec_bus_num,    hold_rec_bus.index
+            \hold_rec_bus_num,    hold_rec_bus.index,
+            \strip_level_bus_num, strip_level_bus.index,
+            \reverb_level_bus_num, reverb_level_bus.index
         ]);
         out_synth = Synth.after(rackFx[\start].value(synth), \princeton_out, [
             \bus,                 post_bus.index,
@@ -720,6 +745,14 @@ Engine_Princeton : CroneEngine {
             ["nam_on",               \nam_on],
             ["amp_mid",              \nam_mid],
             ["amp_mid_freq",         \nam_mid_freq],
+            ["strip_on",             \strip_on],
+            ["strip_cal",            \strip_cal],
+            ["strip_gain",           \strip_gain],
+            ["strip_lowcut",         \strip_lowcut],
+            ["strip_highcut",        \strip_highcut],
+            ["strip_level",          \strip_level],
+            ["strip_even",           \strip_even],
+            ["strip_odd",            \strip_odd],
             ["fx_send_a_source",     \send_a_source],
             ["fx_send_a_level",      \send_a_level],
             ["fx_send_b_source",     \send_b_source],
@@ -994,6 +1027,9 @@ Engine_Princeton : CroneEngine {
 
         this.addPoll("hold_live", { hold_live_bus.getSynchronous });
 
+        this.addPoll("reverb_level", { reverb_level_bus.getSynchronous });
+        [\strip_out_l, \strip_out_r, \strip_drive_l, \strip_drive_r].do { |name, k| this.addPoll(name, { strip_level_bus.getnSynchronous(4)[k] }) };
+
         this.addPoll("env1_value", {
             env1_bus.getSynchronous;
         });
@@ -1029,6 +1065,8 @@ Engine_Princeton : CroneEngine {
         looperModule[\free].value;
         rackFx[\free].value;
         synth_bus.free;
+        strip_level_bus.free;
+        reverb_level_bus.free;
         looper_in_bus.free;
         looper_out_bus.free;
     }

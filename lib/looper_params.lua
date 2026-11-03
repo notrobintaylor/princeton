@@ -1,4 +1,5 @@
-local sync = include("lib/sync")
+local sync  = include("lib/sync")
+local level = include("lib/level")
 
 -- looper_params: the controls each looper built by looper.new gets in the PARAMS menu:
 -- transport, level, speed, the medium and its quirks (the "M:" entries), quantize and three
@@ -13,7 +14,6 @@ local MEDIA_ALL = { "BBD", "Cassette", "CD", "Chip", "Tape", "Vinyl" }
 function looper_params.setup(deps)
   local speed_steps_prev = 0
   local re                   = deps.re
-  local db_to_lin            = deps.db_to_lin
   local is_initing           = deps.is_initing
   local on_quant_div_changed = deps.on_quant_div_changed
   local speed_is_owned       = deps.speed_is_owned
@@ -21,8 +21,8 @@ function looper_params.setup(deps)
   local P                    = looper.pid
   local E                    = looper.cmd
 
-  local function db_action(suffix)
-    return function(v) E("looper_" .. suffix)(db_to_lin(v)); re() end
+  local function level_add(suffix, name)
+    level.add(P(suffix), name, -2.5, function(a) E("looper_" .. suffix)(a); re() end)
   end
 
   -- ── Media selection ────────────────────────────────────────────
@@ -49,12 +49,9 @@ function looper_params.setup(deps)
   params:set_action(P("dub_style"), function(v) E("looper_dub_style")(v - 1); re() end)
   params:add_option(P("direction"), "Direction", looper_params.DIR_NAMES, 1)
   params:set_action(P("direction"), function(v) E("looper_direction")(v - 1); re() end)
-  params:add_control(P("dub_level"), "Rec Level", controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-  params:set_action(P("dub_level"), db_action("dub_level"))
-  params:add_control(P("level"), "Play Level", controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-  params:set_action(P("level"), db_action("level"))
-  params:add_control(P("fade_level"), "Fade Level", controlspec.new(-40, 0, "lin", 0.5, -2.5, "dB"))
-  params:set_action(P("fade_level"), db_action("fade_level"))
+  level_add("dub_level", "Rec Level")
+  level_add("level", "Play Level")
+  level_add("fade_level", "Fade Level")
   params:add{type="number", id=P("speed"), name="Speed", min=-100, max=100, default=0, formatter=function(p) return p:get() .. "%" end, action=function(v)
     -- in Steps, Speed knows only half, normal and double: any move snaps to the next stage in
     -- its direction

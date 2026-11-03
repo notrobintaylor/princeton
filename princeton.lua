@@ -28,6 +28,8 @@ local seq     = include("lib/seq")
 local modrack = include("lib/modrack")
 local lifecycle = include("lib/lifecycle")
 local nam     = include("lib/nam")
+local chstrip = include("lib/strip")
+local level   = include("lib/level")
 local midimap = include("lib/midimap")
 local synth   = include("lib/synth")
 -- Voices from voice mods (e.g. "form"), selectable in Route next to Mono and Stereo.
@@ -39,7 +41,7 @@ local PARAMS_DEF = {
   { id="amp_volume",         name="Volume",    default=5.0,  min=0,    max=10, step=0.1, db=false, cat="Amp"     },
   { id="amp_bass",           name="Bass",      default=2.5,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
   { id="amp_treble",         name="Treble",    default=5.0,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
-  { id="amp_master",         name="Master",    default=7.5,  min=0,   max=10, step=0.1, db=false, cat="Amp"     },
+  { id="amp_master",         name="Master",    default=0,    min=-75, max=10, step=0.5, db=true,  cat="Amp"     },
   { id="tremolo_intensity", name="Intensity", default=0,    min=0,   max=100, step=1,  db=false, unit="%", cat="Tremolo" },
   { id="tremolo_speed",     name="Speed",     default=2.5,  min=0.1, max=25, step=0.1, db=false, unit="Hz", cat="Tremolo" },
   { id="reverb_amount",     name="Amount",    default=10,   min=0,   max=100, step=1,  db=false, unit="%", cat="Reverb"  },
@@ -51,9 +53,9 @@ local LOOPER_DEF = {
   { id="looper_medium",     name="Medium",     default=4,   min=1,  max=6,  step=1,   db=false, cat="Loop", options={"BBD","Cassette","CD","Chip","Tape","Vinyl"} },
   { id="looper_wear",       name="Wear",       default=5,   min=0,  max=100, step=1, db=false, unit="%", cat="Loop"  },
   { id="looper_direction",  name="Direction",  default=0,   min=0,   max=3,  step=1,  db=false, cat="Loop"  },
-  { id="looper_dub_level",  name="Rec Level",  default=-2.5, min=-40, max=0, step=0.5, db=true, cat="Loop"  },
-  { id="looper_level",      name="Play Level", default=-2.5, min=-40, max=0, step=0.5, db=true, cat="Loop"  },
-  { id="looper_fade_level", name="Fade Level", default=-2.5, min=-40, max=0, step=0.5, db=true, cat="Loop"  },
+  { id="looper_dub_level",  name="Rec Level",  default=-2.5, min=-75, max=10, step=0.5, db=true, cat="Loop"  },
+  { id="looper_level",      name="Play Level", default=-2.5, min=-75, max=10, step=0.5, db=true, cat="Loop"  },
+  { id="looper_fade_level", name="Fade Level", default=-2.5, min=-75, max=10, step=0.5, db=true, cat="Loop"  },
   { id="looper_speed",      name="Speed",      default=0,   min=-100, max=100, step=1, db=false, cat="Loop"  },
   { id="looper_quant_div",  name="Quantize",      default=1,   min=1, max=#sync.DIV_OPTS, step=1, db=false, cat="Loop", options=sync.DIV_OPTS },
   { id="looper_quant_feel", name="Quantize Feel", default=1,   min=1, max=3, step=1, db=false, cat="Loop", options=sync.FEEL_OPTS },
@@ -69,8 +71,19 @@ end
 
 local AMP_NAM_KNOBS = { 1, 2, 10, 3, 4, 5, 6, 7, 8 }
 
+-- The amp slot holds the classic amp, a NAM profile or the channel strip. NAM counts only where its
+-- plugin is installed, so a PSET from another norns falls back to the classic amp.
+local function amp_kind()
+  local v = params.lookup["amp_type"] and params:get("amp_type") or 1
+  if v == 3 then return "strip" end
+  return (v == 2 and nam.available()) and "nam" or "int"
+end
+
+-- The strip has neither tremolo nor speaker, so both leave the chain while it stands in.
 local function dev_hidden(abbr)
-  if abbr ~= "CAB" or params.lookup["amp_nam_cab"] == nil or params:get("amp_type") ~= 2 then return false end
+  local kind = amp_kind()
+  if kind == "strip" then return abbr == "TRM" or abbr == "CAB" end
+  if abbr ~= "CAB" or params.lookup["amp_nam_cab"] == nil or kind ~= "nam" then return false end
   local mode = params:get("amp_nam_cab")
   if mode == 1 then return nam.full_rig(params:get("amp_model")) end
   return mode == 3
@@ -120,7 +133,7 @@ local PEDALS = {
     params     = {
       { id="push_gain",  name="Gain",  default=5.0, min=0, max=10, step=0.1 },
       { id="push_tone",  name="Tone",  default=5.0, min=0, max=10, step=0.1 },
-      { id="push_level", name="Level", default=5.0, min=0, max=10, step=0.1 },
+      { id="push_level", name="Level", default=0, min=-75, max=10, step=0.5, unit="dB", level=true },
       { id="push_comp",  name="Comp",  default=5.0, min=0, max=10, step=0.1 },
     },
     psel       = 1,
@@ -134,7 +147,7 @@ local PEDALS = {
     params     = {
       { id="distort_gain",    name="Gain",     default=5.0, min=0, max=10, step=0.1 },
       { id="distort_tone",    name="Tone",     default=7.5, min=0, max=10, step=0.1 },
-      { id="distort_level",   name="Level",    default=5.0, min=0, max=10, step=0.1 },
+      { id="distort_level",   name="Level",    default=0, min=-75, max=10, step=0.5, unit="dB", level=true },
       { id="distort_lowcut",  name="Low Cut",  default=0, min=0, max=2, step=1, options={"Off","100 Hz","250 Hz"} },
     },
     psel       = 1,
@@ -161,7 +174,7 @@ local PEDALS = {
     params     = {
       { id="repeat_time",           name="Time",      default=500, min=1, max=1000, step=1, unit="ms" },
       { id="repeat_feedback",       name="Feedback",  default=50, min=0, max=100, step=1, unit="%" },
-      { id="repeat_level",          name="Level",     default=50, min=0, max=100, step=1, unit="%" },
+      { id="repeat_level",          name="Level",     default=0, min=-75, max=10, step=0.5, unit="dB", level=true },
       { id="repeat_characteristic", name="Color",     default=0,   min=0, max=1,  step=1, options={"Bright","Dark"} },
       { id="repeat_mod_depth",      name="Mod Depth", default=10,  min=0, max=100, step=1, unit="%" },
       { id="repeat_mod_rate",       name="Mod Rate",  default=2.5, min=0.1, max=10, step=0.1, unit="Hz", warp="exp" },
@@ -180,7 +193,6 @@ end
 local function cur_pedal() return PEDALS[cur_pedal_sel()] end
 
 local clock_running = true
-local db_to_lin = function(db) return 10 ^ (db / 20) end
 
 -- ── Mod targets ──────────────────────────────────────────────
 
@@ -208,27 +220,27 @@ local TARGET_PARAMS = {
   {label="Fray: Octave",      id="fray_octave",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_octave(v) end},
   {label="Fray: Gate",        id="fray_gate",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_gate(v) end},
   {label="Fray: Tone",        id="fray_tone",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_tone(v) end},
-  {label="Fray: Volume",      id="fray_volume",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.fray_volume(v) end},
+  {label="Fray: Volume",      id="fray_volume",      mn=-75,  mx=10,    st=0.5,  send=function(v) engine.fray_volume(level.amp(v)) end},
   {label="Push: Gain",         id="push_gain",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_gain(v) end},
   {label="Push: Tone",         id="push_tone",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_tone(v) end},
-  {label="Push: Level",        id="push_level",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_level(v) end},
+  {label="Push: Level",        id="push_level",        mn=-75,  mx=10,    st=0.5,  send=function(v) engine.push_level(level.amp(v)) end},
   {label="Push: Comp",         id="push_comp",         mn=0,    mx=10,    st=0.1,  send=function(v) engine.push_comp(v) end},
   {label="Distort: Gain",      id="distort_gain",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.distort_gain(v) end},
   {label="Distort: Tone",      id="distort_tone",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.distort_tone(v) end},
-  {label="Distort: Level",     id="distort_level",     mn=0,    mx=10,    st=0.1,  send=function(v) engine.distort_level(v) end},
+  {label="Distort: Level",     id="distort_level",     mn=-75,  mx=10,    st=0.5,  send=function(v) engine.distort_level(level.amp(v)) end},
   {label="Warp: Rate",         id="warp_rate",         mn=0.1,  mx=25,    st=0.1,  send=function(v) engine.warp_rate(v) end},
   {label="Warp: Depth",        id="warp_depth",        mn=0,    mx=100,   st=1,    send=function(v) engine.warp_depth(math.floor(v)) end},
   {label="Warp: Rise/Fall",    id="warp_rise",         mn=0.01, mx=5.0,   st=0.01, send=function(v) engine.warp_rise(v) end},
   {label="Warp: Mix",          id="warp_mix",          mn=0,    mx=100,   st=1,    send=function(v) engine.warp_mix(math.floor(v)) end},
   {label="Repeat: Time",       id="repeat_time",       mn=1,    mx=1000,  st=1,    send=function(v) engine.repeat_time(math.floor(v)) end},
   {label="Repeat: Feedback",   id="repeat_feedback",   mn=0,    mx=100,   st=1,    send=function(v) engine.repeat_feedback(math.floor(v)) end},
-  {label="Repeat: Level",      id="repeat_level",      mn=0,    mx=100,   st=1,    send=function(v) engine.repeat_level(math.floor(v)) end},
+  {label="Repeat: Level",      id="repeat_level",      mn=-75,  mx=10,    st=0.5,  send=function(v) engine.repeat_level(level.amp(v)) end},
   {label="Repeat: Mod Depth",  id="repeat_mod_depth",  mn=0,    mx=100,   st=1,    send=function(v) engine.repeat_mod_depth(math.floor(v)) end},
   {label="Repeat: Mod Rate",   id="repeat_mod_rate",   mn=0.1,  mx=10,    st=0.1,  send=function(v) engine.repeat_mod_rate(v) end},
   {label="Amp: Volume",        id="amp_volume",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_volume(v) end},
   {label="Amp: Bass",          id="amp_bass",          mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_bass(v) end},
   {label="Amp: Treble",        id="amp_treble",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_treble(v) end},
-  {label="Amp: Master",        id="amp_master",        mn=0,    mx=10,    st=0.1,  send=function(v) engine.amp_master(v) end},
+  {label="Amp: Master",        id="amp_master",        mn=-75,  mx=10,    st=0.5,  send=function(v) engine.amp_master(level.amp(v)) end},
   {label="Amp: Rectifier",     id="amp_rectifier",     mn=1,    mx=3,     st=1,    send=function(v) engine.amp_rectifier(math.floor(v + 0.5) - 1) end},
   {label="Tremolo: Speed",     id="tremolo_speed",     mn=0.1,  mx=25,    st=0.1,  send=function(v) engine.tremolo_speed(v) end},
   {label="Tremolo: Intensity", id="tremolo_intensity", mn=0,    mx=100,   st=1,    send=function(v) engine.tremolo_intensity(math.floor(v)) end},
@@ -239,7 +251,7 @@ local TARGET_PARAMS = {
   {label="Hold 1: Pitch Mix", id="hold1_pmix", mn=0, mx=100, st=1, send=function(v) engine.hold_pmix(1, v) end},
   {label="Hold 1: Reverse Mix", id="hold1_rev", mn=0, mx=100, st=1, send=function(v) engine.hold_rev(1, v) end},
   {label="Hold 1: Gain", id="hold1_gain", mn=0, mx=10, st=0.1, send=function(v) engine.hold_gain(1, v) end},
-  {label="Hold 1: Level", id="hold1_level", mn=0, mx=10, st=0.1, send=function(v) engine.hold_level(1, v) end},
+  {label="Hold 1: Level", id="hold1_level", mn=-75, mx=10, st=0.5, send=function(v) engine.hold_level(1, level.amp(v)) end},
   {label="Hold 1: Movement", id="hold1_move", mn=0, mx=10, st=0.1, send=function(v) engine.hold_move(1, v) end},
   {label="Hold 2: Size", id="hold2_size", mn=0, mx=10, st=0.1, send=function(v) engine.hold_size(2, v) end},
   {label="Hold 2: Density", id="hold2_density", mn=1, mx=10, st=0.1, send=function(v) engine.hold_density(2, v) end},
@@ -248,11 +260,11 @@ local TARGET_PARAMS = {
   {label="Hold 2: Pitch Mix", id="hold2_pmix", mn=0, mx=100, st=1, send=function(v) engine.hold_pmix(2, v) end},
   {label="Hold 2: Reverse Mix", id="hold2_rev", mn=0, mx=100, st=1, send=function(v) engine.hold_rev(2, v) end},
   {label="Hold 2: Gain", id="hold2_gain", mn=0, mx=10, st=0.1, send=function(v) engine.hold_gain(2, v) end},
-  {label="Hold 2: Level", id="hold2_level", mn=0, mx=10, st=0.1, send=function(v) engine.hold_level(2, v) end},
+  {label="Hold 2: Level", id="hold2_level", mn=-75, mx=10, st=0.5, send=function(v) engine.hold_level(2, level.amp(v)) end},
   {label="Hold 2: Movement", id="hold2_move", mn=0, mx=10, st=0.1, send=function(v) engine.hold_move(2, v) end},
-  {label="Loop: Rec Level",  id="looper_dub_level",  mn=-40,  mx=0,     st=0.5,  send=function(v) engine.looper_dub_level(db_to_lin(v)) end},
-  {label="Loop: Play Level", id="looper_level",      mn=-40,  mx=0,     st=0.5,  send=function(v) engine.looper_level(db_to_lin(v)) end},
-  {label="Loop: Fade Level", id="looper_fade_level", mn=-40,  mx=0,     st=0.5,  send=function(v) engine.looper_fade_level(db_to_lin(v)) end},
+  {label="Loop: Rec Level",  id="looper_dub_level",  mn=-75,  mx=10,    st=0.5,  send=function(v) engine.looper_dub_level(level.amp(v)) end},
+  {label="Loop: Play Level", id="looper_level",      mn=-75,  mx=10,    st=0.5,  send=function(v) engine.looper_level(level.amp(v)) end},
+  {label="Loop: Fade Level", id="looper_fade_level", mn=-75,  mx=10,    st=0.5,  send=function(v) engine.looper_fade_level(level.amp(v)) end},
   {label="Loop: Speed",      id="looper_speed",      mn=-100, mx=100,   st=1,    send=function(v)
     local ratio
     if params:get("looper_speed_control") == 1 then
@@ -272,9 +284,9 @@ local TARGET_PARAMS = {
   {label="Reverb: High Shelf", id="reverb_high_shelf", mn=-5,   mx=5,     st=0.5,  send=function(v) engine.reverb_high_shelf(v) end},
   {label="Reverb: Dwell",      id="reverb_dwell",      mn=0,    mx=10,    st=0.1,  send=function(v) engine.reverb_dwell(v) end},
   {label="Reverb: Drip",       id="reverb_drip",       mn=0,    mx=10,    st=0.1,  send=function(v) engine.reverb_drip(v) end},
-  {label="Cab: Cab Level",     id="cab_level",         mn=-10,  mx=10,    st=0.5,  send=function(v) engine.cab_level(db_to_lin(v)) end},
+  {label="Cab: Cab Level",     id="cab_level",         mn=-75,  mx=10,    st=0.5,  send=function(v) engine.cab_level(level.amp(v)) end},
   {label="Count: Division",    id="count_div",         mn=1,    mx=5,     st=1,    send=function(v) lfo.count.div = math.floor(v+0.5) end},
-  {label="Count: Level",       id="count_level",       mn=0,    mx=10,    st=0.1,  send=function(v) lfo.count.level = v end},
+  {label="Count: Level",       id="count_level",       mn=-75,  mx=10,    st=0.5,  send=function(v) lfo.count.level = v end},
   {label="Count: Length",      id="count_length",      mn=1,    mx=500,   st=1,    send=function(v) lfo.count.length = math.floor(v + 0.5) end},
   {label="Count: Root",        id="count_root",        mn=0,    mx=12,    st=1,    send=function(v)
     local p = math.floor(v + 0.5)
@@ -415,6 +427,13 @@ TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Mesmerize: Low Cut",   id="evp_lowcut"
 TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Octave",        id="bld_octave",     mn=0,  mx=100,  st=1,   send=function(v) engine.bld_octave(v) end}
 TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Smear",         id="bld_smear",      mn=0,  mx=100,  st=1,   send=function(v) engine.bld_smear(v) end}
 TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Build: Crossfeed",     id="bld_xfeed",      mn=0,  mx=100,  st=1,   send=function(v) engine.bld_xfeed(v) end}
+for _, q in ipairs({ { "Gain", "gain", -12, 24, 0.5 }, { "Even Harmonics", "even", 0, 10, 0.1 },
+                     { "Odd Harmonics", "odd", 0, 10, 0.1 }, { "Low Cut", "lowcut", 20, 1000, 1 },
+                     { "High Cut", "highcut", 1000, 20000, 10 }, { "Level", "level", -75, 10, 0.5 } }) do
+  local id = "strip_" .. q[2]
+  local amp = q[2] == "level"
+  TARGET_PARAMS[#TARGET_PARAMS+1] = {label="Strip: " .. q[1], id=id, mn=q[3], mx=q[4], st=q[5], send=function(v) engine[id](amp and level.amp(v) or v) end}
+end
 
 local DEVICE_NAMES     = {}
 local DEVICE_PARAMS    = {}
@@ -503,7 +522,7 @@ local COUNT_STRIP = {
   {name="Degree",   id="count_degree",     typ="opt", nmax=15, fmt=function(v) return tostring(v) end},
   {name="Play",     id="count_scale_play", typ="opt", nmax=8, fmt=function(v) return ({"Off","Fwd","Rev","3rds","4ths","5ths","7ths","Rnd"})[v] end},
   {name="Chords",   id="count_chords",     typ="opt", nmax=4, fmt=function(v) return ({"Off","Octaves","Power","Triads"})[v] end},
-  {name="Level",    id="count_level",   typ="ctrl", step=0.1, fmt=function(v) return string.format("%.1f",v) end},
+  {name="Level",    id="count_level",   typ="ctrl", step=0.5, fmt=function(v) return level.str(v) end},
   {name="Length",   id="count_length",  typ="ctrl", step=1,  fmt=function(v) return string.format("%dms",math.floor(v)) end},
   {name="Position", id="count_position", typ="opt",  nmax=2,  fmt=function(v) return ({"Parallel","Inline"})[v] end},
 }
@@ -531,7 +550,7 @@ local function fmt_def_val(def, idx, v_in)
   end
   local s = sync.fmt(id, clock_running)
   if s then return s end
-  if p.db   then return string.format("%.1fdB", v) end
+  if p.db   then return level.str(v) end
   return fmt_unit(v, p)
 end
 local function fmt_val(idx) return fmt_def_val(PARAMS_DEF, idx) end
@@ -558,6 +577,7 @@ local function fmt_param(id, v_in)
     if s then return s end
     local v = v_in or params:get(id)
     if pe.options then return pe.options[v] end
+    if pe.level then return level.str(v) end
     return fmt_unit(v, pe)
   end
   local s = sync.fmt(id, clock_running)
@@ -576,14 +596,6 @@ local function snap_val(v, step)
   if step == 1 then return math.floor(v + 0.5)
   else return math.floor(v * 10 + 0.5) / 10 end
 end
-
-local PARAM_STEP = {}
-for _, e in ipairs(PARAMS_DEF) do PARAM_STEP[e.id] = e.step end
-for _, e in ipairs(LOOPER_DEF) do PARAM_STEP[e.id] = e.step end
-for _, pd in ipairs(PEDALS) do
-  for _, e in ipairs(pd.params) do PARAM_STEP[e.id] = e.step end
-end
-PARAM_STEP["tune_ref"] = 0.1
 
 -- ── Build: time and sync ─────────────────────────────────────
 -- Build's Time knob snaps in twelfths of a doubling, like semitones, so short times stay as fine as
@@ -709,12 +721,7 @@ local function edit_param(id, d)
     params:set(id, util.clamp(math.floor(params:get(id) * n + 0.5) + d, 0, n) / n)
     return
   end
-  local step = PARAM_STEP[id]
-  if step then
-    params:set(id, snap_val(params:get(id) + d * step, step))
-  else
-    params:delta(id, d)
-  end
+  params:delta(id, d)
 end
 
 -- ── Tap tempo (Warp, Repeat, Tremolo, Count) ─────────────────
@@ -736,7 +743,7 @@ function tap.apply(prefix)
   if prefix == "count" then params:set(id, util.round(60 / mean)); return end
   local m  = sync.PARAM_MAP[id]
   local hz = sync.hz_df(60 / mean, params:get(prefix .. "_tap_div") + 1, params:get(prefix .. "_tap_feel"))
-  local v  = snap_val(m.value_fn(hz), PARAM_STEP[id])
+  local v  = snap_val(m.value_fn(hz), params:lookup_param(id).controlspec.step)
   tap.clamped[id] = (not m.in_range(hz)) and v or nil
   params:set(id, v)
 end
@@ -1051,7 +1058,8 @@ local PERF_DEVICES = {
   { abbr="AMP", name="Amp",       enable="amp_enable",
     params={"amp_volume","amp_bass","amp_treble","amp_master"},
     params_int={"amp_volume","amp_bass","amp_treble","amp_master"},
-    params_nam={"amp_model","amp_volume","amp_bass","amp_mid","amp_treble","amp_master"} },
+    params_nam={"amp_model","amp_volume","amp_bass","amp_mid","amp_treble","amp_master"},
+    params_strip=chstrip.IDS },
   { abbr="TRM", name="Tremolo",   enable="tremolo_enable",
     params={"tremolo_intensity","tremolo_speed","tremolo_sync_div","tremolo_sync_feel"} },
   { abbr="HD1", name="Hold 1",    enable="hold1_enable", parallel=true,
@@ -1241,13 +1249,14 @@ local function chain_layout()
     lines[#lines + 1] = ln
   end
   local rows = { table.unpack(CHAIN.ROWS) }
-  if dev_hidden("CAB") then
-    local pos, r, acc = 0, 1, 0
-    for k, u in ipairs(chain_units(true)) do
-      for _, p in ipairs(u.parts) do if p.d and PERF_DEVICES[p.d].abbr == "CAB" then pos = k end end
+  for k, u in ipairs(chain_units(true)) do
+    for _, p in ipairs(u.parts) do
+      if p.d and dev_hidden(PERF_DEVICES[p.d].abbr) then
+        local r, acc = 1, 0
+        while CHAIN.ROWS[r] and acc + CHAIN.ROWS[r] < k do acc = acc + CHAIN.ROWS[r]; r = r + 1 end
+        if rows[r] then rows[r] = rows[r] - 1 end
+      end
     end
-    while rows[r] and acc + rows[r] < pos do acc = acc + rows[r]; r = r + 1 end
-    if rows[r] then rows[r] = rows[r] - 1 end
   end
   for _, count in ipairs(rows) do
     if i > #units then break end
@@ -1417,7 +1426,7 @@ local function draw_hold_grains(x, y, idx, focused, dev)
   screen.rect(ox + 2, oy + 3, 1, 26); screen.rect(ox + 34, oy + 3, 1, 26); screen.fill()
   local cols, mid = {}, oy + 15
   if on then
-    local peak = 3 + params:get("hold" .. idx .. "_level") * 1.2
+    local peak = 3 + math.min(level.amp(params:get("hold" .. idx .. "_level")), 2) * 6
     for _, q in ipairs(hold_grains[idx]) do
       local t   = q.age / q.ttl
       local env = (t < 0.3) and (t / 0.3) or ((1 - t) / 0.7)
@@ -1804,7 +1813,17 @@ function redraw()
   if view_pane[0] == 2 then draw_looper_pane(); return end
   screen.clear()
   draw_left_strip()
-  local neutral = params:get("amp_type") == 2
+  if amp_kind() == "strip" then
+    local abbr = STUDIO_DEVICES[studio_sel].abbr
+    if abbr == "RVB" then
+      chstrip.draw_tank(params:get("reverb_enable") == 2, dev_param_sel.RVB or 1, params:get("reverb_freeze") == 2)
+    else
+      chstrip.draw(not amp_is_bypassed(), abbr == "AMP" and (dev_param_sel.AMP or 1) or nil)
+    end
+    screen.update()
+    return
+  end
+  local neutral = amp_kind() == "nam"
   cabinet.draw_grillcloth(params:get("cab_mode"), cab_sel_id() == "mic_position", params:get("mic_position") - 1, neutral)
   cabinet.draw_panel(sel, params:get("signal_input") == 2, amp_is_bypassed(), neutral and AMP_NAM_KNOBS or nil)
   cabinet.draw_cabinet(neutral)
@@ -1888,7 +1907,7 @@ local function mod_open_toggle()
 end
 
 local function count_tick_now()
-  local level    = lfo.count.level    ~= nil and lfo.count.level / 10.0 or params:get("count_level") / 10.0
+  local lvl      = 0.5 * level.amp(lfo.count.level ~= nil and lfo.count.level or params:get("count_level"))
   local length   = lfo.count.length   ~= nil and lfo.count.length        or params:get("count_length")
   local root     = lfo.count.root     ~= nil and lfo.count.root          or params:get("count_root")
   local register = lfo.count.register ~= nil and lfo.count.register      or params:get("count_register")
@@ -1909,7 +1928,7 @@ local function count_tick_now()
 
   for _, off in ipairs(scales.chord_tones(scale_idx, degree, kind)) do
     local p = util.clamp(base + off, 1, 108)
-    engine.count_tick(level, p - 1 - 57, length, position)
+    engine.count_tick(lvl, p - 1 - 57, length, position)
   end
 
   if stepping then count_step = count_step + 1 end
@@ -1988,7 +2007,7 @@ local mod_strip_enc = (function()
         local nmax = row.nmax_fn and row.nmax_fn(idx) or row.nmax
         if nmax > 0 then params:set(id, util.clamp(params:get(id) + d, 1, nmax)) end
       else
-        params:set(id, snap_val(params:get(id) + d * row.step, row.step))
+        params:delta(id, d)
       end
       if row.suf == "_sync_div" and k.start then k.start(idx) end
     end
@@ -2038,7 +2057,7 @@ function enc(n, d)
         if ms.typ == "opt" then
           params:set(ms.id, util.clamp(params:get(ms.id) + d, 1, ms.nmax))
         else
-          params:set(ms.id, snap_val(params:get(ms.id) + d * ms.step, ms.step))
+          params:delta(ms.id, d)
         end
         redraw()
       end
@@ -2134,7 +2153,11 @@ local K2_SHORT = {
   HD2 = function() engine.hold_recapture(2) end,
   TUN = function() params:set("tune_ref", 440) end,
   CAB = function() params:set("mic_position", params:get("mic_position") % #MIC_NAMES + 1) end,
-  AMP = function() if nam.available() then toggle_param("amp_type") end end,
+  AMP = function()
+    local v = params:get("amp_type") % 3 + 1
+    if v == 2 and not nam.available() then v = 3 end
+    params:set("amp_type", v)
+  end,
 }
 
 local function device_key(dev, n, z)
@@ -2163,13 +2186,12 @@ local function device_key(dev, n, z)
     long_press("k2", z, function() end, K2_SHORT[dev.abbr])
   elseif n == 2 and dev.abbr == "LOP" then
     long_press("k2", z, function() transport(looper.undo) end, function() transport(looper.stop_clear) end)
+  elseif n == 3 and dev.abbr == "LOP" then
+    -- The looper steps on the press, so a take starts and ends where the finger lands.
+    if z == 1 then transport(looper.step) end
   elseif n == 3 then
     long_press("k3", z, function() end, function()
-      if dev.abbr == "LOP" then
-        transport(looper.step)
-      elseif dev.enable then
-        toggle_param(dev.enable)
-      end
+      if dev.enable then toggle_param(dev.enable) end
     end)
   end
 end
@@ -2261,7 +2283,11 @@ local function restore_voice()
   for i, vc in ipairs(VOICES) do
     if vc.id == id then want = i + 2 end
   end
+  -- counts as part of the load, so Route leaves the amp slot as the PSET stored it
+  local loading = params.pset_loading
+  params.pset_loading = true
   if want ~= v then params:set("signal_input", want) end
+  params.pset_loading = loading
   params:set("signal_voice", id)
 end
 
@@ -2412,6 +2438,8 @@ function init()
       if p.options then
         params:add_option(p.id, p.name, p.options, p.default + 1)
         params:set_action(p.id, function(v) engine[p.id](v - 1); re() end)
+      elseif p.level then
+        level.add(p.id, p.name, p.default, function(a) engine[p.id](a); re() end)
       else
         params:add_control(p.id, p.name, controlspec.new(p.min, p.max, p.warp or "lin", p.step, p.default, p.unit or ""))
         params:set_action(p.id, function(v) engine[p.id](p.step == 1 and math.floor(v) or v); re() end)
@@ -2433,10 +2461,6 @@ function init()
       end
       re()
     end
-  end
-
-  local function db_action(name)
-    return function(v) engine[name](db_to_lin(v)); re() end
   end
 
   local function add_engine_ctrl(id, name, mn, mx, warp, step, default, unit)
@@ -2483,28 +2507,35 @@ function init()
   local function setup_amp()
     nam.install()
     nam.scan()
-    params:add_group("AMP", 12)
+    params:add_group("AMP", 18)
     params:add_separator("amp_sep_control", "─── Control ───")
     params:add_option("amp_enable", "Engage", {"Bypass", "Active"}, 2)
     params:set_action("amp_enable", function(v) engine.amp_bypass(2 - v); re() end)
-    params:add_option("amp_type", "Amp", nam.available() and {"Internal", "NAM"} or {"Internal"}, 1)
+    params:add_option("amp_type", "Amp", {"Internal", "NAM", "Strip"}, 1)
     params:add_option("amp_model", "Model", nam.options(), 1)
+    local function show(ids, on)
+      for _, id in ipairs(ids) do if on then params:show(id) else params:hide(id) end end
+    end
     local function amp_select()
-      local on = params:get("amp_type") == 2
+      local kind = amp_kind()
+      local on, st = kind == "nam", kind == "strip"
       nam.select(on, params:get("amp_model"))
-      for _, id in ipairs({"amp_model", "amp_nam_cab", "amp_mid", "amp_mid_freq"}) do
-        if on then params:show(id) else params:hide(id) end
-      end
-      if on then params:hide("amp_rectifier") else params:show("amp_rectifier") end
+      engine.strip_cal(chstrip.CAL)
+      engine.strip_on(st and 1 or 0)
+      show({"amp_model", "amp_nam_cab", "amp_mid", "amp_mid_freq"}, on)
+      show({"amp_volume", "amp_bass", "amp_treble", "amp_master"}, not st)
+      show({"amp_rectifier"}, kind == "int")
+      show(chstrip.IDS, st)
       local ad = PERF_DEVICES[PERF_INDEX_OF.AMP]
-      ad.params = on and ad.params_nam or ad.params_int
+      ad.params = st and ad.params_strip or on and ad.params_nam or ad.params_int
+      ad.name = st and "Strip" or "Amp"
       dev_param_sel.AMP = util.clamp(dev_param_sel.AMP or 1, 1, #ad.params)
       perf_param[PERF_INDEX_OF.AMP] = util.clamp(perf_param[PERF_INDEX_OF.AMP] or 1, 1, #ad.params)
       if not initing and STUDIO_DEVICES[studio_sel].abbr == "AMP" then studio_apply() end
       chain_cache = nil
       if cab_refresh then cab_refresh() end
-      if dev_hidden("CAB") and STUDIO_DEVICES[studio_sel].abbr == "CAB" then focus_studio_device("AMP") end
-      if dev_hidden("CAB") and PERF_DEVICES[perf_sel].abbr == "CAB" then perf_sel = PERF_INDEX_OF.AMP end
+      if dev_hidden(STUDIO_DEVICES[studio_sel].abbr) then focus_studio_device("AMP") end
+      if dev_hidden(PERF_DEVICES[perf_sel].abbr) then perf_sel = PERF_INDEX_OF.AMP end
       if not initing then _menu.rebuild_params() end
       re()
     end
@@ -2530,9 +2561,22 @@ function init()
     params:hide("amp_mid")
     params:hide("amp_mid_freq")
     add_engine_ctrl("amp_treble", "Treble", 0, 10, "lin", 0.1, 5.0)
-    add_engine_ctrl("amp_master", "Master", 0, 10, "lin", 0.1, 7.5)
+    level.add("amp_master", "Master", 0, function(a) engine.amp_master(a); re() end)
     params:add_option("amp_rectifier", "Rectifier", {"Tube 5Y3", "Tube 5U4", "Silicon"}, 2)
     params:set_action("amp_rectifier", function(v) engine.amp_rectifier(v - 1); re() end)
+    -- Strip: one linked set for both channels. The cuts sweep exponentially, so a tick moves
+    -- both ends of the range by the same musical distance.
+    for _, q in ipairs({ { "gain", "Gain", -12, 24, "lin", 0.5, 0, "dB" }, { "even", "Even Harmonics", 0, 10, "lin", 0.1, 0, "" },
+                         { "odd", "Odd Harmonics", 0, 10, "lin", 0.1, 5, "" }, { "lowcut", "Low Cut", 20, 1000, "exp", 0, 80, "Hz" },
+                         { "highcut", "High Cut", 1000, 20000, "exp", 0, 12000, "Hz" } }) do
+      local id = "strip_" .. q[1]
+      local quantum = q[6] > 0 and q[6] / (q[4] - q[3]) or 0.01
+      params:add_control(id, q[2], controlspec.new(q[3], q[4], q[5], q[6], q[7], q[8], quantum))
+      params:set_action(id, function(v) engine[id](v); re() end)
+      params:hide(id)
+    end
+    level.add("strip_level", "Level", 0, function(a) engine.strip_level(a); re() end)
+    params:hide("strip_level")
   end
 
   local function setup_tremolo()
@@ -2549,7 +2593,6 @@ function init()
   local function setup_looper()
     looper_params.setup({
       re                   = re,
-      db_to_lin            = db_to_lin,
       is_initing           = function() return initing end,
       group_label = "LOOP",
       on_quant_div_changed = function() lfo.refresh_dropdowns_for_device("Loop") end,
@@ -2597,8 +2640,7 @@ function init()
     params:set_action("cab_mode", function() cab_refresh(); re() end)
     params:add_option("mic_position", "Mic Position", MIC_NAMES, 2)
     params:set_action("mic_position", function(v) engine.mic_position(v - 1); re() end)
-    params:add_control("cab_level", "Cab Level", controlspec.new(-10, 10, "lin", 0.5, 0, "dB"))
-    params:set_action("cab_level", db_action("cab_level"))
+    level.add("cab_level", "Cab Level", 0, function(a) engine.cab_level(a); re() end)
   end
 
   local function setup_envelop()
@@ -2726,8 +2768,7 @@ function init()
     params:set_action(p .. "interp", function(v) engine.hold_interp(idx, (v == 2) and 4 or 2); re() end)
     params:add_control(p .. "gain", "Gain", controlspec.new(0, 10, "lin", 0.1, 5))
     params:set_action(p .. "gain", function(v) engine.hold_gain(idx, v); re() end)
-    params:add_control(p .. "level", "Level", controlspec.new(0, 10, "lin", 0.1, 5))
-    params:set_action(p .. "level", function(v) engine.hold_level(idx, v); re() end)
+    level.add(p .. "level", "Level", 0, function(a) engine.hold_level(idx, a); re() end)
     params:add_control(p .. "rise", "Rise", controlspec.new(0.01, 5.0, "exp", 0.01, 0.25, "s"))
     params:set_action(p .. "rise", function(v) engine.hold_rise(idx, v); re() end)
     params:add_control(p .. "fall", "Fall", controlspec.new(0.01, 5.0, "exp", 0.01, 2.5, "s"))
@@ -2764,7 +2805,7 @@ function init()
     params:set_action("fray_octave_mode", function(v) engine.fray_octave_mode(v - 1); re() end)
     add_engine_ctrl("fray_gate",   "Gate",   0, 10, "lin", 0.1, 0)
     add_engine_ctrl("fray_tone",   "Tone",   0, 10, "lin", 0.1, 10)
-    add_engine_ctrl("fray_volume", "Volume", 0, 10, "lin", 0.1, 5)
+    level.add("fray_volume", "Volume", 0, function(a) engine.fray_volume(a); re() end)
   end
 
   local function setup_metro()
@@ -2809,8 +2850,7 @@ function init()
     params:set_action("count_chords", function(_) lfo.count.chords = nil end)
 
     params:add_separator("count_sep_sound", "─── Sound ───")
-    params:add_control("count_level", "Level", controlspec.new(0, 10, "lin", 0.1, 5.0, ""))
-    params:set_action("count_level", function(_) lfo.count.level = nil; re() end)
+    level.add("count_level", "Level", 0, function() lfo.count.level = nil; re() end)
     params:add_control("count_length", "Length", controlspec.new(1, 500, "lin", 1, 50, "ms"))
     params:set_action("count_length", function(_) lfo.count.length = nil end)
     params:add_option("count_position", "Position", {"Parallel", "Inline"}, 1)
@@ -2837,7 +2877,21 @@ function init()
     local inputs = {"Mono", "Stereo"}
     for _, vc in ipairs(VOICES) do inputs[#inputs + 1] = vc.name end
     params:add_option("signal_input", "Input", inputs, 1)
+    -- Stereo and the voices want a desk channel rather than a guitar amp, so turning Route to them
+    -- puts the Strip in the amp slot. Back on Mono the amp from before returns, unless the slot
+    -- has changed hands meanwhile.
+    local amp_before
+    local function route_amp(v)
+      local at = params:get("amp_type")
+      if v >= 2 then
+        if at ~= 3 then amp_before = at; params:set("amp_type", 3) end
+      else
+        if at == 3 and amp_before then params:set("amp_type", amp_before) end
+        amp_before = nil
+      end
+    end
     params:set_action("signal_input", function(v)
+      if not (initing or params.pset_loading) then route_amp(v) end
       local vc = VOICES[v - 2]
       engine.voice(vc and vc.id or "")
       if not params.pset_loading then params:set("signal_voice", vc and vc.id or "") end
@@ -2845,16 +2899,13 @@ function init()
       synth.set_voice(vc)
       re()
     end)
-    params:add_control("input_trim", "Input Trim", controlspec.new(-75, 10, "lin", 0.5, 0, "dB"))
-    params:set_action("input_trim", db_action("input_trim"))
+    level.add("input_trim", "Input Trim", 0, function(a) engine.input_trim(a); re() end)
     params:add_option("fx_send_a_source", "Send A Source", {"Input", "Loop", "Output"}, 3)
     params:set_action("fx_send_a_source", function(v) engine.fx_send_a_source(v - 1); re() end)
-    params:add_control("fx_send_a_level", "Send A Level", controlspec.new(-60, 10, "lin", 0.5, 0, "dB"))
-    params:set_action("fx_send_a_level", db_action("fx_send_a_level"))
+    level.add("fx_send_a_level", "Send A Level", 0, function(a) engine.fx_send_a_level(a); re() end)
     params:add_option("fx_send_b_source", "Send B Source", {"Input", "Loop", "Output"}, 3)
     params:set_action("fx_send_b_source", function(v) engine.fx_send_b_source(v - 1); re() end)
-    params:add_control("fx_send_b_level", "Send B Level", controlspec.new(-60, 10, "lin", 0.5, 0, "dB"))
-    params:set_action("fx_send_b_level", db_action("fx_send_b_level"))
+    level.add("fx_send_b_level", "Send B Level", 0, function(a) engine.fx_send_b_level(a); re() end)
   end
 
   -- The Keys are invisible: no pane, only a menu group, active while a voice is the input. They
@@ -2921,8 +2972,9 @@ function init()
         params:add_control(id, e.name, controlspec.new(e.hz[1], e.hz[2], "exp", 0, e.hz[3], "Hz"), form_hz)
         conv = function(v) return fmt.nice(v, true) end
       elseif e.db then
-        params:add_control(id, e.name, controlspec.new(-60, 6, "lin", 0.5, e.db, "dB"))
-        conv = db_to_lin
+        params:add_control(id, e.name, level.spec(e.db))
+        params:lookup_param(id).formatter = function(p) return level.str(p:get()) end
+        conv = level.amp
       else
         params:add_control(id, e.name, controlspec.new(e.min or 0, e.max or 100, "lin", e.step or 1, e.default, e.unit or "%"), e.fmt)
         conv = function(v) return v * (e.scale or 0.01) end
@@ -3791,6 +3843,19 @@ function init()
     p.time = 1 / 15
     tape_polls[ch] = p
   end
+  local strip_polls = {}
+  for ch, name in ipairs({ "strip_out_l", "strip_out_r", "strip_drive_l", "strip_drive_r" }) do
+    local p = poll.set(name, function(v) chstrip.lvl[ch] = v end)
+    p.time = 1 / 15
+    strip_polls[ch] = p
+  end
+  local rev_poll = poll.set("reverb_level", function(v) chstrip.rev.level = v end)
+  rev_poll.time = 1 / 15
+  -- the Strip's units or the spring tank, whichever the amp slot shows right now
+  local function strip_shown(abbr)
+    return gui_mode == 1 and not mod_open and view_group == 0 and view_pane[0] == 1
+       and amp_kind() == "strip" and STUDIO_DEVICES[studio_sel].abbr == (abbr or "AMP")
+  end
   local poll_open = {}
   local function gate(list, on)
     for _, p in ipairs(list) do
@@ -3811,6 +3876,8 @@ function init()
     gate(bld_polls,  params:get("bld_enable") == 2)
     gate(tape_polls, pane_shown(4) and params:get("tape_enable") == 2)
     gate(evp_list,   pane_shown(5) and params:get("evp_enable") == 2)
+    gate(strip_polls, strip_shown() and not amp_is_bypassed())
+    gate({ rev_poll }, strip_shown("RVB") and params:get("reverb_enable") == 2)
   end
   gate_polls()
   clock.run(function()
@@ -3829,6 +3896,11 @@ function init()
       elseif not initing and gui_mode == 1 and not mod_open
          and view_group == DEV_GROUP and view_pane[DEV_GROUP] == 5 then
         evp_tick(1 / 15)
+        redraw()
+      elseif not initing and strip_shown() then
+        redraw()
+      elseif not initing and strip_shown("RVB") then
+        chstrip.rev.t = chstrip.rev.t + 1 / 15
         redraw()
       elseif strip_live and not initing then
         redraw()

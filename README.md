@@ -22,9 +22,9 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
 
 **Pedalboard.** Four effects sit between the input and the amp, paired by character: Push and Distort handle gain, Warp and Repeat handle modulation. Each is independently bypassable. Open the pedalboard view from any other view with K2 (gain pair) or K3 (modulation pair) held; the pedal you are working on shows its lit knob, and its name stands in the strip on the left.
 
-**Amp.** A small American combo from the early 1960s. Volume below 3.5 stays clean; past 5.5 it begins to break up, so single-coils clip lightly at the default when you dig in. Bass and Treble at 5 give the open Fender voice; below 3 they cut. The mid-scoop in the tone stack is fixed. With NamAmp installed, the Amp can instead run a Neural Amp Modeler capture (`.nam` file) of any amp you like, with Mid and Mid Freq added to its tone controls.
+**Amp.** A small American combo from the early 1960s. Volume below 3.5 stays clean; past 5.5 it begins to break up, so single-coils clip lightly at the default when you dig in. Bass and Treble at 5 give the open Fender voice; below 3 they cut. The mid-scoop in the tone stack is fixed. With NamAmp installed, the Amp can instead run a Neural Amp Modeler capture (`.nam` file) of any amp you like, with Mid and Mid Freq added to its tone controls. For synths and DI'd sources the slot also holds the Strip, a linked pair of clean studio preamps (see [Strip](#strip)).
 
-**Tremolo.** Bias-style amplitude modulation, always available at the output of the amp. Intensity defaults to 0, so nothing is happening until you turn it up. Up to 15 % the dry signal fades while the tremolo blends in; past 15 % it's pure tremolo with rising depth. Peaks stay at full amplitude. Speed defaults to 2.5 Hz and can sync to the Norns clock.
+**Tremolo.** Bias-style amplitude modulation, always available at the output of the amp. Intensity defaults to 0, so nothing is happening until you turn it up. Up to 15 % the dry signal fades while the tremolo blends in; past 15 % it's pure tremolo with rising depth. Peaks stay at full amplitude. Speed defaults to 2.5 Hz and can sync to the Norns clock. While the Strip stands in for the amp, the tremolo steps out of the chain.
 
 **Hold.** Two granular momentary freezes in parallel, sitting between Tremolo and Loop and capturing the fully amped, post-tremolo tone. The pads feed the looper as well, so recording or overdubbing while a pad is held prints it into the loop; a loop that is only playing leaves it out. Switch one to Active and it grabs the last second or so you played and sustains it as a granular pad while the live signal keeps passing through underneath, so you can play over the held sound. Gain drives the pad into a soft saturation for body, Level sets its place in the mix, Size sets grain length, Density how thickly the grains overlap, Spread scatters their onsets in time, and Shape swaps the grain window for a softer, swelling, plucked or flatter character. Pitch transposes the pad by up to two octaves either way, and Pitch Mix decides how much of it is shifted. The pad fades in over Rise and out over Fall; re-engaging during a Fall crossfades the old freeze into the new one, and Recapture grabs a fresh freeze without letting go first. Movement lets Size, Density and Spread drift slowly around their settings so a long pad keeps breathing. Run both instances at once, with different Size, Shape or Pitch, to layer two complementary freezes.
 
@@ -95,6 +95,9 @@ The looper carries the script. Six storage media (BBD, Cassette, CD, Chip, Tape,
                                                           ▼
                                                         OUT L/R
 
+  The amp slot holds the combo, a NAM capture or the Strip. With the Strip, Tremolo and
+  Cab & Mic drop out and its own Level replaces Master gain.
+
   Route picks what enters the chain:
     Mono    guitar at IN L, instrument level
     Stereo  IN L and IN R, line level, stereo through pedals and amp
@@ -127,16 +130,16 @@ Studio and Stage share the same four controls. E1 always walks the signal chain,
 | **E3** | Change its value |
 | **K1 hold 2s** | Mod Rack on / off, from either view |
 | **K1 + K3 hold 2s** | Add modulation to the focused parameter |
-| **K2** | Second function of the focused device: tap tempo (Warp, Repeat, Tremolo, Count), Freeze (Reverb, Build, Mesmerize), Recapture (Hold), stop / start (Tape), Internal / NAM (Amp), reference to 440 Hz (Tune), mute while held (Cut), next mic position (Cab & Mic); Loop: stop → clear, held for two seconds: undo the last overdub. Nothing on Fray, Push, Distort and Route |
-| **K3** | Toggle the focused device on or off; on Loop, step the transport; nothing on Route |
+| **K2** | Second function of the focused device: tap tempo (Warp, Repeat, Tremolo, Count), Freeze (Reverb, Build, Mesmerize), Recapture (Hold), stop / start (Tape), Internal → NAM → Strip (Amp), reference to 440 Hz (Tune), mute while held (Cut), next mic position (Cab & Mic); Loop: stop → clear, held for two seconds: undo the last overdub. Nothing on Fray, Push, Distort and Route |
+| **K3** | Toggle the focused device on or off; on Loop, step the transport the moment it goes down; nothing on Route |
 
-**E1** runs through every device in signal order: Route, Tune, Count, Cut, Fray, Push, Distort, Warp, Repeat, Amp, Tremolo, Hold 1, Hold 2, Loop, Reverb, Cab & Mic, Tape, Build, Mesmerize. The views are only the frame around them, which is why the cabinet is entered twice: once for Amp and Tremolo, and again after Hold and Loop for Reverb and Cab & Mic. Route opens the chain on a view of its own. Devices that share a view appear together: Tune beside Count, Cut beside Fray, the pedals in pairs, Hold 1 beside Hold 2, and Build above Mesmerize in a rack; Tape fills a view of its own. When a NAM capture brings its own cabinet, Cab & Mic drops out of the chain (see [NAM](#nam)). Entering a device lands on its first parameter, or on the one you left it on. **E2 reaches every parameter a device owns**, including those the cabinet has no knob for: Tremolo's Sync and Feel, Reverb's Low and High Shelf, and Cab Level. Those show in the left readout while the panel highlight stays on the device's last real knob.
+**E1** runs through every device in signal order: Route, Tune, Count, Cut, Fray, Push, Distort, Warp, Repeat, Amp, Tremolo, Hold 1, Hold 2, Loop, Reverb, Cab & Mic, Tape, Build, Mesmerize. The views are only the frame around them, which is why the cabinet is entered twice: once for Amp and Tremolo, and again after Hold and Loop for Reverb and Cab & Mic. Route opens the chain on a view of its own. Devices that share a view appear together: Tune beside Count, Cut beside Fray, the pedals in pairs, Hold 1 beside Hold 2, and Build above Mesmerize in a rack; Tape fills a view of its own. When a NAM capture brings its own cabinet, Cab & Mic drops out of the chain (see [NAM](#nam)); with the [Strip](#strip) in the amp's place, Tremolo and Cab & Mic both drop out. Entering a device lands on its first parameter, or on the one you left it on. **E2 reaches every parameter a device owns**, including those the cabinet has no knob for: Tremolo's Sync and Feel, Reverb's Low and High Shelf, and Cab Level. Those show in the left readout while the panel highlight stays on the device's last real knob.
 
 When a source in the Mod Rack (or a Hold's Movement) is moving the focused parameter, the readout shows the live, modulated value with a dim **M** in front of it. Turn the knob and for two seconds it shows the base value you are setting instead, dimmed, with a **B**; then it returns to the live value. A source that is switched off leaves no mark, even while its target stays assigned.
 
 The Stage chain shows the same order minus Route and Count: Route holds settings rather than an effect, and Count produces no sound of its own and sits outside the audio path.
 
-**K3** toggles whatever is focused, so a bypass is always one press away; **K2** works the focused device's second function. **Loop is the exception**: there K3 steps the transport through record → play → dub, and K2 stops then clears; holding K2 for two seconds undoes the last overdub. On Tune, K3 switches the mute and K2 sets the reference back to 440 Hz. On **Warp, Repeat and Tremolo**, K2 taps the tempo (see [Tap tempo](#tap-tempo)); on **Count** it taps the BPM, one tap per beat. On the **Amp**, K2 switches between Internal and NAM (when NAM is available). On **Hold 1** and **Hold 2**, a short K2 recaptures the freeze; on **Tape**, it stops or restarts the tape; on **Reverb**, **Build** and **Mesmerize**, it switches Freeze. On **Cut**, K2 mutes the output for as long as it is held, a kill switch. On **Cab & Mic**, K2 steps the mic position. The drives (Fray, Push, Distort) leave K2 free. **Route** is a place for settings rather than an effect, so K2 and K3 do nothing there; E3 changes the input.
+**K3** toggles whatever is focused, so a bypass is always one press away; **K2** works the focused device's second function. **Loop is the exception**: there K3 steps the transport through record → play → dub as soon as it is pressed, not on release, and K2 stops then clears; holding K2 for two seconds undoes the last overdub. On Tune, K3 switches the mute and K2 sets the reference back to 440 Hz. On **Warp, Repeat and Tremolo**, K2 taps the tempo (see [Tap tempo](#tap-tempo)); on **Count** it taps the BPM, one tap per beat. On the **Amp**, K2 steps Internal → NAM → Strip (NAM only when it is available). On **Hold 1** and **Hold 2**, a short K2 recaptures the freeze; on **Tape**, it stops or restarts the tape; on **Reverb**, **Build** and **Mesmerize**, it switches Freeze. On **Cut**, K2 mutes the output for as long as it is held, a kill switch. On **Cab & Mic**, K2 steps the mic position. The drives (Fray, Push, Distort) leave K2 free. **Route** is a place for settings rather than an effect, so K2 and K3 do nothing there; E3 changes the input.
 
 **K1 held for two seconds** opens the Mod Rack over either view and closes it again. The rack shows only what is patched and opens straight into the first source, in the order Sense, LFO, Walk, Trigger. With nothing patched it says **Empty**. To remove a source, hold K1 and K3 on its parameter (for a Trigger, on its device) and choose **Remove**: the source lets go of its target, switches off and returns to its factory settings, so the next one starts fresh.
 
@@ -160,6 +163,10 @@ princeton's tuner runs its own pitch detector inside the engine on a boosted, ba
 ## Parameters
 
 Parameters are listed in PARAMS menu order.
+
+**Levels.** Every control that sets how loud something is, from Input Trim and the sends through the pedal levels, Hold, Loop, Master and Cab Level to the voices, shares one scale: −75 to +10 dB with 0 dB as the default, and 0 dB always sounds the way the device did at its old default. The scale is laid out like a console fader. Above −20 dB a tick moves 0.5 dB, below it 1 dB, and the very bottom is silence, shown as −inf. A mapped MIDI knob sweeps the whole travel with 0 dB at about 83 %.
+
+**One step for everyone.** A control moves the same way wherever you turn it: the encoder in PARAMS, E3 on princeton's own screens, a knob on lcx, and a mapped MIDI CC all follow the control's own scale. Knobs on a 0–10 scale move 0.1 a tick, percentages 1 %, and frequencies and times sweep exponentially, about 1 % of their travel per tick. Only two places step on purpose: a rate under a sync division steps through the divisions, and Build's Time moves in twelfths of a doubling.
 
 ### GUI
 
@@ -189,21 +196,21 @@ How princeton meets your hands and your MIDI controller. Nothing here touches th
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Input** | Mono | Mono / Stereo / one entry per installed voice, by name |
-| **Input Trim** | 0 dB | -75 to +10 dB |
+| **Input Trim** | 0 dB | −75 to +10 dB, fader taper |
 | **Send A Source** | Output | Input / Loop / Output |
-| **Send A Level** | 0 dB | -60 to +10 dB |
+| **Send A Level** | 0 dB | −75 to +10 dB, fader taper |
 | **Send B Source** | Output | Input / Loop / Output |
-| **Send B Level** | 0 dB | -60 to +10 dB |
+| **Send B Level** | 0 dB | −75 to +10 dB, fader taper |
 
 **Mono** uses the left input only at instrument level. This is the default, designed for a guitar plugged into the L jack. **Stereo** opens both inputs at line level (about 10 dB lower) and routes a symmetric stereo path through Push, Distort, Warp, Repeat, and the amp. The tremolo's left/right pingpong, the looper's stereo buffer, and the reverb stay unchanged in either mode. Choosing a **voice** (one entry per installed voice mod, listed by name in alphabetical order) mutes the hardware inputs and feeds the chain in stereo from that voice instead, played over MIDI through [Keys](#keys) (see [Voices](#voices)); the Sense envelope followers then track the voice. Only one voice sounds at a time, and switching away silences it. With no voice mod installed the list ends at Stereo.
 
-**Input Trim** scales the signal as it enters the chain, before every pedal and the amp. It sits at instrument level by default (0 dB) and runs from -75 dB (near silence) to +10 dB. Being a plain control, it maps to a MIDI CC in the usual PARAMS way, so a MIDI expression pedal on Input Trim becomes a volume pedal in front of the whole chain. The tuner reads the raw input ahead of the trim, so tuning still works with the trim pulled all the way down; the Sense envelope followers and the metronome click are unaffected for the same reason. Input Trim acts on the hardware inputs only; a voice sets its own level in its PARAMS group.
+**Input Trim** scales the signal as it enters the chain, before every pedal and the amp. It sits at instrument level by default (0 dB) and runs from −75 dB, where it is off, to +10 dB. Being a plain control, it maps to a MIDI CC in the usual PARAMS way, so a MIDI expression pedal on Input Trim becomes a volume pedal in front of the whole chain. The tuner reads the raw input ahead of the trim, so tuning still works with the trim pulled all the way down; the Sense envelope followers and the metronome click are unaffected for the same reason. Input Trim acts on the hardware inputs only; a voice sets its own level in its PARAMS group.
 
 The two pixels on the amp panel reflect the active inputs. The left pixel always lights; the right pixel lights only in Stereo.
 
-**Send A** and **Send B** route to the two Norns send buses, which a compatible fx mod can read in its send a or send b slot. Each send picks its source independently: **Input** is the post-pedal signal feeding the amp, **Loop** is the looper output on its own, and **Output** is the full mix at OUT L/R. **Level** scales the send from -60 dB (effectively off) up to +10 dB. With both sends at their defaults (Output, 0 dB) each carries the full output at unity, the same as before the sources became selectable.
+**Send A** and **Send B** route to the two Norns send buses, which a compatible fx mod can read in its send a or send b slot. Each send picks its source independently: **Input** is the post-pedal signal feeding the amp, **Loop** is the looper output on its own, and **Output** is the full mix at OUT L/R. **Level** scales the send from −75 dB (off) up to +10 dB. With both sends at their defaults (Output, 0 dB) each carries the full output at unity.
 
-**fx mod.** The sends reach an fx mod through its send buses `~sendA` and `~sendB`. The mod is optional, and princeton adapts to whichever version is installed, no patch needed. Without the mod both sends simply rest while everything else works as usual. If a send bus of the mod lands on the Norns input or output (older versions of the mod put `~sendA` on the input bus), princeton gives that send a free bus of its own and points the mod's plugins there while princeton runs; on exit it hands the mod its original bus back. What princeton found is written to the SuperCollider log in maiden at every start, one line per send.
+**fx mod.** The sends reach an fx mod through its send buses `~sendA` and `~sendB`. The mod is optional, and princeton adapts to whichever version is installed, no patch needed. Without the mod both sends simply rest while everything else works as usual. If a send bus of the mod lands on the Norns input or output (some versions of the mod put `~sendA` on the input bus), princeton gives that send a free bus of its own and points the mod's plugins there while princeton runs; on exit it hands the mod its original bus back. What princeton found is written to the SuperCollider log in maiden at every start, one line per send.
 
 **Route** (RTE) is the first device of the Studio chain and holds all six parameters; they are also in PARAMS and MAP. Route is drawn as a white panel, which sets it apart from the effects as a place for settings, and it shows the routing rather than knobs; the values appear in the readout on the left. Both halves read from top to bottom, the way the signal flows, with straight lines and right angles only. The left half shows the input at the top: a jack that splits halfway down to L and R for Mono, two jacks running straight down for Stereo, a small module for any voice. The right half shows the sends: three taps at the top, ∨ (Input), ∞ (Loop) and ∧ (Output), with a line from the chosen tap down to A and to B, bending halfway. A tap that neither send uses is greyed out; when both sends take the same tap, its line splits. Where the two send lines would cross, the horizontal one leaves a small gap so you can follow each. **K3** steps the input through Mono, Stereo and each installed voice, then back to Mono. Route is not part of the Stage chain.
 
@@ -262,7 +269,7 @@ A voice chosen in Route but missing in SuperCollider stays silent, and princeton
 | **Engage** | Off | Off / On |
 | **BPM** | 120 | 20–300 |
 | **Division** | 1/4 | 1/1 / 1/2 / 1/4 / 1/8 / 1/16 |
-| **Level** | 5.0 | 0–10 |
+| **Level** | 0 dB | −75 to +10 dB, fader taper |
 | **Root** | C | C / C# / D / D# / E / F / F# / G / G# / A / A# / B |
 | **Register** | 3 | 0 / 1 / 2 / 3 / 4 / 5 / 6 / 7 |
 | **Length** | 50 ms | 1–500 ms |
@@ -285,7 +292,7 @@ The next three parameters turn the metro from a click into a small voice. They b
 
 Because Root, Register, Level, Length, Scale, Chords, and Scale Play are all Mod Rack targets, Count becomes a playable voice: an LFO on Count: Root transposes the whole line, one on Count: Register shifts its octave, and slow LFOs on Scale, Chords, or Scale Play evolve the pattern over time. Stack it on the loop and the rest of the rack and Count is a built-in practice partner.
 
-When the Norns clock is running, **Division** sets the click subdivision relative to the clock; the metro stays in lockstep with any synced effect. With the clock stopped it free-runs at **BPM**. BPM sits first in the Count strip (E3). With the internal clock, turning it sets the Norns tempo, so every synced effect follows; with MIDI clock it follows the incoming tempo and only takes over while the clock is stopped. Old PSETs that stored BPM as text still load.
+When the Norns clock is running, **Division** sets the click subdivision relative to the clock; the metro stays in lockstep with any synced effect. With the clock stopped it free-runs at **BPM**. BPM sits first in the Count strip (E3). With the internal clock, turning it sets the Norns tempo, so every synced effect follows; with MIDI clock it follows the incoming tempo and only takes over while the clock is stopped.
 
 ### Cut
 
@@ -316,7 +323,7 @@ A gate at the front of the signal chain, before Push, bypassed by default. The d
 | **Oct Mode** | Up | Down / Up / Both |
 | **Gate** | 0 | 0–10 |
 | **Tone** | 10 | 0–10 |
-| **Volume** | 5.0 | 0–10 |
+| **Volume** | 0 dB | −75 to +10 dB, fader taper |
 
 A deliberately unstable fuzz in the Fuzz Factory tradition, sitting between Cut and Push and bypassed by default. Where Push is a compressed overdrive and Distort a hard clipper, Fray is the third kind: a starved circuit that spits, chokes and, pushed far enough, sings on its own.
 
@@ -326,7 +333,7 @@ A deliberately unstable fuzz in the Fuzz Factory tradition, sitting between Cut 
 
 **Octave** sets how much of an added octave is blended in, and **Oct Mode** picks which one. **Up** rectifies the signal to double its frequency, the classic octave fuzz; it speaks clearest at moderate Drive, because a fully squared signal has little left to rectify, so back Drive off if the octave gets lost. **Down** clocks a flip-flop divider off the zero crossings for a sub-octave, as in an analogue octave pedal, and follows your dynamics rather than sitting at a fixed level. **Both** mixes the two for a wide, slightly unhinged stack. At Octave 0 the switch does nothing.
 
-**Gate** chokes the decay rather than letting it fizzle out, and reads the input rather than the fuzz, so it cuts note tails instead of strangling the distortion. **Tone** is a low-pass after the fuzz, fully open by default and reaching down to 750 Hz; its top sits at 7.5 kHz because the input stage already band-limits the whole chain there, so there is nothing above that to keep. **Volume** sets the output level. At 5.0 Fray sits about 1 dB above the clean amp with its default settings, so switching it on adds a slight lift rather than a jump; pull Volume down as Drive goes up.
+**Gate** chokes the decay rather than letting it fizzle out, and reads the input rather than the fuzz, so it cuts note tails instead of strangling the distortion. **Tone** is a low-pass after the fuzz, fully open by default and reaching down to 750 Hz; its top sits at 7.5 kHz because the input stage already band-limits the whole chain there, so there is nothing above that to keep. **Volume** sets the output level. At 0 dB Fray sits about 1 dB above the clean amp with its default settings, so switching it on adds a slight lift rather than a jump; pull Volume down as Drive goes up.
 
 Gate and Stab are the two worth handing to the [Mod Rack](#mod-rack): an LFO on Gate gives rhythmic stutter, and one on Stab makes the circuit wander in and out of oscillation. All seven continuous parameters are Mod Rack and Sense targets, Oct Mode being a plain switch, and a **Fray: Toggle** trigger can switch the whole pedal in and out.
 
@@ -341,10 +348,10 @@ Being bypassed by default it costs nothing until engaged: like Push and Distort 
 | **Push Engage** | Bypass | Bypass / Active |
 | **Gain** | 5.0 | 0–10 |
 | **Tone** | 5.0 | 0–10 |
-| **Level** | 5.0 | 0–10 |
+| **Level** | 0 dB | −75 to +10 dB, fader taper |
 | **Comp** | 5.0 | 0–10 |
 
-A compressor and an overdrive in one: the signal is squeezed, then driven into a soft saturation. Tone tilts the voice around 700 Hz, from warm and full to tight and cutting. Comp sets how hard Push squeezes the signal before it saturates: low values let the pick attack through, high values even out the dynamics into a steady sustain. The gain reduction follows the envelope of your playing, not every single wave. At the default Level of 5.0 Push sits about 0.5 to 1 dB above the clean amp, a slight lift rather than a jump.
+A compressor and an overdrive in one: the signal is squeezed, then driven into a soft saturation. Tone tilts the voice around 700 Hz, from warm and full to tight and cutting. Comp sets how hard Push squeezes the signal before it saturates: low values let the pick attack through, high values even out the dynamics into a steady sustain. The gain reduction follows the envelope of your playing, not every single wave. At the default Level of 0 dB Push sits about 0.5 to 1 dB above the clean amp, a slight lift rather than a jump.
 
 ### Distort
 
@@ -353,10 +360,10 @@ A compressor and an overdrive in one: the signal is squeezed, then driven into a
 | **Distort Engage** | Bypass | Bypass / Active |
 | **Gain** | 5.0 | 0–10 |
 | **Tone** | 7.5 | 0–10 |
-| **Level** | 5.0 | 0–10 |
+| **Level** | 0 dB | −75 to +10 dB, fader taper |
 | **Low Cut** | Off | Off / 100 Hz / 250 Hz |
 
-Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, murky) to 5000 Hz (open, cutting). Low Cut applies a post-drive high-pass filter to remove accumulated sub-bass. At the default Level of 5.0 Distort sits about 0.5 to 1 dB above the clean amp.
+Hard clipping distortion. Tone sweeps a low-pass filter from 300 Hz (muffled, murky) to 5000 Hz (open, cutting). Low Cut applies a post-drive high-pass filter to remove accumulated sub-bass. At the default Level of 0 dB Distort sits about 0.5 to 1 dB above the clean amp.
 
 ### Warp
 
@@ -386,7 +393,7 @@ Set **Sync** to a division to lock Rate to the Norns clock. See [Synchronization
 | **Repeat Engage** | Bypass | Bypass / Active |
 | **Time** | 250 ms | 1–1000 ms |
 | **Feedback** | 50 % | 0–100 % |
-| **Level** | 50 % | 0–100 % |
+| **Level** | 0 dB | −75 to +10 dB, fader taper |
 | **Color** | Bright | Bright / Dark |
 | **Mod Depth** | 10 % | 0–100 % |
 | **Mod Rate** | 2.5 Hz | 0.1–10 Hz |
@@ -428,7 +435,7 @@ To tap from a footswitch, map the **Tap** entry of Warp or Repeat to a CC (see [
 | Parameter | Default | Range / Options |
 |-----------|---------|-----------------|
 | **Engage** | Active | Active / Bypass |
-| **Amp** | Internal | Internal / NAM (see [NAM](#nam)) |
+| **Amp** | Internal | Internal / NAM / Strip (see [NAM](#nam), [Strip](#strip)) |
 | **Model** | first capture | one entry per `.nam` file (NAM only) |
 | **Cab Sim** | Auto | Auto / On / Off (NAM only) |
 | **Volume** | 5.0 | 0–10 |
@@ -436,12 +443,36 @@ To tap from a footswitch, map the **Tap** entry of Warp or Repeat to a CC (see [
 | **Mid** | 5.0 | 0–10 (NAM only) |
 | **Mid Freq** | 750 Hz | 250–4000 Hz (NAM only) |
 | **Treble** | 5.0 | 0–10 |
-| **Master** | 7.5 | 0–10 |
+| **Master** | 0 dB | −75 to +10 dB, fader taper (Internal and NAM) |
 | **Rectifier** | Tube 5U4 | Tube 5Y3 / Tube 5U4 / Silicon (Internal only) |
+| **Gain** | 0 dB | −12 to +24 dB (Strip only) |
+| **Even Harmonics** | 0.0 | 0–10 (Strip only) |
+| **Odd Harmonics** | 5.0 | 0–10 (Strip only) |
+| **Low Cut** | 80 Hz | 20–1000 Hz (Strip only) |
+| **High Cut** | 12 kHz | 1–20 kHz (Strip only) |
+| **Level** | 0 dB | −75 to +10 dB, fader taper (Strip only) |
+
+Volume, Bass, Treble and Master belong to the amp and step back while the Strip plays.
 
 A dedicated **Engage** toggle (AMP group) lives in the PARAMS menu for MIDI mapping. Same behaviour as Reverb and Tremolo bypass.
 
 **Rectifier** picks the rectifier in the amp's power supply, which sets how far the supply voltage sags when you dig in and how quickly it recovers. **Tube 5Y3** is the stock Princeton: the deepest and slowest sag, the least headroom, an earlier break-up and a looser low end. **Tube 5U4** is the Princeton Reverb's rectifier and the amp as it always sounded. **Silicon** barely sags and recovers fast, for more headroom, a tighter attack and a firm low end, the direction of the early Princeton-based Boogie conversions with their bigger power stage. The three settings are level-matched at medium drive, so switching changes the feel, not the volume. Rectifier is set in the PARAMS menu only and is a Mod Rack target (Amp: Rectifier).
+
+#### Strip
+
+![Strip: two rack channels, left above right, each with its meter](docs/img/amp_strip.png)
+
+The combo can also step aside for a studio channel strip, the way a synth or a DI'd guitar goes straight to the desk. Two slim preamp units take its place, the left channel above the right, linked like a stereo pair: one Gain, Even and Odd Harmonics, Low Cut, High Cut and Level drive both. Each unit shows its output on a fine LED bar, whose top segment also lights once Gain pushes the console stage into rounding off, the Gain in dB as digits, five knobs, and the engage LED on the right. The cuts sweep without steps, 12 dB per octave.
+
+**Odd Harmonics** sets how early the stage bends its peaks symmetrically, the bright, glassy grain of a console; quiet playing keeps its level, only the peaks give. **Even Harmonics** leans the curve to one side and adds the second harmonic, the warmer, rounder colour of a transformer. Both sit before the cuts, so Low and High Cut shape the result without changing how hard the stage is driven.
+
+Route makes the choice for you: turning its input to Stereo or to a voice puts the Strip in the amp slot, and turning it back to Mono returns the amp you had before. A Strip chosen by hand stays.
+
+At 0 dB the strip is as loud as the amp at its default knobs, measured with the same plucked test signal. Playing much harder comes out a little hotter than through the amp, because the strip does not compress the way a small combo does.
+
+The strip carries no tremolo and no speaker, so Tremolo and Cab & Mic leave the chain while it plays and return with the amp. Reverb keeps its place and turns into a spring tank: its four knobs and the Freeze LED in a row on top, the pan below with two springs between their transducers that swing with the reverb and glow while Freeze keeps them ringing.
+
+![Reverb with the Strip: a spring tank under its control plate](docs/img/reverb_tank.png)
 
 #### NAM
 
@@ -499,7 +530,7 @@ Both instances share the same parameter set, in the PARAMS groups **HOLD 1** and
 | **Shape** | Smooth | Smooth / Soft / Swell / Pluck / Plateau |
 | **Resolution** | Fine | Coarse / Fine |
 | **Gain** | 5 | 0–10 |
-| **Level** | 5 | 0–10 |
+| **Level** | 0 dB | −75 to +10 dB, fader taper |
 | **Rise** | 0.25 s | 0.01–5.0 s (exp) |
 | **Fall** | 2.5 s | 0.01–5.0 s (exp) |
 
@@ -527,9 +558,9 @@ Each Hold is a full [Mod Rack](#mod-rack) target (Size, Density, Spread, Pitch, 
 | **Play From** | Start | Start / Cue |
 | **Mode** | Overdub | Overdub / Overwrite / Sample / Resample |
 | **Direction** | Forward | Forward / Reverse / Pendulum / Random |
-| **Rec Level** | −2.5 dB | −40–0 dB |
-| **Play Level** | −2.5 dB | −40–0 dB |
-| **Fade Level** | −2.5 dB | −40–0 dB |
+| **Rec Level** | −2.5 dB | −75 to +10 dB, fader taper |
+| **Play Level** | −2.5 dB | −75 to +10 dB, fader taper |
+| **Fade Level** | −2.5 dB | −75 to +10 dB, fader taper |
 | **Speed** | 0 % | −100–+100 % |
 | **Speed Control** | Steps | Steps / Smooth |
 
@@ -779,7 +810,7 @@ Eight LFOs, each with the following parameters:
 
 The target list adapts to the state of the destination. For another LFO, only the parameters relevant to its current shape appear: Phase and Rate Slew on the periodic and smooth-random shapes, Steps and Stability on Stepped Random. Rate is hidden once the destination is synced. Sync Division and Sync Feel are exposed as targets only when sync is already active on the destination, on Tremolo, Warp, Repeat, the looper, and other LFOs alike, so modulation reshapes a sync grid that you have already chosen rather than switching sync on or off. A Sync or Quant target can never be moved to **Off** by modulation; only a manual edit can. If a destination changes in a way that retires the current target (the waveform changes, sync turns off, the synced rate disappears), the LFO falls back to the first parameter still available.
 
-Every modulation source (LFO, Sense, Walk and Trigger) stores its target by name in the PSET, not by its position in the dropdown. The dropdowns only list free targets and so change order all the time; the name lets a PSET find the same target again on load. Older PSETs without names still load as before.
+Every modulation source (LFO, Sense, Walk and Trigger) stores its target by name in the PSET, not by its position in the dropdown. The dropdowns only list free targets and so change order all the time; the name lets a PSET find the same target again on load.
 
 ### Walk
 

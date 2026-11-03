@@ -7,7 +7,7 @@ local FULL = 15
 local NUM_AMP_KNOBS = 8
 
 -- The box every pane stands in, x 44..125 and y 2..61, filled by one device or shared by two
--- halves. CAB.y sits one row low because devices have always been drawn one row above their y.
+-- halves. CAB.y sits one row low because devices are drawn one row above their y.
 cabinet.CAB = { x = 44, y = 3, w = 82, h = 59 }
 local CAB = cabinet.CAB
 local TOP = CAB.y - 1
